@@ -1,0 +1,7 @@
+{
+  "name": "plugin-owl",
+  "version": "0.0.0",
+  "description": "Captures work for OnePeek: closed-vocabulary tags only, redacted on the device.",
+  "author": { "name": "OnePeek" },
+  "license": "Apache-2.0"
+}
