@@ -1,4 +1,4 @@
-# CodeRabbit review settings. Shared base for every OnePeek repo, plus this repo's rules.
+# CodeRabbit review settings: the same base in every OnePeek repo, plus this repo's own rules.
 # Schema: https://coderabbit.ai/integrations/schema.v2.json
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 language: "en-GB"
@@ -21,20 +21,14 @@ reviews:
     auto_incremental_review: true
     drafts: false
     base_branches:
-      - "dev"
-      - "release"
-      - "main"
+      - "^dev$"
+      - "^release$"
+      - "^main$"
   path_filters:
-    - "!**/pnpm-lock.yaml"
-    - "!**/uv.lock"
-    - "!**/.terraform.lock.hcl"
     - "!**/node_modules/**"
     - "!**/.next/**"
     - "!**/dist/**"
     - "!**/build/**"
-  path_instructions:
-    - path: "**/*"
-      instructions: "This repo is public. Flag anything that could send a user's code or data off their machine without consent, any weakening of the redaction rules, and any secret or internal detail in code, tests or docs."
   tools:
     gitleaks:
       enabled: true
@@ -52,6 +46,9 @@ reviews:
       enabled: true
     semgrep:
       enabled: true
+  path_instructions:
+    - path: "**/*"
+      instructions: "This repo is public. Flag anything that could send a user's code or data off their machine without consent, any weakening of the redaction rules, and any secret or internal detail in code, tests or docs."
 chat:
   auto_reply: true
   allow_non_org_members: false
@@ -60,11 +57,11 @@ knowledge_base:
     enabled: true
     filePatterns:
       - "**/AGENTS.md"
-      - "docs/**/*.md"
+      - "onepeek-docs:standards/*.md"
   learnings:
-    scope: "global"
+    scope: "auto"
   pull_requests:
-    scope: "global"
+    scope: "auto"
   linked_repositories:
     - repository: "OnePeek/onepeek-docs"
-      instructions: "The source of truth: founder decisions, the PRD, the TRD, contracts and standards (engineering-standards, configuration-and-secrets, branching-and-delivery). Check changes against them."
+      instructions: "The source of truth: founder decisions, the PRD, the TRD, contracts and standards. Check changes against them."
