@@ -28,7 +28,7 @@ These principles grow over time: when a review teaches us something, add it here
 
 ## Branches and CI
 Follow `onepeek-docs/standards/branching-and-delivery.md`. Branch from `dev` as `<type>/<topic>` and open pull requests into `dev`; they run the fast checks. A release is a pull request from `dev` to `release`; merging it tags a version and publishes the plug-in release.
-- Workflows: `.github/workflows/checks.yml` calls the shared workflows in `OnePeek/.github`; `release.yml` runs on merges into `release`.
+- Workflows: `.github/workflows/checks.yml` calls the shared workflows in `OnePeek/.github`, pinned to a commit SHA; `release.yml` runs on merges into `release`.
 - Hooks: run `uvx lefthook install` once after cloning; format, lint and secret checks then run before each commit.
 - Dependabot opens grouped weekly updates into `dev`.
 
