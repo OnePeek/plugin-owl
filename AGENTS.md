@@ -2,9 +2,16 @@
 
 The Claude Code plug-in that captures work for OnePeek (tier 4). Session-end hooks send closed-vocabulary tags only, redacted on the device, signed and chained, through the MCP `log_work` tool. It is open source so anyone can audit what it sends.
 
-## Start here
-- For any detail (what to build, how it behaves, names, data, limits), look in `onepeek-docs` first: the sibling folder `../onepeek-docs` or https://github.com/OnePeek/onepeek-docs. Begin with `standards/engineering-standards.md` and `standards/repo-map.md`, then grep and read only the files the task needs.
-- If the docs are silent, unclear or disagree with the code, don't guess: ask, or open a docs pull request.
+## Start here (mandatory, before any change)
+
+1. **Read this file.**
+2. **Read this repo's guide** for the area you will touch:
+   - `docs/guidelines.md` (structure, privacy rules and tests)
+3. **Read `onepeek-docs/standards/code-guidelines.md`** (how all OnePeek code is designed and written), then the **spec for your task** in `onepeek-docs` (sibling folder `../onepeek-docs`, or https://github.com/OnePeek/onepeek-docs): the PRD use case, the TRD section, the HLD and the contract. Grep, then read only what you need.
+4. **If the docs are silent, unclear or disagree with the code, stop and ask**, or open a docs pull request. Never invent a requirement, field, limit or name.
+5. **In the pull request, list the docs you read.** A change made without steps 1–3 is not done.
+
+**Documents:** this repo holds only its own guides (`docs/`). Anything shared by two or more repos goes in `onepeek-docs`. Never add plans, notes or summaries.
 
 ## Built from
 The plug-in section of `onepeek-docs/trd/services/clients.md`, the work-log plug-in spec, and `contracts/mcp/` (`log_work`).
