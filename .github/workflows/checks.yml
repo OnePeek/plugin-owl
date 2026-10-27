@@ -1,0 +1,18 @@
+# Checks on every pull request (branching-and-delivery standard §4).
+# Fast checks into dev; into release the shared workflows also run their slower extras.
+name: checks
+
+on:
+  pull_request:
+    branches: [dev, release]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    uses: OnePeek/.github/.github/workflows/secret-scan.yml@61cfa32e96ef341ec6d25eedf0c5ba01ad4c9c11 # shared workflows, main 2026-10-27
