@@ -1,0 +1,20 @@
+# Runs when a release pull request is merged into release (branching-and-delivery standard §5).
+# Deploy jobs are added here in Phase E; until then a merge only tags the version.
+name: release
+
+on:
+  push:
+    branches: [release]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    permissions:
+      contents: write
+    uses: OnePeek/.github/.github/workflows/release-tag.yml@v1

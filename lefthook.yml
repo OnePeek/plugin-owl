@@ -1,0 +1,12 @@
+# Pre-commit hooks, the same on macOS, Windows and Linux (branching-and-delivery standard §4).
+# Install once per clone: `uvx lefthook install` (or `npx lefthook install`).
+pre-commit:
+  parallel: true
+  commands:
+    gitleaks:
+      run: |
+        if command -v gitleaks >/dev/null 2>&1; then
+          gitleaks git --pre-commit --staged --redact --no-banner
+        else
+          echo "gitleaks is not installed locally; CI will scan this change."
+        fi
