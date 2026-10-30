@@ -11,7 +11,7 @@ The Claude Code plug-in that captures work for OnePeek (tier 4). Session-end hoo
 4. **If the docs are silent, unclear or disagree with the code, stop and ask**, or open a docs pull request. Never invent a requirement, field, limit or name.
 5. **In the pull request, list the docs you read.** A change made without steps 1–3 is not done.
 
-**Docs and code in step:** follow `onepeek-docs/standards/spec-to-code.md`. No code for a unit before its LLD (`onepeek-docs/trd/lld/`) is merged; implement exactly the LLD; if the code needs something the docs do not say, change the docs first; move `docs-version.txt` to the docs commit you implement.
+**Docs and code in step:** follow `onepeek-docs/standards/spec-to-code.md`. Before any task read the technical HLD (`architecture/hld/`, at least 04 agents and MCP, 11 security) and its client LLD in `architecture/lld/clients/` (not written yet: no code until it is merged). No code for a unit before its LLD (`onepeek-docs/architecture/lld/`) is merged; implement exactly the LLD; if the code needs something the docs do not say, change the docs first; move `docs-version.txt` to the docs commit you implement.
 
 **Documents:** this repo holds only its own guides (`docs/`). Anything shared by two or more repos goes in `onepeek-docs`. Never add plans, notes or summaries.
 
