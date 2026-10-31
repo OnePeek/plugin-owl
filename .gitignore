@@ -6,3 +6,6 @@ dist/
 .env.*
 *.log
 .DS_Store
+
+# Task packets from the build kit (packet.py); regenerated, never committed
+.context/
