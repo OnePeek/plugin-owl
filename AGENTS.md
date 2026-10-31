@@ -37,6 +37,8 @@ These principles grow over time: when a review teaches us something, add it here
 
 ## Build kit (`onepeek-docs/standards/spec-to-code.md` §6)
 **One stage at a time** (`onepeek-docs/standards/development-cycle.md`): start a unit only when everything it depends on is finished and it is yours (`owner` on its entry in `architecture/lld/status.yaml`); close every design gap before building; at most two review rounds; stop and report at the agreed time limit.
+
+**Change sets** (`onepeek-docs/standards/development-cycle.md` §2a, decision 136): a unit's docs pull request and its pull request in every repo it touches stay open together; gaps and review fixes are new commits on those same pull requests, never new ones; `docs-version.txt` points at the docs pull request's latest commit; they merge together in one sitting, docs first (merge commit), then code. AI agents run as the workspace `AGENTS.md` "Running agents" says.
 Claude Code runs these steps as the skill `/build-from-lld` (agents `builder` and `spec-reviewer`); other tools and people follow the same steps by hand. The shared skills are synced from `OnePeek/.github` (`workspace/setup.py --sync-repos`): edit them there, not here.
 - **Unit:** `clients/worklog-plugin`.
 - **Packet:** `python3 ../.github/workspace/packet.py <unit> --out .context/<name>.md` builds it from the docs at the commit in `docs-version.txt`. Read all of it before writing code.
