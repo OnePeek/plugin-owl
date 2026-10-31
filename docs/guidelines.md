@@ -4,33 +4,39 @@ How code in this repo is structured and written. It applies `onepeek-docs/standa
 
 ## 1. What the plug-in does (and never does)
 
-- At session end it turns the session into **closed-vocabulary tags**, redacts on the device, signs and chains the record, and sends it through the MCP `log_work` tool.
+- Hooks only enqueue; a background helper turns each session into **closed-vocabulary IDs and bands**, redacts on the device, signs and chains the record, and sends it through the MCP `log_work` tool.
 - It **never** sends source code, file contents, prompts, paths, secrets or free text. If in doubt, it sends nothing.
 - It **never gets in the way**: any failure is silent to the person and their session carries on.
 
 ## 2. Folders
 
+The layout is fixed by `onepeek-docs/architecture/lld/clients/worklog-plugin.md` §5.1 (TypeScript on Node 22; the only runtime dependency is the official MCP SDK, bundled):
+
 ```
-.claude-plugin/plugin.json   the plug-in manifest
-hooks/hooks.json             hook registration only; each hook calls one entry script
-hooks/<event>.*              thin entry scripts: read the event, call redact/, call send
-redact/
-  vocabulary.*               the closed tag vocabulary (the only words that may leave)
-  classify.*                 session -> tags, pure functions
-  redact.*                   final allow-list filter: anything not in the vocabulary is dropped
-sign/                        signing and chaining of records
-send/                        the only module that talks to the network (log_work)
-tests/
-  privacy/                   proofs that nothing outside the vocabulary leaves, on hostile fixtures
-  unit/
+.claude-plugin/plugin.json       the manifest: hooks, skill, MCP server (the helper)
+hooks/hooks.json                 Stop, PreCompact, SessionEnd, SessionStart → hooks/enqueue (one entry)
+skills/onepeek-worklog/SKILL.md  "Log this now", /onepeek-connect, /onepeek-status, /onepeek-pause
+src/
+  hook/enqueue.ts                read the hook event, append to the session queue, exit 0 within budget
+  signals/                       measured signals from the queue and git (pure)
+  vocabulary/                    the closed vocabulary and bands (from wrk.vocab)
+  record/                        build the tier 4 record from signals + vocabulary only (allow-list, pure)
+  scrub/                         denylist, blocklist, learned project names: the second fail-closed layer (pure)
+  sign/                          RFC 8785 canonical JSON, SHA-256, Ed25519, chain head
+  spool/                         encrypted, ordered, idempotent by record hash
+  auth/                          OAuth 2.1 PKCE loopback, refresh, OS key store
+  send/                          the ONLY network module: Grant token endpoint and MCP log_work
+  helper/                        stdio MCP server + CLI (connect, status, pause, flush)
+tests/privacy/                   hostile fixtures: only vocabulary values may leave (the merge gate)
+tests/unit/
 ```
 
-- **Allow-list, never deny-list:** output is built only from vocabulary terms; nothing is "cleaned".
-- `send/` is the only module with network access; everything before it is pure and testable.
+- **Allow-list, never deny-list:** output is built only from vocabulary terms and bands; nothing is "cleaned". `scrub/` is a second, independent check.
+- `send/` is the only module with network access (a lint rule enforces it); everything before it is pure and testable.
 
 ## 3. Rules
 
-- Standard library only, unless a dependency is approved in the pull request and pinned.
+- Node standard library only, plus the pinned MCP SDK; any other dependency is approved in the pull request and pinned.
 - No telemetry, no analytics, no other network call.
 - No secrets in the repo; signing keys live on the person's machine, never in code.
 - Hooks finish fast and time out quietly.

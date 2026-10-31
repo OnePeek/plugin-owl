@@ -1,6 +1,6 @@
 # AGENTS.md: plugin-owl
 
-The Claude Code plug-in that captures work for OnePeek (tier 4). Session-end hooks send closed-vocabulary tags only, redacted on the device, signed and chained, through the MCP `log_work` tool. It is open source so anyone can audit what it sends.
+The Claude Code plug-in that captures work for OnePeek (tier 4). Hooks only enqueue; a background helper sends closed-vocabulary IDs and bands only, scrubbed on the device, signed and chained, through the MCP `log_work` tool (LLD `clients/worklog-plugin.md`). It is open source so anyone can audit what it sends.
 
 ## Start here (mandatory, before any change)
 
@@ -19,8 +19,8 @@ The Claude Code plug-in that captures work for OnePeek (tier 4). Session-end hoo
 The plug-in section of `onepeek-docs/trd/services/clients.md`, the work-log plug-in spec, and `contracts/mcp/` (`log_work`).
 
 ## Layout
-- `hooks/`: the session-end hooks.
-- `redact/`: on-device redaction and the closed tag vocabulary.
+- `hooks/`: hook registration (enqueue only); `skills/`: the plug-in's commands.
+- `src/`: signals, vocabulary, record, scrub, sign, spool, auth, send (the only network module) and the helper (LLD §5.1).
 - `tests/`: proofs that no source code, file content or secret ever leaves the device.
 
 ## Principles
@@ -34,6 +34,15 @@ These principles grow over time: when a review teaches us something, add it here
 - Sending source code, file contents, prompts or anything outside the closed vocabulary.
 - Failing loudly: when blocked, it stays silent and the person uses tiers 1 to 3.
 - Holding any secret in this public repo.
+
+## Build kit (`onepeek-docs/standards/spec-to-code.md` §6)
+Claude Code runs these steps as the skill `/build-from-lld` (agents `builder` and `spec-reviewer`); other tools and people follow the same steps by hand. The shared skills are synced from `OnePeek/.github` (`workspace/setup.py --sync-repos`): edit them there, not here.
+- **Unit:** `clients/worklog-plugin`.
+- **Packet:** `python3 ../.github/workspace/packet.py <unit> --out .context/<name>.md` builds it from the docs at the commit in `docs-version.txt`. Read all of it before writing code.
+- **Gates** (all must pass before the pull request, and CI runs them):
+  - none yet (see below).
+- No build scripts exist yet. The first build task adds them exactly as the LLD's §5.1 layout and §15 testing plan require (`lint`, `typecheck`, `test`, and the privacy suite in `tests/privacy/`, which blocks every merge), plus the CI no-evasion check (WRK 38), and lists them here in the same pull request.
+- **Review:** `/review-spec <unit>` with only the packet and the diff; the pull request needs the verdict "ready".
 
 ## Branches and CI
 Follow `onepeek-docs/standards/branching-and-delivery.md`. Branch from `dev` as `<type>/<topic>` and open pull requests into `dev`; they run the fast checks. A release is a pull request from `dev` to `release`; merging it tags a version and publishes the plug-in release.
@@ -51,4 +60,4 @@ Read `onepeek-docs/standards/engineering-standards.md` (https://github.com/OnePe
 - **Pull requests.** Every change goes through a pull request; before launch, review is optional and CodeRabbit is advisory (decision 124). People and AI agents never commit, push, merge or deploy without an explicit instruction.
 
 ## Status
-Minimal scaffold: the plug-in manifest, an empty `hooks/hooks.json`, `redact/` and `tests/`. Code starts at low-level design, following the build order in TRD §9.1.
+Minimal scaffold: the plug-in manifest, an empty `hooks/hooks.json`, `redact/` and `tests/` (the first build moves to the LLD §5.1 `src/` layout and removes `redact/`). Code starts at low-level design, following the build order in TRD §9.1.
