@@ -5,8 +5,8 @@ pre-commit:
   commands:
     gitleaks:
       run: |
-        if command -v gitleaks >/dev/null 2>&1; then
-          gitleaks git --pre-commit --staged --redact --no-banner
-        else
-          echo "gitleaks is not installed locally; CI will scan this change."
+        if ! command -v gitleaks >/dev/null 2>&1; then
+          echo "gitleaks is not installed: brew install gitleaks (or see https://github.com/gitleaks/gitleaks#installing)" >&2
+          exit 1
         fi
+        gitleaks git --pre-commit --staged --redact --no-banner
