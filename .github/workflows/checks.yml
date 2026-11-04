@@ -6,7 +6,7 @@ name: checks
 on:
   pull_request:
     branches: [dev, release]
-    types: [opened, edited, reopened, synchronize] # editing the body re-checks its Depends on lines (§8a P1)
+    types: [opened, reopened, synchronize] # never edited: ship_change_set.py re-runs checks when a dependency merges (§8a P1, L27)
   push:
     branches: [dev, release]
 
@@ -20,18 +20,21 @@ permissions:
 jobs:
   depends-on:
     # Declared dependencies first (playbook §8a P1): while a `Depends on:` pull request is unmerged, nothing else runs.
-    uses: OnePeek/.github/.github/workflows/depends-on.yml@18d1b2dac0c6e03d4ddfc9da72d7edc333a056d3 # v1.9.0
+    permissions:
+      contents: read
+      pull-requests: read # the live pull request body (L27)
+    uses: OnePeek/.github/.github/workflows/depends-on.yml@0839e0265cc997bbc2586edfc1d26c87fc04386c # v1.10.1
     secrets:
       AGENTS_APP_CLIENT_ID: ${{ secrets.AGENTS_APP_CLIENT_ID }}
       AGENTS_APP_PRIVATE_KEY: ${{ secrets.AGENTS_APP_PRIVATE_KEY }}
   pins:
     # OnePeek/.github pins are one v* tag; docs-version.txt is on docs main on pushes and release pull requests (§8a P2, S4).
     needs: depends-on
-    uses: OnePeek/.github/.github/workflows/pins.yml@18d1b2dac0c6e03d4ddfc9da72d7edc333a056d3 # v1.9.0
+    uses: OnePeek/.github/.github/workflows/pins.yml@0839e0265cc997bbc2586edfc1d26c87fc04386c # v1.10.1
     secrets:
       AGENTS_APP_CLIENT_ID: ${{ secrets.AGENTS_APP_CLIENT_ID }}
       AGENTS_APP_PRIVATE_KEY: ${{ secrets.AGENTS_APP_PRIVATE_KEY }}
   secrets:
     needs: depends-on
     if: github.event_name == 'pull_request'
-    uses: OnePeek/.github/.github/workflows/secret-scan.yml@18d1b2dac0c6e03d4ddfc9da72d7edc333a056d3 # v1.9.0
+    uses: OnePeek/.github/.github/workflows/secret-scan.yml@0839e0265cc997bbc2586edfc1d26c87fc04386c # v1.10.1
