@@ -23,18 +23,18 @@ jobs:
     permissions:
       contents: read
       pull-requests: read # the live pull request body (L27)
-    uses: OnePeek/.github/.github/workflows/depends-on.yml@1b8396a37c76bd90eddde113245cef8d3a025fb0 # v1.13.4
+    uses: OnePeek/.github/.github/workflows/depends-on.yml@23f150dac91eadce64b83f43f877fc7edbc3de5a # v1.13.5
     secrets:
       AGENTS_APP_CLIENT_ID: ${{ secrets.AGENTS_APP_CLIENT_ID }}
       AGENTS_APP_PRIVATE_KEY: ${{ secrets.AGENTS_APP_PRIVATE_KEY }}
   pins:
     # OnePeek/.github pins are one v* tag; docs-version.txt is on docs main on pushes and release pull requests (§8a P2, S4).
     needs: depends-on
-    uses: OnePeek/.github/.github/workflows/pins.yml@1b8396a37c76bd90eddde113245cef8d3a025fb0 # v1.13.4
+    uses: OnePeek/.github/.github/workflows/pins.yml@23f150dac91eadce64b83f43f877fc7edbc3de5a # v1.13.5
     secrets:
       AGENTS_APP_CLIENT_ID: ${{ secrets.AGENTS_APP_CLIENT_ID }}
       AGENTS_APP_PRIVATE_KEY: ${{ secrets.AGENTS_APP_PRIVATE_KEY }}
   secrets:
     needs: depends-on
     if: github.event_name == 'pull_request'
-    uses: OnePeek/.github/.github/workflows/secret-scan.yml@1b8396a37c76bd90eddde113245cef8d3a025fb0 # v1.13.4
+    uses: OnePeek/.github/.github/workflows/secret-scan.yml@23f150dac91eadce64b83f43f877fc7edbc3de5a # v1.13.5
