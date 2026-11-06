@@ -4,6 +4,8 @@ The Claude Code plug-in that captures work for OnePeek (tier 4). Hooks only enqu
 
 ## Start here (mandatory, before any change)
 
+**First, every session: read `onepeek-docs/standards/operating-model.md` (decision 174) and follow your role's skill (`/build-task`, `/review-task`; the orchestrator `/orchestrate`, the shipper `/ship`).**
+
 1. **Read this file.**
 2. **Read this repo's guide** for the area you will touch:
    - `docs/guidelines.md` (structure, privacy rules and tests)
