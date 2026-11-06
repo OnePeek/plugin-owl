@@ -2,6 +2,12 @@
 
 The Claude Code plug-in that captures work for OnePeek (tier 4). Hooks only enqueue; a background helper sends closed-vocabulary IDs and bands only, scrubbed on the device, signed and chained, through the MCP `log_work` tool (LLD `clients/worklog-plugin.md`). It is open source so anyone can audit what it sends.
 
+## Before anything (every person and AI agent; decision 171)
+Read `onepeek-docs/standards/agent-operations.md` (your role's sections) and `OnePeek/.github` `workspace/pitfalls.md` first, and follow them strictly. This binds the main session (the coordinator), every background agent, and every teammate's tools.
+- A builder states what it read, with the commit, on its report's first line.
+- It never waits silently: it keeps a status file and hands back `BLOCKED` within about 5 minutes of waiting on CI or a dependency.
+- It passes the done-gate before reporting, scaled to the change's class (`agent-operations.md` §5.4a).
+
 ## Start here (mandatory, before any change)
 
 1. **Read this file.**
