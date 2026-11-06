@@ -7,6 +7,7 @@ Read `onepeek-docs/standards/agent-operations.md` (your role's sections) and `On
 - A builder states what it read, with the commit, on its report's first line.
 - It never waits silently: it keeps a status file and hands back `BLOCKED` within about 5 minutes of waiting on CI or a dependency.
 - It passes the done-gate before reporting, scaled to the change's class (`agent-operations.md` §5.4a).
+- **Checks:** the done-gate's pushed-equals-reported rule is automated (`done_check.py`). The `Read:` line, the status file and the `BLOCKED` hand-back are review-only, checked by the coordinator's check-in and the independent reviewer (`agent-operations.md` §2 F12, F22).
 
 ## Start here (mandatory, before any change)
 
