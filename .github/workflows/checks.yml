@@ -28,7 +28,7 @@ jobs:
       AGENTS_APP_CLIENT_ID: ${{ secrets.AGENTS_APP_CLIENT_ID }}
       AGENTS_APP_PRIVATE_KEY: ${{ secrets.AGENTS_APP_PRIVATE_KEY }}
   pins:
-    # OnePeek/.github pins are one v* tag; docs-version.txt is on docs main on pushes and release pull requests (§8a P2, S4).
+    # OnePeek/.github pins are one v* tag; docs-version.txt is on docs dev on pushes and release pull requests (§8a P2, S4).
     needs: depends-on
     uses: OnePeek/.github/.github/workflows/pins.yml@c9293b450d3289a528c9b1a3df15573391c50973 # v1.24.1
     secrets:
