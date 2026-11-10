@@ -23,18 +23,27 @@ jobs:
     permissions:
       contents: read
       pull-requests: read # the live pull request body (L27)
-    uses: OnePeek/.github/.github/workflows/depends-on.yml@cc551375c913de21aaa5f7ff790ed12d909663f0 # v1.24.6
+    uses: OnePeek/.github/.github/workflows/depends-on.yml@be88022bb83d9e779caee4e7a7e4a366eba0254d # v1.26.1
     secrets:
       AGENTS_APP_CLIENT_ID: ${{ secrets.AGENTS_APP_CLIENT_ID }}
       AGENTS_APP_PRIVATE_KEY: ${{ secrets.AGENTS_APP_PRIVATE_KEY }}
-  pins:
-    # OnePeek/.github pins are one v* tag; docs-version.txt is on docs dev on pushes and release pull requests (§8a P2, S4).
+  fast:
+    # The tiny checks as steps of one job (delivery-pipelines.md §9.1 "Tiny jobs merged", rulings R-S2i-1, R-S2i-2 and
+    # R-S2i-6): pins (OnePeek/.github pins are one v* tag; docs-version.txt is on docs dev on pushes and release pull
+    # requests, §8a P2, S4) and the gitleaks secrets scan on pull requests (tree-only, it skips itself on a dev ->
+    # release promotion pull request, §8.1; the `secrets` job below covers that). Each check runs even when the other
+    # failed; the job fails when any did. Check name `fast / fast`.
     needs: depends-on
-    uses: OnePeek/.github/.github/workflows/pins.yml@cc551375c913de21aaa5f7ff790ed12d909663f0 # v1.24.6
+    uses: OnePeek/.github/.github/workflows/fast-checks.yml@be88022bb83d9e779caee4e7a7e4a366eba0254d # v1.26.1
+    with:
+      pins: true
+      secrets: ${{ github.event_name == 'pull_request' }}
     secrets:
-      AGENTS_APP_CLIENT_ID: ${{ secrets.AGENTS_APP_CLIENT_ID }}
+      AGENTS_APP_CLIENT_ID: ${{ secrets.AGENTS_APP_CLIENT_ID }} # the agents' App: the docs rule of pins (§8a S6)
       AGENTS_APP_PRIVATE_KEY: ${{ secrets.AGENTS_APP_PRIVATE_KEY }}
   secrets:
+    # R-S2iC-1 / F305: gitleaks on every pull request into release, a dev -> release promotion included, where fast's
+    # secrets step skips itself (§8.1). Removed only in the change set that adds certification and release-gate here.
     needs: depends-on
-    if: github.event_name == 'pull_request'
-    uses: OnePeek/.github/.github/workflows/secret-scan.yml@cc551375c913de21aaa5f7ff790ed12d909663f0 # v1.24.6
+    if: github.event_name == 'pull_request' && github.base_ref == 'release'
+    uses: OnePeek/.github/.github/workflows/secret-scan.yml@be88022bb83d9e779caee4e7a7e4a366eba0254d # v1.26.1
