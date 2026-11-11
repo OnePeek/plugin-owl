@@ -10,7 +10,7 @@ How code in this repo is structured and written. It applies `onepeek-docs/standa
 
 ## 2. Folders
 
-The layout is fixed by [`docs/lld.md`](lld.md) §5.1 (TypeScript on Node 22; the only runtime dependency is the official MCP SDK, bundled):
+The layout is fixed by `onepeek-docs/architecture/lld/clients/worklog-plugin.md` §5.1 (TypeScript on Node 22; the only runtime dependency is the official MCP SDK, bundled):
 
 ```
 .claude-plugin/plugin.json       the manifest: hooks, skill, MCP server (the helper)
