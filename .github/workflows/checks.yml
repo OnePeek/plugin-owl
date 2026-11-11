@@ -18,32 +18,34 @@ permissions:
   contents: read
 
 jobs:
-  depends-on:
-    # Declared dependencies first (playbook §8a P1): while a `Depends on:` pull request is unmerged, nothing else runs.
-    permissions:
-      contents: read
-      pull-requests: read # the live pull request body (L27)
-    uses: OnePeek/.github/.github/workflows/depends-on.yml@be88022bb83d9e779caee4e7a7e4a366eba0254d # v1.26.1
-    secrets:
-      AGENTS_APP_CLIENT_ID: ${{ secrets.AGENTS_APP_CLIENT_ID }}
-      AGENTS_APP_PRIVATE_KEY: ${{ secrets.AGENTS_APP_PRIVATE_KEY }}
   fast:
     # The tiny checks as steps of one job (delivery-pipelines.md §9.1 "Tiny jobs merged", rulings R-S2i-1, R-S2i-2 and
-    # R-S2i-6): pins (OnePeek/.github pins are one v* tag; docs-version.txt is on docs dev on pushes and release pull
-    # requests, §8a P2, S4) and the gitleaks secrets scan on pull requests (tree-only, it skips itself on a dev ->
+    # R-S2i-6): pins (OnePeek/.github pins are one v* tag, §8a P2; the docs-version.txt rule is gone, PIPE-SIMPLE v2
+    # DOC-1) and the gitleaks secrets scan on pull requests (tree-only, it skips itself on a dev ->
     # release promotion pull request, §8.1; the `secrets` job below covers that). Each check runs even when the other
     # failed; the job fails when any did. Check name `fast / fast`.
-    needs: depends-on
-    uses: OnePeek/.github/.github/workflows/fast-checks.yml@be88022bb83d9e779caee4e7a7e4a366eba0254d # v1.26.1
+    uses: OnePeek/.github/.github/workflows/fast-checks.yml@edd2b7191ea1baaafe9df15147e8cde4d17e5457 # v1.27.0
     with:
       pins: true
       secrets: ${{ github.event_name == 'pull_request' }}
-    secrets:
-      AGENTS_APP_CLIENT_ID: ${{ secrets.AGENTS_APP_CLIENT_ID }} # the agents' App: the docs rule of pins (§8a S6)
-      AGENTS_APP_PRIVATE_KEY: ${{ secrets.AGENTS_APP_PRIVATE_KEY }}
   secrets:
     # R-S2iC-1 / F305: gitleaks on every pull request into release, a dev -> release promotion included, where fast's
     # secrets step skips itself (§8.1). Removed only in the change set that adds certification and release-gate here.
-    needs: depends-on
     if: github.event_name == 'pull_request' && github.base_ref == 'release'
-    uses: OnePeek/.github/.github/workflows/secret-scan.yml@be88022bb83d9e779caee4e7a7e4a366eba0254d # v1.26.1
+    uses: OnePeek/.github/.github/workflows/secret-scan.yml@edd2b7191ea1baaafe9df15147e8cde4d17e5457 # v1.27.0
+  ready:
+    # `ci / ready`, the one summary row the merge tool reads (PIPE-SIMPLE v2 D6): every other job of this workflow
+    # passed, or was skipped by its own `if:` and is listed under skippable. A job skipped because one it needs failed
+    # fails here too. Table: job | result | how to reproduce locally (OnePeek/.github scripts/ready.py).
+    name: ci
+    if: ${{ always() }}
+    needs: [fast, secrets]
+    permissions:
+      contents: read
+    uses: OnePeek/.github/.github/workflows/ready.yml@edd2b7191ea1baaafe9df15147e8cde4d17e5457 # v1.27.0
+    with:
+      needs: ${{ toJSON(needs) }} # no runner: a public repo runs on GitHub-hosted runners only (ready.yml default)
+      skippable: secrets
+      reproduce: |
+        fast: vanguard local-ci <worktree> --jobs fast
+        secrets: gitleaks git (lefthook pre-commit runs it)
