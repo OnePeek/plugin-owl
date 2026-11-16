@@ -24,7 +24,7 @@ jobs:
     # DOC-1) and the gitleaks secrets scan on pull requests (tree-only, it skips itself on a dev ->
     # release promotion pull request, §8.1; the `secrets` job below covers that). Each check runs even when the other
     # failed; the job fails when any did. Check name `fast / fast`.
-    uses: OnePeek/.github/.github/workflows/fast-checks.yml@edd2b7191ea1baaafe9df15147e8cde4d17e5457 # v1.27.0
+    uses: OnePeek/.github/.github/workflows/fast-checks.yml@403d1bfcb8cea07a7317f6f55d96d7e2de054a71 # v1.28.1
     with:
       pins: true
       secrets: ${{ github.event_name == 'pull_request' }}
@@ -32,7 +32,7 @@ jobs:
     # R-S2iC-1 / F305: gitleaks on every pull request into release, a dev -> release promotion included, where fast's
     # secrets step skips itself (§8.1). Removed only in the change set that adds certification and release-gate here.
     if: github.event_name == 'pull_request' && github.base_ref == 'release'
-    uses: OnePeek/.github/.github/workflows/secret-scan.yml@edd2b7191ea1baaafe9df15147e8cde4d17e5457 # v1.27.0
+    uses: OnePeek/.github/.github/workflows/secret-scan.yml@403d1bfcb8cea07a7317f6f55d96d7e2de054a71 # v1.28.1
   ready:
     # `ci / ready`, the one summary row the merge tool reads (PIPE-SIMPLE v2 D6): every other job of this workflow
     # passed, or was skipped by its own `if:` and is listed under skippable. A job skipped because one it needs failed
@@ -42,7 +42,7 @@ jobs:
     needs: [fast, secrets]
     permissions:
       contents: read
-    uses: OnePeek/.github/.github/workflows/ready.yml@edd2b7191ea1baaafe9df15147e8cde4d17e5457 # v1.27.0
+    uses: OnePeek/.github/.github/workflows/ready.yml@403d1bfcb8cea07a7317f6f55d96d7e2de054a71 # v1.28.1
     with:
       needs: ${{ toJSON(needs) }} # no runner: a public repo runs on GitHub-hosted runners only (ready.yml default)
       skippable: secrets
