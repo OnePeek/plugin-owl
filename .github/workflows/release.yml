@@ -17,4 +17,4 @@ jobs:
   tag:
     permissions:
       contents: write
-    uses: OnePeek/.github/.github/workflows/release-tag.yml@8f6c35483b42b2f01b678597e7693c5ada31eb0f # v1.29.2
+    uses: OnePeek/.github/.github/workflows/release-tag.yml@f0f58f6adc840479ef517af27c303adac40fd995 # v1.29.3
