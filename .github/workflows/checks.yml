@@ -24,15 +24,18 @@ jobs:
     # DOC-1) and the gitleaks secrets scan on pull requests (tree-only, it skips itself on a dev ->
     # release promotion pull request, §8.1; the `secrets` job below covers that). Each check runs even when the other
     # failed; the job fails when any did. Check name `fast / fast`.
-    uses: OnePeek/.github/.github/workflows/fast-checks.yml@8f6c35483b42b2f01b678597e7693c5ada31eb0f # v1.29.2
+    uses: OnePeek/.github/.github/workflows/fast-checks.yml@f0f58f6adc840479ef517af27c303adac40fd995 # v1.29.3
     with:
+      runner: public-hosted # this repo is public: GitHub-hosted, our runners never take its jobs (F694)
       pins: true
       secrets: ${{ github.event_name == 'pull_request' }}
   secrets:
     # R-S2iC-1 / F305: gitleaks on every pull request into release, a dev -> release promotion included, where fast's
     # secrets step skips itself (§8.1). Removed only in the change set that adds certification and release-gate here.
     if: github.event_name == 'pull_request' && github.base_ref == 'release'
-    uses: OnePeek/.github/.github/workflows/secret-scan.yml@8f6c35483b42b2f01b678597e7693c5ada31eb0f # v1.29.2
+    uses: OnePeek/.github/.github/workflows/secret-scan.yml@f0f58f6adc840479ef517af27c303adac40fd995 # v1.29.3
+    with:
+      runner: public-hosted
   ready:
     # `ci / ready`, the one summary row the merge tool reads (PIPE-SIMPLE v2 D6): every other job of this workflow
     # passed, or was skipped by its own `if:` and is listed under skippable. A job skipped because one it needs failed
@@ -42,9 +45,10 @@ jobs:
     needs: [fast, secrets]
     permissions:
       contents: read
-    uses: OnePeek/.github/.github/workflows/ready.yml@8f6c35483b42b2f01b678597e7693c5ada31eb0f # v1.29.2
+    uses: OnePeek/.github/.github/workflows/ready.yml@f0f58f6adc840479ef517af27c303adac40fd995 # v1.29.3
     with:
-      needs: ${{ toJSON(needs) }} # no runner: a public repo runs on GitHub-hosted runners only (ready.yml default)
+      needs: ${{ toJSON(needs) }}
+      runner: public-hosted # public repo: GitHub-hosted (an unset runner means our runners, which never take it)
       skippable: secrets
       reproduce: |
         fast: vanguard local-ci <worktree> --jobs fast
