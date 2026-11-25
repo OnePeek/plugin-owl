@@ -1,0 +1,25 @@
+{
+  "name": "plugin-owl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OnePeek AI work-log plug-in for Claude Code: a collector that sends usage numbers and, with consent, short cleaned summaries.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "node scripts/lint.mjs",
+    "test": "node scripts/build.mjs --quiet && node --test --test-concurrency=1 \"dist/tests/unit/*.test.js\" \"dist/tests/privacy/*.test.js\" \"dist/tests/injection/*.test.js\" \"dist/tests/latency/*.test.js\" \"dist/tests/eval/*.test.js\"",
+    "test:privacy": "node scripts/build.mjs --quiet && node --test \"dist/tests/privacy/*.test.js\" \"dist/tests/injection/*.test.js\"",
+    "eval": "node scripts/build.mjs --quiet && node dist/evals/run.js",
+    "eval:injection": "node scripts/build.mjs --quiet && node dist/tests/injection/live.js",
+    "check": "npm run typecheck && npm run lint && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "typescript": "5.9.3"
+  }
+}
