@@ -22,7 +22,7 @@ export const REASONS = [
   "key_revoked", "install_expired", "install_paused", "key_mismatch", "not_found", "seq_gap", "seq_conflict", "prev_hash_mismatch",
   "install_limit", "reset_limit", "body_too_large", "unsupported_media_type", "duplicate_key", "int_range", "schema_invalid",
   "batch_too_large", "wrong_env", "hash_mismatch", "bad_signature", "unknown_build", "unknown_prompt", "clock_ahead",
-  "record_too_old", "no_text_consent", "content_held", "injection_screen", "scan_timeout", "rate_limited", "daily_cap", "unavailable",
+  "record_too_old", "no_text_consent", "content_held", "injection_screen", "scan_timeout", "rate_limited", "daily_cap", "gap_limit", "unavailable",
 ] as const;
 export type Reason = (typeof REASONS)[number];
 

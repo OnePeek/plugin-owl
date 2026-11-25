@@ -21,6 +21,19 @@ const HEX_RUN = /[0-9a-fA-F]{20,}/;
 const B64_RUN = /[A-Za-z0-9+/_=-]{20,}/g;
 const TRIM = /^[\s.,;:!?()[\]{}<>*_-]+|[\s.,;:!?()[\]{}<>*_-]+$/g;
 
+// Well-known technology names that end like a file name; never a path.
+const TECH_NAMES = new Set(["node.js", "next.js", "nuxt.js", "vue.js", "react.js", "express.js", "d3.js", "three.js", "chart.js", "ember.js", "backbone.js", "alpine.js", "nest.js", "deno.js", "socket.io", "asp.net", ".net"]);
+const FILE_EXT = /^[\w-]+(?:\.[\w-]+)*\.(?:ts|tsx|js|jsx|mjs|cjs|py|rb|go|rs|java|kt|cs|php|sh|bash|zsh|json|ya?ml|toml|ini|cfg|conf|env|lock|md|txt|sql|css|scss|html|xml|csv|log|pem|key|tf|gradle|swift|c|h|cpp|hpp)$/i;
+
+/** Contract rule (2026-11-26 ruling): a token is path-like when it starts with / or ~, has 2 or more slashes, or ends in a file extension. "CI/CD" and "and/or" pass. */
+export function isPathLike(tok: string): boolean {
+  if (tok.length < 3) return false;
+  if (tok.startsWith("/") || tok.startsWith("\\") || tok.startsWith("~")) return true;
+  if ((tok.match(/[/\\]/g) ?? []).length >= 2) return true;
+  if (TECH_NAMES.has(tok.toLowerCase())) return false;
+  return FILE_EXT.test(tok);
+}
+
 export function shannon(s: string): number {
   const n = new Map<string, number>();
   for (const c of s) n.set(c, (n.get(c) ?? 0) + 1);
@@ -70,7 +83,7 @@ export function checkText(text: string, names: Names = NO_NAMES): Hit[] {
   for (const m of text.matchAll(B64_RUN)) if (isBlobRun(m[0])) hits.add("blob");
   for (const raw of text.split(/\s+/)) {
     const tok = raw.replace(TRIM, "");
-    if (tok.length >= 3 && /[/\\]/.test(tok)) hits.add("path");
+    if (isPathLike(tok)) hits.add("path");
     if (tok.length >= 16 && shannon(tok) > 3.5) hits.add("entropy");
   }
   for (const n of names.learned) if (containsName(text, n)) hits.add("name");
@@ -91,8 +104,6 @@ export function cleanText(text: string, names: Names = NO_NAMES): string {
   let t = text.normalize("NFC").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f​-‏‪-‮⁦-⁩﻿]/g, "");
   t = t.replace(/[“”„«»`"]/g, "").replace(/’/g, "'").replace(/‘/g, "");
   t = t.replace(/(?<!\p{L})'|'(?!\p{L})/gu, "");
-  // one-slash joins between plain words ("and/or") become a space: not a path
-  t = t.replace(/(?<![\w./\\])([A-Za-z]{1,20})\/([A-Za-z]{1,20})(?![\w./\\])/g, "$1 $2");
   for (const n of names.learned) if (n.trim().length >= 4 && containsName(t, n)) t = t.replace(new RegExp(`(?<![A-Za-z0-9])${escapeRe(n)}(?![A-Za-z0-9])`, "gi"), "the project");
   return t.replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, " ").trim();
 }

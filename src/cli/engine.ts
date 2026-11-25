@@ -67,7 +67,13 @@ export async function ingest(ctx: Ctx): Promise<IngestReport> {
   const hold = (vault.install?.limits.hold_seconds ?? HOLD_DEFAULT_S) * 1000;
   for (const f of files) {
     const file = join(ctx.paths.queueDir, f);
-    const lines: QueueLine[] = readFileSync(file, "utf8").split("\n").filter(Boolean).flatMap((l) => {
+    let rawQueue: string;
+    try {
+      rawQueue = readFileSync(file, "utf8");
+    } catch {
+      continue; // another helper already took it
+    }
+    const lines: QueueLine[] = rawQueue.split("\n").filter(Boolean).flatMap((l) => {
       try {
         return [JSON.parse(l) as QueueLine];
       } catch {
@@ -82,7 +88,11 @@ export async function ingest(ctx: Ctx): Promise<IngestReport> {
     const withTp = [...lines].reverse().find((l) => l.tp !== "");
     const cwd = [...lines].reverse().find((l) => l.cwd !== "")?.cwd ?? "";
     // consume the queue file first: a session is recovered exactly once (E8)
-    renameSync(file, file.replace(/\.jsonl$/, ".done"));
+    try {
+      renameSync(file, file.replace(/\.jsonl$/, ".done")); // an atomic claim: only one helper wins
+    } catch {
+      continue;
+    }
     if (!withTp || !captureAllowed(readState(ctx.paths.stateFile), projectKey(cwd)) || !transcriptAllowed(withTp.tp, ctx.claudeConfigDir)) {
       rep.skipped++;
       continue;
@@ -188,9 +198,10 @@ function applyControls(ctx: Ctx, body: unknown): void {
 }
 
 /** Re-sign every unsent record after `fromSeq` so each extends the new head (after a gap entry replaced the record at fromSeq). */
-function resignAfter(ctx: Ctx, installId: string, fromSeq: number): void {
+function resignAfter(ctx: Ctx, installId: string, gap: SignedRecord): void {
   const signer = ctx.signer()!;
-  let prev = ctx.spool.head(installId)!;
+  const fromSeq = gap.record.seq;
+  let prev = gap;
   for (const it of ctx.spool.items()) {
     if (!it.signed || it.installId !== installId || it.state !== "signed" || it.signed.record.seq <= fromSeq) continue;
     const rec = { ...it.signed.record, prev_hash: prev.record_hash };
@@ -277,7 +288,7 @@ export async function send(ctx: Ctx): Promise<SendOutcome> {
     } else if (reply.status === 401 && why === "token_scope") c.blocked = "scope";
     else if (reply.status === 401 || reply.status === 404) c.blocked = "reconnect";
     else if (reply.status === 409 && (why === "seq_gap" || why === "seq_conflict" || why === "prev_hash_mismatch")) c.blocked = "needs_reset";
-    else if (reply.status === 429) c.next_attempt_at = ctx.now() + (why === "daily_cap" ? untilMidnightUtc(ctx.now()) : (reply.retryAfter ?? 60) * 1000);
+    else if (reply.status === 429) c.next_attempt_at = ctx.now() + (why === "daily_cap" || why === "gap_limit" ? untilMidnightUtc(ctx.now()) : (reply.retryAfter ?? 60) * 1000);
     else if (reply.status === 413 || reply.status === 422) {
       // the server stored nothing: the record at failed_index will never be sent; a content-free `held` entry takes its seq
       const idx = (reply.body as { failed_index?: number } | undefined)?.failed_index;
@@ -290,8 +301,9 @@ export async function send(ctx: Ctx): Promise<SendOutcome> {
       const rec = target.signed!.record;
       const m = meta(ctx, rec.seq, rec.prev_hash, rec.created_at_device, rec.key_store, rec.tool_version);
       ctx.spool.append({ t: "held", id: target.id, at: ctx.now(), reason: why ?? "schema_invalid" });
-      ctx.spool.append({ t: "signed", id: target.id, at: ctx.now(), install_id: installId, env: signRecord(buildGap(m, "held", why ?? "schema_invalid"), signer) });
-      resignAfter(ctx, installId, rec.seq);
+      const gap = signRecord(buildGap(m, "held", why ?? "schema_invalid"), signer);
+      ctx.spool.append({ t: "signed", id: target.id, at: ctx.now(), install_id: installId, env: gap });
+      resignAfter(ctx, installId, gap);
       ctx.saveControls(c);
       continue;
     } else {

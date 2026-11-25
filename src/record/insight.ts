@@ -38,8 +38,8 @@ export function finalizeInsight(raw: string, names: Names): InsightResult {
 
   const summary = cleanText(o["summary"], names);
   const decisions = (o["decisions"] as string[]).slice(0, 8).map((d) => cleanText(d, names));
-  // a slash in a skill name is turned into a dash (CI/CD becomes CI-CD); too many skills are cut to the first 12
-  const skills = [...new Set((o["skills"] as string[]).slice(0, 12).map((s) => cleanText(s.replaceAll("/", "-"), names)))];
+  // duplicates are dropped; skills beyond the 12th are cut
+  const skills = [...new Set((o["skills"] as string[]).slice(0, 12).map((s) => cleanText(s, names)))];
 
   if (summary.length < 20 || summary.length > 600 || sentenceCount(summary) > 3) return { ok: false, reason: "schema", hits: [] };
   if (decisions.some((d) => d.length < 10 || d.length > 300)) return { ok: false, reason: "schema", hits: [] };
