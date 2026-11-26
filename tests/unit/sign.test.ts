@@ -138,3 +138,23 @@ test("OS key store is reached with argument lists, secret on stdin where support
   const store1 = calls.find((c) => c.args[0] === "store");
   assert.ok(store1?.stdin && !store1.args.join(" ").includes(store1.stdin)); // the secret is never in argv
 });
+
+test("macOS key store: the secret goes to `security -i` on stdin and is never in argv", async () => {
+  const calls: { cmd: string; args: string[]; stdin?: string }[] = [];
+  let stored = "";
+  const exec = async (cmd: string, args: string[], stdin?: string) => {
+    calls.push({ cmd, args, ...(stdin !== undefined ? { stdin } : {}) });
+    if (args[0] === "-i") {
+      stored = /-w ([0-9a-f]{64})/.exec(stdin ?? "")?.[1] ?? "";
+      return { ok: true, out: "" };
+    }
+    if (args[0] === "find-generic-password") return stored ? { ok: true, out: stored } : { ok: false, out: "" };
+    return { ok: false, out: "" };
+  };
+  const root = mkdtempSync(join(tmpdir(), "owl-key-"));
+  const r = await openMasterKey(root, "darwin", exec);
+  assert.equal(r.store.name, "macos-keychain");
+  assert.ok(stored.length === 64 && r.key.toString("hex") === stored);
+  for (const c of calls) assert.ok(!c.args.join(" ").includes(stored), "the secret appeared in argv: " + c.args.join(" ").slice(0, 40));
+  assert.ok(calls.some((c) => c.args[0] === "-i" && c.stdin?.includes(stored)));
+});

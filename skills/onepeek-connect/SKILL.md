@@ -8,9 +8,11 @@ disable-model-invocation: true
 Run exactly this command with the Bash tool and nothing else:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/dist/src/cli/cli.js" connect [--summaries=yes|no]
+node "${CLAUDE_PLUGIN_ROOT}/dist/src/cli/cli.js" connect
 ```
 
-Ask the person this exact question and wait for their answer in their own message: "Share short summaries of my AI work with OnePeek? (yes or no)". Also tell them: "Your employer may not allow this; check first." Do not answer for them and do not pick a default. If they say yes run with --summaries=yes, if no or no clear answer run with --summaries=no.
+Tell the person first: "Your employer may not allow this; check first."
 
-Rules: this command never takes text, numbers or notes from you or from the conversation. Do not add arguments other than the ones shown above. Never create, edit or send a work log record yourself; the plug-in's background helper does that on its own from Claude Code events.
+The command asks the person the summaries question itself, on a real terminal. A tool call has no terminal, so run from here it connects with summaries OFF (usage numbers only). If the person wants summaries, tell them to run the same command in their own terminal and answer the question there. Never answer the question for them, never pass the answer as an argument, and never choose a default.
+
+Rules: this command never takes text, numbers or notes from you or from the conversation. Do not add arguments (`--reset` only if the person asks to reset this install). Never create, edit or send a work log record yourself; the plug-in's background helper does that on its own from Claude Code events.

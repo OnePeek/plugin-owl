@@ -7,7 +7,7 @@ import { openCtx } from "../../src/cli/ctx.js";
 import { ingest, release, send, drain } from "../../src/cli/engine.js";
 import { readState, writeState } from "../../src/state/store.js";
 import { promptSha256 } from "../../src/summarise/prompt.js";
-import { runCommand, parseArgs } from "../../src/cli/cli.js";
+import { runCommand, parseArgs, terminalIo } from "../../src/cli/cli.js";
 import { canaries } from "../helpers/canary.js";
 import { makeEnv, connectViaLoopback } from "../helpers/env.js";
 import { sampleTranscript } from "../helpers/sample.js";
@@ -305,4 +305,22 @@ test("local pause stops sending at once", async () => {
   writeState(env.ctx.paths.stateFile, st);
   assert.equal(await send(env.ctx), "idle");
   assert.equal(env.server.accepted.length, 0);
+});
+
+test("test_consent_never_from_args_or_model", async () => {
+  // no flag can carry the answer
+  for (const a of ["--summaries=yes", "--summaries=no", "--summaries", "--yes", "yes"]) assert.ok("error" in parseArgs(["connect", a]), a);
+  // without a terminal (a tool call, a pipe) the question gets no answer: NO text
+  assert.equal(process.stdin.isTTY && process.stdout.isTTY ? "tty" : "none", "none");
+  assert.equal(await terminalIo.askConsent(), false);
+  // the answer comes only from the injected terminal; connect sends exactly that
+  for (const answer of [true, false]) {
+    const env = await makeEnv({ connected: false });
+    const port = 20000 + Math.floor(Math.random() * 30000);
+    const origOpen = (await import("../../src/cli/commands.js")).connect;
+    const ok = await origOpen(env.ctx, { line: (s) => void env.lines.push(s) }, { summaries: await Promise.resolve(answer), port, timeoutMs: 8000, openUrl: (u) => { const st = new URL(u).searchParams.get("state"); const hit = async (n: number): Promise<void> => { try { await fetch(`http://127.0.0.1:${port}/callback?code=CODE&state=${st}`); } catch { if (n > 0) setTimeout(() => void hit(n - 1), 50); } }; void hit(60); } });
+    assert.ok(ok);
+    assert.equal(env.server.installBody?.["consent_text"], answer);
+    assert.equal(env.ctx.consent()?.summaries, answer);
+  }
 });

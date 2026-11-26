@@ -33,8 +33,8 @@ function macos(exec: Exec): MasterKeyStore {
       const r = await exec("security", ["find-generic-password", "-s", SERVICE, "-a", ACCOUNT, "-w"]);
       return r.ok ? hex32(r.out) : undefined;
     },
-    // `security` takes the secret only as an argument; it is visible to this user's processes for a moment. Known limit.
-    set: async (k) => (await exec("security", ["add-generic-password", "-U", "-s", SERVICE, "-a", ACCOUNT, "-w", k.toString("hex")])).ok,
+    // `security -i` reads its commands from stdin, so the secret is never in a process list (argv).
+    set: async (k) => (await exec("security", ["-i"], `add-generic-password -U -s ${SERVICE} -a ${ACCOUNT} -w ${k.toString("hex")}\n`)).ok,
     remove: async () => void (await exec("security", ["delete-generic-password", "-s", SERVICE, "-a", ACCOUNT])),
   };
 }

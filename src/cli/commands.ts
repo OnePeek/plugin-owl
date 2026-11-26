@@ -1,5 +1,5 @@
 // The ten commands of AIP-B2. None takes insight text or numbers. The only values a command reads from the person are a
-// yes/no (`connect --summaries`) and a scope flag (`--here`, meaning "this project").
+// scope flag (`--here`, meaning "this project"); the consent answer is typed by the person at a terminal, see cli.ts.
 import { rmSync } from "node:fs";
 import { authorizeUrl, newPkce, randomPort } from "../auth/pkce.js";
 import { firstBadSeq } from "../sign/chain.js";
@@ -26,7 +26,7 @@ const EMPLOYER = "Your employer may not allow this. Check first.";
 
 export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset?: boolean; openUrl?: (u: string) => void; port?: number; timeoutMs?: number }): Promise<boolean> {
   out.line(EMPLOYER);
-  out.line(`Question: ${CONSENT_QUESTION} You answered: ${o.summaries ? "yes" : "no"}. Without a yes, no summary text ever leaves this device.`);
+  out.line(o.summaries ? `You answered yes to: ${CONSENT_QUESTION} Short cleaned summaries may be sent after a 10 minute hold.` : `Summaries are off (no yes was given at a terminal). Only usage numbers will be sent. To turn summaries on, run this connect command in your own terminal and answer yes.`);
   const prior = ctx.vault().install?.install_id;
   const { signer, software } = await createInstallSigner();
   const pkce = newPkce();
