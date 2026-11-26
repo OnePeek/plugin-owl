@@ -9,7 +9,7 @@ import { readState, writeState } from "../../src/state/store.js";
 import { promptSha256 } from "../../src/summarise/prompt.js";
 import { runCommand, parseArgs, terminalIo } from "../../src/cli/cli.js";
 import { canaries } from "../helpers/canary.js";
-import { makeEnv, connectViaLoopback, NO_OS_STORE } from "../helpers/env.js";
+import { makeEnv, connectViaLoopback, freePort, NO_OS_STORE } from "../helpers/env.js";
 import { sampleTranscript } from "../helpers/sample.js";
 
 const GOOD = JSON.stringify({ summary: "Found a race between cache invalidation and refill that served stale prices after bulk updates, and fixed it by versioning cache entries.", task_type: "bugfix", decisions: ["Chose versioned cache entries over a global lock because writes are rare and a lock blocked the nightly job."], skills: ["TypeScript", "cache invalidation"] });
@@ -311,7 +311,7 @@ test("test_consent_never_from_args_or_model", async () => {
   // the answer comes only from the injected terminal; connect sends exactly that
   for (const answer of [true, false]) {
     const env = await makeEnv({ connected: false });
-    const port = 20000 + Math.floor(Math.random() * 30000);
+    const port = await freePort();
     const origOpen = (await import("../../src/cli/commands.js")).connect;
     const ok = await origOpen(env.ctx, { line: (s) => void env.lines.push(s) }, { summaries: await Promise.resolve(answer), port, timeoutMs: 8000, openUrl: (u) => { const st = new URL(u).searchParams.get("state"); const hit = async (n: number): Promise<void> => { try { await fetch(`http://127.0.0.1:${port}/callback?code=CODE&state=${st}`); } catch { if (n > 0) setTimeout(() => void hit(n - 1), 50); } }; void hit(60); } });
     assert.ok(ok);
