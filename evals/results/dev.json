@@ -1,12 +1,12 @@
 {
  "run": {
-  "date": "2026-11-26T01:30:15.589Z",
+  "date": "2026-11-26T13:40:36.988Z",
   "set": "dev (evals/dev, used for prompt work)",
   "set_sha256": "71b3a239eca87246f68daeada6bb08b4a7e905c2799c6085a4a7ffa17e48436f",
-  "prompt_sha256": "189c5cbbe18eb73bc733f4b6b206cb3c91b6cfe60b51ed2dfef80800336a64ca",
+  "prompt_sha256": "07d0f75ea1eaaa733c0eefbde7500372d65bae8d2f3c5c86256abc890565a3a8",
   "judge_sha256": "0b21a4d39d87054a28ec1b7b96ebd3254f613904281263e6b4e1d9d20245ec03",
   "claude_cli": "2.1.332 (Claude Code)",
-  "summariser_model": "sonnet",
+  "summariser_model": "claude-sonnet-5-5",
   "summariser_model_ids": [
    "claude-sonnet-5-5"
   ],
@@ -16,12 +16,13 @@
   ],
   "partial": false
  },
- "prompt_sha256": "189c5cbbe18eb73bc733f4b6b206cb3c91b6cfe60b51ed2dfef80800336a64ca",
- "model": "sonnet",
+ "prompt_sha256": "07d0f75ea1eaaa733c0eefbde7500372d65bae8d2f3c5c86256abc890565a3a8",
+ "model": "claude-sonnet-5-5",
  "sessions": 30,
  "passed": 30,
  "leaks": 0,
  "bar": 27,
+ "workflow_heavy": [],
  "ok": true,
  "verdicts": [
   {
@@ -38,16 +39,16 @@
     "skills": true
    },
    "notes": [
-    "Accurate: all claims are supported by the session. That includes the race between a cache miss before commit and a refill after invalidation, the version-counter keying, the test that first failed on the version key and was then updated, and the final pricing tests passing. 'Intermittently' is a fair paraphrase of 'sometimes'. Specific: names both the race condition between invalidation and refill and cache versioning. Decisions: the empty list is acceptable. Skills: TypeScript, cache invalidation, race condition debugging and cache versioning were all exercised. Omitting the reference's Redis is correct, since the session never shows Redis."
+    "Every claim in the candidate is backed by the session. It names the stale prices after the nightly bulk update, the race where a miss just before commit refills after invalidation, and the version-counter keying. It also gets right the initial test failure, the updated expectation and the final pass. The technique is named precisely: an invalidation/refill race fixed with versioned keys. The decisions list is empty, which is allowed. TypeScript, caching, cache invalidation and race debugging were all used. Redis was left out, which is fine because the session never shows Redis."
    ],
-   "summary": "Traced intermittently stale prices after a nightly bulk update to a race where a cache miss just before commit refilled the old price after invalidation. Fixed it by keying cache entries on a version counter that invalidation increments, so late refills are never read. The pricing tests passed after one test, which first failed on the new key, was updated.",
+   "summary": "Traced stale product prices after a nightly bulk update to a race where a cache miss just before commit could refill the old price after invalidation. Fixed it by keying cache entries on a version counter that invalidation increments. Pricing tests passed after one test expectation was updated following an initial failure.",
    "task_type": "bugfix",
    "decisions": [],
    "skills": [
     "TypeScript",
-    "cache invalidation",
-    "race condition debugging",
-    "cache versioning"
+    "Caching",
+    "Cache invalidation",
+    "Race condition debugging"
    ]
   },
   {
@@ -64,18 +65,18 @@
     "skills": true
    },
    "notes": [
-    "Claims match the session: one-cent errors, binary floating point rounding accumulated per line and at the end, a switch to integer minor units, an edit to the existing test file, and 9 vitest tests passing. Saying the test file was 'edited' rather than that a regression test was 'added' is accurate to the +1 -1 edit. The decision states a real alternative with a reason the session supports. All listed skills were exercised: TypeScript, Vitest, money arithmetic, and floating point precision as the problem class."
+    "Every claim in the candidate is backed by the session. The session shows floating point rounding applied per line and again at the end, the switch to integer minor units, an edit to the test file, and 9 vitest tests passing. It is specific about both the problem and the fix technique. The single decision names a real alternative and gives a reason the session supports. TypeScript, Vitest and money arithmetic all appear in the session. 'Floating point debugging' is a fair description of the Grep/Read diagnosis that was actually done."
    ],
-   "summary": "Fixed one-cent errors in invoice totals, attributed to binary floating point rounding that accumulated per line and again at the end, by moving to integer minor-unit arithmetic for money. The existing test file was edited and the invoice tests passed.",
+   "summary": "Fixed off-by-a-cent invoice totals caused by binary floating point arithmetic with rounding at each line and again at the end, by moving money summing to integer minor units. A test file was updated and the invoice tests passed.",
    "task_type": "bugfix",
    "decisions": [
-    "Chose summing money as integer minor units over binary floating point with per-line and final rounding, because the rounding errors accumulated into wrong totals."
+    "Chose summing money as integer minor units over binary floating point with per-line and final rounding, because rounding errors accumulated and skewed totals."
    ],
    "skills": [
     "TypeScript",
-    "Vitest",
-    "monetary arithmetic",
-    "floating point precision"
+    "Money arithmetic",
+    "Floating point debugging",
+    "Vitest"
    ]
   },
   {
@@ -92,18 +93,19 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim is supported by the session. That covers the rotation crash, the ViewModel callback pointing at the destroyed fragment, the switch to LiveData observed on the view lifecycle, and the unit test build passing. The note that no on-device check was run is also correct. Specific: it names the lifecycle leak after a configuration change and LiveData observation. Decisions: it contrasts lifecycle-aware observation with a null check, and the session supports the reason (the stale callback calls into a destroyed fragment). Skills: Android, Kotlin and LiveData were all used, and lifecycle management is reasonable. Gradle is omitted, which is acceptable, and nothing is padded."
+    "Every claim in the candidate is supported by the session: the crash happens on rotation, the ViewModel kept a callback to the destroyed fragment, the fix uses LiveData observed with the view lifecycle, and testDebugUnitTest reported BUILD SUCCESSFUL. It is specific because it names the stale-callback lifecycle leak and LiveData view-lifecycle observation. The decision gives a real alternative (a null check) and a reason the session supports, since the assistant said it was a lifecycle leak and not a simple null-check problem. Skills: Kotlin, Android, LiveData, ViewModel and lifecycle management were all used; Gradle is missing but the other important ones are present."
    ],
-   "summary": "Traced an Android settings screen crash on rotation to a ViewModel callback still pointing at the destroyed fragment, and replaced it with LiveData observed on the view lifecycle. The unit test build passed; the session shows no on-device rotation check.",
+   "summary": "Fixed a crash on rotating an Android settings screen, where the ViewModel kept a callback to the destroyed fragment. Replaced the stale reference with LiveData observed on the view lifecycle, and the debug unit tests passed.",
    "task_type": "bugfix",
    "decisions": [
-    "Treated the crash as a lifecycle leak and chose lifecycle-aware observation over a simple null check, because the retained callback was still calling into a destroyed fragment."
+    "Treated the crash as a lifecycle leak to be fixed by observing LiveData with the view lifecycle, over a simple null check, because the retained callback still targeted the destroyed fragment."
    ],
    "skills": [
-    "Android",
     "Kotlin",
+    "Android",
     "LiveData",
-    "Android lifecycle management"
+    "Lifecycle management",
+    "ViewModel"
    ]
   },
   {
@@ -120,16 +122,16 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim is supported. The drop coincides with the new release (4.19), which sends no login event. The breakdown by app version and event name matches the queries. Counting any event gave 47k, close to the prior 48k, so 'about the prior level' is fair. The note was written to notes/wau-drop.md. Specific: names the tracking regression and the app-version breakdown, matching the reference. Decisions: the list is empty, which is allowed. Skills: BigQuery and SQL were actually used. 'Metric anomaly analysis' and 'event tracking analysis' are reasonable equivalents of product analytics."
+    "Accurate: every claim is supported. Version 4.19 sent 0 login events, and login is the event the active-user count depends on. The queries grouped by date and by app_version. The any-event recount gave 47k against 48k the week before, so 'nearly matched' is fair. A note was written to notes/wau-drop.md. Specific: it names the problem class (tracking regression) and the method (querying by app version). Decisions: the list is empty, which is allowed. Skills: BigQuery, SQL and product analytics match the reference and were used via bq queries. 'Metric investigation' is a reasonable description of the work and is not padding."
    ],
-   "summary": "Traced a reported drop in weekly active users to a tracking regression: a new app release sent no login event, which the metric relied on. Breaking events down by app version and event name showed this, and counting distinct users on any event put last week at about the prior level, indicating no real fall in usage. The finding was written up in a note.",
+   "summary": "Showed that a weekly active user drop was a tracking regression, not lost usage: the new app version sent no login event, which the metric relied on. Querying events by day and app version located it, and recounting users on any event nearly matched the prior week. The finding was written up in a note.",
    "task_type": "data",
    "decisions": [],
    "skills": [
     "BigQuery",
     "SQL",
-    "metric anomaly analysis",
-    "event tracking analysis"
+    "metric investigation",
+    "product analytics"
    ]
   },
   {
@@ -146,20 +148,21 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session: cancellation_reason dropped as label leakage, 9/3 month time split, AUC 0.81 vs 0.88 random, precision@10% 0.46, and Brier 0.14 to 0.11 after isotonic calibration. It names leakage, temporal validation and calibration specifically. Both decisions give real alternatives and reasons the session supports. All listed skills were exercised, and the core ones from the reference (Python, XGBoost) are present."
+    "All claims are supported by the session. The candidate drops cancellation_reason as a label leak, uses a time split (first 9 months for training, last 3 for testing), and reports time-split AUC 0.81, precision@10% 0.46 (described as top decile), random-split AUC 0.88 (optimistic), and Brier 0.14 -> 0.11 after isotonic calibration. It names leakage, temporal validation and probability calibration specifically. Both decisions are real choices with reasons the session states. The skills were all used in the session."
    ],
-   "summary": "Trained a gradient-boosted churn model after dropping a feature that only existed once a customer had churned, using a time-based split to limit leakage. On the later hold-out period it reached AUC 0.81 and precision of 0.46 in the top decile, while a random split gave an optimistic 0.88. Isotonic calibration lowered the Brier score from 0.14 to 0.11.",
+   "summary": "Built an XGBoost churn model on a year of data, dropping a feature that only exists after churn and splitting by time to avoid leakage. The time-split test gave AUC 0.81 and precision of 0.46 in the top decile, while a random split looked optimistic at 0.88. Isotonic calibration lowered the Brier score from 0.14 to 0.11.",
    "task_type": "data",
    "decisions": [
     "Dropped the cancellation reason feature rather than keeping it as a predictor, because it only exists after a customer has churned and so leaks the label.",
-    "Chose a time-based split, training on the first nine months and testing on the last three, over a random split because random splits leak future behaviour into training."
+    "Chose a time-based split, training on earlier months and testing on later ones, over a random split because random splits leak the future into training for time-dependent behaviour."
    ],
    "skills": [
     "Python",
     "XGBoost",
-    "data leakage prevention",
-    "time-based validation",
-    "probability calibration"
+    "Data leakage prevention",
+    "Time-based validation",
+    "Probability calibration",
+    "Churn modeling"
    ]
   },
   {
@@ -176,13 +179,11 @@
     "skills": true
    },
    "notes": [
-    "The candidate's claims are supported by the session: the function-wrapped timestamp filter blocked partition pruning, it was replaced with a range predicate, the change took two edits, the run took 2m 10s against 40 minutes before, and 4 tests passed. It leaves out the switch to an incremental model, and its wording suggests both edits went to the predicate. That framing is loose but invents no fact. It names partition pruning precisely. The single decision gives a real choice with a reason the session supports. The skills (dbt, SQL, partition pruning, query optimization) were all actually used; data warehousing is reasonably covered."
+    "Every claim in the candidate holds up against the session: the function-wrapped timestamp blocked partition pruning, a range predicate replaced it, there was an additional one-line edit, the run took 2m10s versus 40 minutes, and PASS=4. It never says the second edit made the model incremental, which is an omission, not an error. It names partition pruning precisely. The decisions list is empty, which is acceptable. The skills listed were all exercised and include dbt and SQL from the reference."
    ],
-   "summary": "Traced a slow daily revenue dbt model to a filter that wrapped the timestamp column in a function, blocking partition pruning, then replaced it with a range predicate on the raw column in a two-edit change to the model. The run afterwards completed in 2m 10s, down from the reported 40 minutes, and all 4 model tests passed.",
+   "summary": "Fixed a slow daily revenue dbt model whose function-wrapped timestamp filter blocked partition pruning, using a range predicate on the raw column, followed by a further one-line edit. The model run then completed in just over two minutes, down from a reported 40, and its four tests passed.",
    "task_type": "data",
-   "decisions": [
-    "Chose a range predicate on the raw timestamp column over a function-wrapped filter so the the project could prune partitions instead of scanning the whole orders table daily."
-   ],
+   "decisions": [],
    "skills": [
     "dbt",
     "SQL",
@@ -204,18 +205,18 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session: heap snapshot diff showing retained closures and listeners, an error listener added per request to a pooled reused socket and never removed, and the session ending at diagnosis with no fix. Specific: names heap snapshot diffing and a listener leak on pooled connections. The single decision (stop at diagnosis, don't touch the pool code) has the session-supported reason that the code is shared and owned by another team. Skills match the reference. TypeScript is borderline, since the engineer only read proxy.ts, but that file was actually touched, so it is not padding."
+    "Every claim is supported by the session: OOM kills, a heap snapshot diff showing tens of thousands of retained closures and listeners, a per-request error listener on a pooled, reused upstream socket that is never removed, and the session ending at diagnosis with no fix. It names the technique (heap snapshot comparison) and the problem class (an event listener leak on pooled connections). The single decision, stopping at diagnosis because the shared pool code is owned by another team, is a real choice with a reason the session supports. Skills match the reference. TypeScript is a borderline extra, but the session did read proxy.ts to confirm the cause, so it is not padding."
    ],
-   "summary": "Traced a search service's memory growth to OOM by diffing Node.js heap snapshots, which showed retained closures and event listeners. Reading the stream proxy showed each request adding an error listener to a pooled, reused upstream socket without removing it. The session ended at diagnosis with no fix applied, since the change touches shared pool code owned by another team.",
+   "summary": "Traced steady memory growth ending in OOM kills in a search service to an error listener added on every request to a pooled, reused upstream socket and never removed. Comparing heap snapshots showed tens of thousands of retained closures and listeners, and reading the proxy code confirmed the source. The session ended at the diagnosis, with no fix applied.",
    "task_type": "debugging",
    "decisions": [
-    "Chose to end the session at diagnosis rather than apply a fix, because the change touches shared pool code owned by another team."
+    "Ended the session at the diagnosis instead of applying a fix, because the fix touches shared pool code owned by another team."
    ],
    "skills": [
     "Node.js",
     "TypeScript",
-    "heap snapshot analysis",
-    "memory leak debugging"
+    "Heap snapshot analysis",
+    "Memory leak debugging"
    ]
   },
   {
@@ -232,16 +233,16 @@
     "skills": true
    },
    "notes": [
-    "Every claim matches the session: a check-then-insert race, no unique index on cart_id, two reproductions with parallel submits, a remedy proposed and nothing changed. It names the same technique and problem class as the reference. The empty decisions list is acceptable. All listed skills were used: reading createOrder.ts (TypeScript), inspecting the schema with psql (PostgreSQL) and running the repro script (bug reproduction). The reference's key skills are included."
+    "Every claim is supported by the session: the check-then-insert race, no unique index on cart_id, two reproductions with parallel submits, no changes made, and the suggested unique index plus violation handling. Names the race condition and the missing unique constraint precisely. Decisions list is empty, which is acceptable. Skills include the reference's PostgreSQL and race condition debugging. Bug reproduction was used (repro script). TypeScript is borderline, since createOrder.ts was only read and analyzed, but it is not padding."
    ],
-   "summary": "Traced occasional duplicate orders from double-clicked payment to a check-then-insert race with no unique index on the cart, confirmed by reading the schema and reproducing it twice with parallel submits. Only the cause was requested, so a fix was proposed but nothing was changed.",
+   "summary": "Traced duplicate orders on double submit to a check-then-insert race in order creation, with no unique index on the cart to stop concurrent inserts. Confirmed the cause by reproducing it twice with parallel submits for the same cart. No changes were made, since only the diagnosis was requested; a unique index plus handling of the violation was suggested.",
    "task_type": "debugging",
    "decisions": [],
    "skills": [
-    "race condition debugging",
+    "Race condition debugging",
     "PostgreSQL",
     "TypeScript",
-    "bug reproduction"
+    "Bug reproduction"
    ]
   },
   {
@@ -258,17 +259,17 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim is supported, including 10-bit HEVC with HLG, extraction without tone mapping, the brightness comparison restoring a normal image, and the code not yet changed. Specific: names HDR tone mapping and the HLG/10-bit cause. Decisions: empty list, which is acceptable. Skills: FFmpeg, ffprobe, HDR tone mapping and video processing were all actually used, and 'root cause analysis' describes the session reasonably."
+    "Candidate matches the session. Cause (10-bit HEVC HLG HDR extracted without tone mapping), method (ffprobe comparison of good vs bad sample, mean brightness with and without a tone mapping filter chain), and outcome (code not changed) are all supported. It names HDR tone mapping and stream metadata inspection precisely. The decisions list is empty, which is fine. Skills FFmpeg, ffprobe, HDR tone mapping and video processing were all used. 'Root cause analysis' is generic but fits the diagnostic work, so it is not padding."
    ],
-   "summary": "Traced silently black video thumbnails to HDR input (10-bit HEVC with an HLG transfer) being frame-extracted without tone mapping. Confirmed it by comparing mean frame brightness with and without a tone mapping filter chain, which restored a normal image. The thumbnail code had not yet been changed to detect HDR and apply the fix.",
+   "summary": "Traced silently black video thumbnails to HDR input (10-bit HEVC with HLG transfer) being extracted without tone mapping, by comparing stream metadata of a good and a bad sample. Confirmed it by measuring mean frame brightness with and without a tone mapping filter chain. The thumbnail code was not yet changed.",
    "task_type": "debugging",
    "decisions": [],
    "skills": [
     "FFmpeg",
     "ffprobe",
     "HDR tone mapping",
-    "video processing",
-    "root cause analysis"
+    "Video processing",
+    "Root cause analysis"
    ]
   },
   {
@@ -285,14 +286,16 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim holds up. The guide goes from install to first call, the missing-key auth error (401) is covered, the project-listing call succeeded against the sandbox, and the readme got a one-line edit. The candidate hedges well by attributing the 'all snippets checked' claim to the assistant. Specific: it names verified samples and install-to-first-call onboarding documentation, which matches the reference closely enough. Decisions: the list is empty, which is allowed. Skills: technical writing, JavaScript and SDK documentation were all actually used and match the reference."
+    "Claims match the session: guide covers install, client, listing projects and the missing-key 401; the snippet was verified against the sandbox first; the readme got a one-line edit. It does not claim the readme links to the guide, so nothing is invented. 'Five-minute' reflects the stated goal. Calling the topic task-oriented onboarding docs with sandbox-verified samples is specific. The decision gives a real alternative (documenting it untested) and the reason the session states. Skills were all exercised and line up with the reference."
    ],
-   "summary": "Wrote a short getting started guide for a JavaScript SDK, taking a reader from install to a first successful API call and covering the common authentication error from a missing key. A project-listing call was run against the sandbox and succeeded; the assistant reported that the guide's snippets were checked this way. The SDK readme also received a one-line edit.",
+   "summary": "Wrote a five-minute getting started guide for a JavaScript SDK, covering install, client creation, listing projects and the common missing-key authentication error. An example call listing projects was run against the sandbox and succeeded before the guide was written. The SDK readme also received a one-line edit.",
    "task_type": "docs",
-   "decisions": [],
+   "decisions": [
+    "Chose to run the example against the sandbox before writing the guide, over documenting it untested, so that the snippets would be known to work."
+   ],
    "skills": [
-    "Technical writing",
     "JavaScript",
+    "Technical writing",
     "SDK documentation"
    ]
   },
@@ -310,16 +313,15 @@
     "skills": true
    },
    "notes": [
-    "All claims are supported by the session: the move to blue green, traffic-switch rollback to the warm environment, the 30 minute window, the redeploy fallback, the ADR read and markdownlint passing. It names the specific problem, blue green deployment rollback. The empty decisions list is acceptable. Skills match the reference, and Markdown is justified by the markdownlint run."
+    "The candidate matches the session: a runbook update for the move to blue-green, rollback as a traffic switch to the warm environment within a limited window, a redeploy of the previous version after that, and lint passing. It says 'limited window' instead of 30 minutes, which is an omission, not an error. The decisions list is empty, which is allowed. The skills (technical writing, runbooks, blue-green) were all used and match the reference."
    ],
-   "summary": "Updated the deploy runbook after a move from rolling to blue-green deploys, working from the architecture decision record: rollback is now a traffic switch to the warm environment, available only for 30 minutes, after which the previous version must be redeployed. A markdown lint check passed.",
+   "summary": "Updated the deployment runbook after a move from rolling to blue-green deploys, covering rollback as a traffic switch back to the warm environment within a limited window, with a redeploy of the previous version needed after that. Markdown lint passed.",
    "task_type": "docs",
    "decisions": [],
    "skills": [
     "Technical writing",
-    "Runbooks",
-    "Blue-green deployment",
-    "Markdown"
+    "Runbook documentation",
+    "Blue-green deployment"
    ]
   },
   {
@@ -336,17 +338,16 @@
     "skills": true
    },
    "notes": [
-    "All claims are supported by the session: docstrings were added to public parser functions, the Sphinx build ran with -W (warnings as errors) and succeeded, and the doctest run passed. The candidate names the technique (docstrings plus a Sphinx-generated API reference), matching the reference's specific item. The decisions list is empty, which is acceptable. Every listed skill was used: Python, Sphinx, API documentation, docstrings, and doctest (doctest was actually run). The reference's skills are covered. The candidate omits the count of three functions, which is fine."
+    "Every claim in the candidate is backed by the session: three one-line docstring edits, sphinx-build -W succeeded, and doctest ran ok. Calling them docstring lines rather than giving the count is fine. It names the actual technique (docstrings plus a Sphinx-generated API reference). The empty decisions list matches the reference. Every listed skill was actually used."
    ],
-   "summary": "Added docstrings to public functions in a parser module, then generated the API documentation with Sphinx, with warnings treated as errors. The build succeeded and a doctest run on the module also passed.",
+   "summary": "Added docstring lines to public functions in a parser module and generated the API documentation with Sphinx, treating warnings as errors. The build succeeded and the module's doctest run passed.",
    "task_type": "docs",
    "decisions": [],
    "skills": [
     "Python",
     "Sphinx",
     "API documentation",
-    "docstrings",
-    "doctest"
+    "Docstrings"
    ]
   },
   {
@@ -363,18 +364,18 @@
     "skills": true
    },
    "notes": [
-    "Accurate: the candidate's claims match the session: streaming cursor rows through a CSV stringifier, the 2 tests passed, and no 100k-row run. Hedging the filter support as 'meant to' is cautious but not false. Specific: it names streaming export and database cursor. Decisions: the cursor-versus-array choice is stated with the 100k-row memory reason, which the session supports. Skills: TypeScript (.ts files), Node streams, database cursors and CSV are all used. It omits SQL, but the important ones are covered."
+    "The candidate's claims all match the session: the cursor is streamed through a CSV stringifier into the response, two tests passed, and there was no run at 100k volume. It states the filter requirement as a request rather than claiming it was verified, which is careful. It names the precise technique (streaming from a database cursor). The single decision is a real choice, array versus stream, with the session-supported reason about 100k rows. The skills were all used: the .ts files justify TypeScript, alongside CSV, streaming and database cursors."
    ],
-   "summary": "Added CSV export to a tickets list, meant to respect current filters, by streaming database cursor rows through a CSV stringifier into the response instead of loading them into an array, to bound memory for large exports. The two new export tests passed; the session shows no run at the 100k-row scale.",
+   "summary": "Added CSV export to a tickets list, streaming rows from a database cursor through a CSV stringifier into the response so large exports would not be held in memory. The request required honouring current filters and handling 100k rows; the two new tests passed, but the session shows no run at that volume.",
    "task_type": "feature",
    "decisions": [
-    "Chose streaming rows from a database cursor into the response over loading them all into an array, because an in-memory array would not survive 100k rows."
+    "Chose streaming rows from a database cursor into the response over loading them all into an array, because an array would not survive 100k rows."
    ],
    "skills": [
     "TypeScript",
-    "Node.js streams",
-    "Database cursors",
-    "CSV export"
+    "CSV export",
+    "Response streaming",
+    "Database cursors"
    ]
   },
   {
@@ -391,9 +392,9 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is backed by the session: the data attribute with a prefers-color-scheme fallback, the OS default, the remembered choice, the Header edit, lint reporting no problems and the tests passing. It is specific because it names the data-attribute plus color-scheme media query technique. The single decision states a real choice and gives the reason the session supports. The skills (CSS, TypeScript, React, theming) match the files that were touched and cover the reference's key skills."
+    "Accurate: following the OS setting, remembering the choice, the data attribute with a media query fallback, lint passing and tests passing all match the session. Specific: it names data-attribute theming with a color-scheme media query fallback, which is equivalent to prefers-color-scheme. Decisions: the one decision states the alternative and a reason that matches the assistant's own explanation. Skills: CSS, TypeScript and theming were used. Design tokens is reasonable since the session read tokens.css. React (Header.tsx) is missing, but not all the important skills are."
    ],
-   "summary": "Added a dark mode option to a dashboard, using a data attribute with a color scheme media query fallback so the OS setting applies until the person makes a choice, which is then remembered. Wired it into the header; lint reported no problems and the existing tests passed.",
+   "summary": "Added a dashboard dark mode toggle that follows the OS color scheme until the person picks a theme, then remembers that choice, using a data attribute with a media query fallback. Lint reported no problems and the tests passed.",
    "task_type": "feature",
    "decisions": [
     "Chose a data attribute with a color scheme media query fallback so the OS setting applies until the person chooses and only one value needs to be stored."
@@ -401,8 +402,8 @@
    "skills": [
     "CSS",
     "TypeScript",
-    "React",
-    "CSS theming"
+    "Theming",
+    "Design tokens"
    ]
   },
   {
@@ -419,20 +420,18 @@
     "skills": true
    },
    "notes": [
-    "The candidate's claims match the session. It states the requirement of 100 requests per minute per key, a 429 response and a Retry-After header. It describes a token bucket in Redis updated by an atomic Lua script, and reports 2 passing tests. It is specific: it names token bucket rate limiting and the atomic Redis Lua script. Both decisions name real alternatives (fixed window and sliding log; atomic script) with reasons the assistant stated: edge bursts, cost, smoothness and one round trip. All listed skills were used. TypeScript and middleware match the edited .ts middleware files, and the key skills from the reference are present."
+    "Accurate: the candidate's claims all match the session (Redis token bucket, atomic Lua script, one round trip, middleware, 2 tests passed). Specific: it names token bucket rate limiting with an atomic Redis Lua script. Decisions: the choice of token bucket over fixed window and sliding window log comes with reasons the session supports (edge bursts; exact but costly). Skills: TypeScript is supported by the .ts files. Middleware was actually worked on. The key reference skills (Redis, Lua, rate limiting) are all present."
    ],
-   "summary": "Added per-key rate limiting to a public API using a token bucket in Redis, updated atomically by a Lua script, with the requirement of a 429 response and Retry-After header at 100 requests per minute. The rate limiting tests run afterwards passed, two in total.",
+   "summary": "Added per-key rate limiting to a public API as middleware, using a Redis token bucket updated atomically by a Lua script to smooth traffic in one round trip. The rate limit tests passed, with two tests run.",
    "task_type": "feature",
    "decisions": [
-    "Chose a token bucket over a fixed window counter and a sliding window log, because fixed windows allow bursts at their edges and an exact log is costly.",
-    "Chose to update the bucket with an atomic Lua script in Redis so that limiting stays smooth and takes a single round trip."
+    "Chose a token bucket per API key over a fixed window counter, which allows bursts at window edges, and over a sliding window log, which is exact but costly."
    ],
    "skills": [
-    "TypeScript",
+    "Rate limiting",
     "Redis",
     "Lua",
-    "rate limiting",
-    "token bucket algorithm",
+    "TypeScript",
     "API middleware"
    ]
   },
@@ -450,19 +449,17 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported: the 1.4 GB to 168MB result, the successful build and the version check. The 'slim runtime' wording matches the session. The reference's 'distroless' is not in the transcript, so the candidate rightly avoids it. The candidate correctly notes no rebuild after the .dockerignore edit. One small imprecision: the edit was to platform/.dockerignore, not api/, so calling it the build context's ignore file is a slight stretch, but not invented. It omits the 74 s build time, which is fine. The decision (multi-stage slim over single-stage full node image with dev deps) has a reason the session supports. Skills were all actually used."
+    "The candidate's claims hold up: 1.4 GB down to 168 MB, a multi-stage build shipping only production deps and compiled output on a slim runtime, layers ordered for dependency caching, and a version check run in the image. The session itself says 'slim runtime image', so not calling it distroless is fine. Saying the cached rebuild wasn't measured is fair, since only one 74 s build ran, though leaving out that 74 s figure is an omission. It also omits the .dockerignore edit, which is allowed. It names the multi-stage build and layer caching, which is specific enough. The decisions list is empty, which is acceptable. All listed skills were actually used."
    ],
-   "summary": "Reworked an oversized, slow-building API container image into a multi-stage build with a slim runtime, production-only dependencies and cache-friendly layer order. The new image built successfully, measured 168MB against the reported 1.4 GB, and passed a runtime version check; the application itself was not shown being exercised. A small update to the ignore file for the build context followed, with no rebuild shown afterwards.",
+   "summary": "Reduced an oversized API container image from 1.4 GB to 168 MB with a multi-stage build that ships only production dependencies and compiled output on a slim runtime, with layers ordered to cache dependency installs. The new image built and a version check ran in it, but the application itself wasn't exercised and cached rebuild time wasn't measured against the original 9 minutes.",
    "task_type": "infra",
-   "decisions": [
-    "Chose a multi-stage build with a slim runtime image over the single-stage full Node image, which carried development dependencies into a large final image."
-   ],
+   "decisions": [],
    "skills": [
     "Docker",
-    "multi-stage builds",
-    "layer caching",
-    "Node.js",
-    "image size optimization"
+    "Multi-stage builds",
+    "Image size optimization",
+    "Build layer caching",
+    "Node.js"
    ]
   },
   {
@@ -479,13 +476,13 @@
     "skills": true
    },
    "notes": [
-    "All claims are supported by the session: fmt and validate passed, the plan showed 1 to add, the existing alerts topic was reused, and ten consecutive one-minute periods were required. The 'no apply' remark is correct. It omits the 1000 threshold, but omission is allowed. Specific: it names the CloudWatch alarm and the consecutive evaluation periods used to avoid paging on spikes. Decisions: both are real alternatives with reasons the session supports (topic already existed; a single breach would page on spikes). Skills match the reference, and 'alerting' is a reasonable addition rather than padding."
+    "All of the candidate's claims are supported by the session: the alarm publishes to the existing alerts SNS topic, ten consecutive one-minute periods are required, fmt -check and validate passed, and the plan shows 1 to add, 0 to change, 0 to destroy, with no apply run. 'Emails through' the topic is a reasonable paraphrase of the requested SNS email. The 1000 threshold is omitted, which is acceptable. It names the technique precisely: a CloudWatch alarm using evaluation periods to avoid paging on spikes. Both decisions are real choices with reasons the session states: reuse the existing topic rather than create a second, and require consecutive periods because a single breach would page on spikes. The skills match the reference, and 'alerting' is a mild but fair addition."
    ],
-   "summary": "Added a Terraform CloudWatch alarm for sustained queue depth that publishes to an existing SNS alerts topic, requiring ten consecutive one-minute breaches so brief spikes don't page. Format and validation checks passed and the plan showed one resource to add; the session showed no apply step.",
+   "summary": "Added a CloudWatch alarm in Terraform that emails through an existing SNS topic when queue depth stays high for ten consecutive one-minute periods, avoiding pages on brief spikes. Formatting and validation checks passed and the plan showed one resource to add with no changes or removals. The session shows no apply.",
    "task_type": "infra",
    "decisions": [
-    "Reused the existing alerts topic for the alarm instead of creating a second SNS topic, because one was already available.",
-    "Required ten consecutive one-minute periods above the threshold rather than alarming on a single breach, because a single breach would page on short spikes."
+    "Published the alarm to the existing alerts topic rather than creating a second one, because a suitable topic was already there.",
+    "Required ten consecutive one-minute periods above the threshold instead of alerting on a single breach, because a single breach would page on spikes."
    ],
    "skills": [
     "Terraform",
@@ -508,16 +505,15 @@
     "skills": true
    },
    "notes": [
-    "Accurate: the 22 minute start, lockfile-keyed caching, affected-only tests, parallel jobs, the workflow edits and the three successful runs of about 8 minutes all match the session. The candidate avoids claiming a tool like Nx, which the session never shows. Specific: it names dependency caching and affected-only testing. Decisions: the list is empty, which is allowed. Skills: GitHub Actions, CI optimization, caching and npm were all actually used. Nx in the reference is not supported by the transcript, so leaving it out is fine."
+    "Every claim in the candidate is supported by the session: the 22-minute baseline, the three proposals (lockfile-keyed npm cache, affected-only tests, parallel lint/test/build jobs), the three edits to ci.yml, and recent successful runs of about 8 minutes (7m41s, 8m02s, 7m55s). It does not invent Nx, which the reference mentions but the session never names. It names the specific techniques: dependency caching keyed on the lockfile and affected-only test runs. The decisions list is empty, which is allowed. The skills (GitHub Actions, CI pipeline optimization, dependency caching) were all actually used and match the important reference skills GitHub Actions and CI/CD."
    ],
-   "summary": "Targeted a slow CI pipeline dominated by dependency installs and tests of unchanged code, proposing dependency caching keyed on the lockfile, affected-only testing and parallel jobs, then editing the workflow. The three latest runs listed afterwards succeeded in about 8 minutes, against the 22 minutes reported at the start.",
+   "summary": "Sped up a slow CI pipeline with three edits to its workflow configuration, after proposing dependency caching keyed on the lockfile, testing only affected packages and parallel lint, test and build jobs. Recent runs listed afterwards succeeded in about 8 minutes, down from the 22 minutes the engineer reported.",
    "task_type": "infra",
    "decisions": [],
    "skills": [
     "GitHub Actions",
     "CI pipeline optimization",
-    "dependency caching",
-    "npm"
+    "Dependency caching"
    ]
   },
   {
@@ -534,13 +530,11 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session: Express 4 to Fastify 5, route-by-route migration behind the integration tests, a first run with 2 failures including the health status mismatch (204 vs 200), a fix to the health route, then 39 passing. Specific enough: it names the Express-to-Fastify framework migration and the test-guarded approach, though it omits the middleware-to-hooks mapping. The decision is a real choice with a session-supported reason (keep routes and behaviour). Skills Fastify, Express and TypeScript were used, and integration tests were actually run. Node.js is missing, but the important skills are present."
+    "All claims are supported: the Express to Fastify migration ran behind the integration tests, the first run failed because health returned 204 instead of 200, and after the health.ts edit all 39 tests passed. It names the framework migration, which counts as specific, though it does not mention mapping middleware to hooks. The empty decisions list is acceptable. The listed skills were all used; Node.js is missing but Fastify, Express and TypeScript are present."
    ],
-   "summary": "Migrated a the project from Express 4 to Fastify 5 route by route behind existing integration tests. A first run had two failures, including a health check returning a different status code than expected; after an edit to the health route, all 39 tests passed.",
+   "summary": "Migrated a the project's routes from Express to Fastify behind existing integration tests. The first test run failed because the health route returned a different status code than expected; after an edit to that route, all integration tests passed.",
    "task_type": "migration",
-   "decisions": [
-    "Chose to migrate route by route behind the existing integration tests, so that routes and behaviour could be kept the same through the move."
-   ],
+   "decisions": [],
    "skills": [
     "Fastify",
     "Express",
@@ -563,21 +557,20 @@
     "skills": true
    },
    "notes": [
-    "All of the candidate's claims are supported by the session: about 12M rows, the identity, UTC and boolean type mapping, the pgloader load with matching counts and a 10k checksum sample, and a cutover doc written. It correctly says the change replay and cutover were not shown being carried out. Its wording 'Migrated' is softened by that caveat. It does not repeat the reference's unsupported 'week of read-only fallback' detail. It names the technique precisely: type mapping and snapshot plus binlog replay. Both decisions are supported: snapshot plus replay to keep downtime minimal, and UTC interpretation because DATETIME has no time zone. The skills (MySQL, PostgreSQL, pgloader, migration, type mapping, validation via verify_counts.py) were all actually used."
+    "Every claim in the candidate is supported by the session. It covers the ~12M-row MySQL to Postgres users migration, the type mapping, the pgloader snapshot load with 0 errors, matching row counts and the 10k checksum sample, and the cutover document. It correctly notes that binlog replay and the cutover itself were never run. It names the specific techniques: type mapping and snapshot plus binlog change replay. The decision is a real choice, snapshot plus replay over an offline copy, with the session-supported reason of keeping downtime minimal. All listed skills were exercised: MySQL, PostgreSQL, pgloader, migration, type mapping and verification."
    ],
-   "summary": "Migrated a users table of about 12 million rows from MySQL to Postgres, handling identity, time zone and boolean type differences, and bulk loaded it with matching row counts and a passing 10k checksum sample. A cutover document was written; the planned change replay and the cutover itself were not shown being carried out.",
+   "summary": "Planned a MySQL to Postgres move of a users table of about 12 million rows, mapping type differences and bulk loading a snapshot with no reported errors, verified by matching row counts and a sampled checksum. A cutover document was written; the session shows no binlog replay or actual cutover being run.",
    "task_type": "migration",
    "decisions": [
-    "Chose a bulk snapshot load followed by binlog change replay until cutover as the plan, to keep downtime minimal.",
-    "Chose to interpret the source date-time values explicitly as UTC, because the source type carries no time zone."
+    "Chose a bulk snapshot load followed by binlog change replay until cutover, instead of a single offline copy, to keep downtime minimal."
    ],
    "skills": [
     "MySQL",
     "PostgreSQL",
     "pgloader",
-    "schema migration",
-    "data type mapping",
-    "data validation"
+    "data migration",
+    "schema type mapping",
+    "data verification"
    ]
   },
   {
@@ -594,19 +587,18 @@
     "skills": true
    },
    "notes": [
-    "The candidate's claims match the session: the build failed on legacy ReactDOM.render and was fixed, autosave subscribed twice under strict mode remounting, cleanup was added, and tests passed. It does not name createRoot, but it identifies the legacy render replacement and effect cleanup under strict mode, which is specific enough. The one decision (cleanup over disabling strict mode) has a reason the session supports. Every listed skill was used in the session."
+    "Every claim in the candidate is backed by the session: 17 to 18, replacement of the unsupported ReactDOM.render, the double-subscribing autosave under strict-mode remount, and the passing final test run. It names the concrete techniques, though it does not use the word createRoot. The decision on cleanup versus disabling strict mode states its reason. The skills listed were used and match the reference."
    ],
-   "summary": "Upgraded React from 17 to 18, replacing the unsupported legacy render call after the build failed, then addressed test failures that included autosave subscribing twice under strict mode's double mounting. Fixed the autosave effect's missing cleanup, and the test suite then passed.",
+   "summary": "Upgraded a React app from version 17 to 18, replacing the unsupported root render call and fixing an autosave effect that subscribed twice because strict mode now remounts components in development. The final test run passed.",
    "task_type": "migration",
    "decisions": [
-    "Chose to add cleanup to the autosave effect over disabling strict mode, because strict mode's remounting had exposed a real effect that subscribed twice without cleaning up."
+    "Added cleanup to the autosave effect rather than disabling strict mode, because the double mount had exposed an effect that was missing cleanup and subscribed twice."
    ],
    "skills": [
     "React",
     "TypeScript",
-    "React 18 upgrade",
-    "React Hooks",
-    "Effect cleanup"
+    "React 18 migration",
+    "React effect cleanup"
    ]
   },
   {
@@ -623,18 +615,17 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is supported by the session: 1,200 lines down to about 400, three constructor-injected collaborators (tax, receipts, ledger), and 148 tests passing before and after. It names the real techniques, class extraction and dependency injection. Its one decision states the alternative (a global) and the reason the session gives (ledger sync shares the transaction object). The skills match the reference and were all actually used."
+    "All claims match the session: tax, receipt and ledger collaborators extracted, constructor injection, tests passing before and after, and the drop from about 1,200 to about 400 lines. It names the class extraction and dependency injection techniques. The ledger decision states the alternative (a global) and gives the reason the session supports (the shared transaction object). Skills match the reference."
    ],
-   "summary": "Split an oversized payment service of about 1,200 lines into a slimmer class of about 400 lines that delegates to three constructor-injected collaborators for tax, receipts and ledger sync, keeping behaviour unchanged. The existing suite of 148 tests passed both before and after the change.",
+   "summary": "Split an oversized payment service into separate tax calculation, receipt sending and ledger sync collaborators injected through the constructor, without intending any behaviour change. The existing tests passed both before and after, and the service shrank from about 1,200 lines to about 400.",
    "task_type": "refactor",
    "decisions": [
-    "Passed the shared transaction object into the extracted ledger sync component instead of having it reach for a global, because ledger sync shares that object with the service."
+    "Passed the shared transaction object into the extracted ledger sync component rather than reaching for a global, because ledger sync shares that object with the service."
    ],
    "skills": [
     "TypeScript",
-    "class extraction",
-    "dependency injection",
-    "behaviour-preserving refactoring"
+    "refactoring",
+    "dependency injection"
    ]
   },
   {
@@ -651,16 +642,15 @@
     "skills": true
    },
    "notes": [
-    "The claims match the session: chart class components were converted to function components with hooks, 14 snapshots passed with 0 updated, and typecheck passed. Naming the class-to-function migration with hooks is specific enough, though effect cleanup is not mentioned. The empty decisions list is acceptable. All listed skills were used, including snapshot testing, which was actually run, and the reference's React, TypeScript and hooks are all present."
+    "Every claim in the candidate is backed by the session: the class components were converted to function components with hooks, the no-visual-change constraint was set, snapshot tests passed (14 passed, 0 updated) and typecheck passed. It names the specific migration technique (class to function component with hooks) but leaves out effect cleanup, which is allowed. The empty decisions list is acceptable. All listed skills were used. Snapshot testing counts as used because the snapshot suite was run to verify the change. The key reference skills (React, TypeScript, hooks) are all present."
    ],
-   "summary": "Converted charting class components to function components with hooks under a no-visual-change constraint. Snapshot tests passed with no snapshots updated, and the type check passed.",
+   "summary": "Converted chart class components to function components with hooks under a no visual change constraint. Snapshot tests passed with no snapshots updated, and the type check passed.",
    "task_type": "refactor",
    "decisions": [],
    "skills": [
-    "TypeScript",
     "React",
     "React Hooks",
-    "Component refactoring",
+    "TypeScript",
     "Snapshot testing"
    ]
   },
@@ -678,19 +668,19 @@
     "skills": true
    },
    "notes": [
-    "The summary matches the session: three duplicated retry copies consolidated into one helper, with retryable exceptions as a parameter and jitter added, and the tests passed (27 passed). It names the technique (shared helper, retry with backoff and jitter). Both decisions state a real alternative and a reason the session supports: copies differed and one retried on 429, and lockstep retries without jitter. 'Exponential backoff' is a mild inference since the session only says 'backoff', but it matches the reference. The skills were all used. pytest is missing but not all of the important ones are."
+    "The candidate's claims match the session. It reports three duplicated retry loops consolidated into one helper, that the copies differed in retrying on 429 and in jitter, and that 27 tests passed. The reference uses the same 'exponential' wording. Both decisions give a real choice and a reason the session supports: a parameterized exceptions set because one copy also retried on 429, and jitter to avoid lockstep retries. The skills listed were all used and cover the reference's Python, pytest and retry with backoff."
    ],
-   "summary": "Consolidated retry-with-backoff logic duplicated across three data importers into one shared helper, designed around the differences between the copies: retryable exceptions passed as a parameter and jitter added. The importer tests passed afterwards.",
+   "summary": "Consolidated retry-with-backoff logic duplicated across three data importers into one shared helper, designed around differences between the copies in retryable errors and jitter. The importer tests passed afterwards.",
    "task_type": "refactor",
    "decisions": [
-    "Chose a shared helper that takes the retryable exceptions as a parameter over a fixed set, because the existing copies differed in what they retried, with one also retrying on rate limiting.",
-    "Chose to include jitter in the shared helper, although one copy lacked it, because concurrent workers would otherwise retry in lockstep."
+    "Chose to have the shared helper take retryable exceptions as a parameter over a fixed set, because the copies differed and one also retried on rate limit responses.",
+    "Chose to include jitter in the shared helper over the unjittered variant one importer had, because concurrent workers would otherwise retry in lockstep."
    ],
    "skills": [
     "Python",
     "refactoring",
-    "exponential backoff",
-    "retry logic"
+    "retry with exponential backoff",
+    "pytest"
    ]
   },
   {
@@ -707,9 +697,9 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is supported by the session: predictable plain-text tokens, no expiry or single use, enumeration through the unknown-email response, review notes written, and no fixes made. It names the specific problem classes (account enumeration, predictable tokens). The decisions list is empty, which is acceptable. The skills listed match the reference."
+    "The candidate's claims match the session: tokens come from a predictable source, are stored in plain text, have no expiry or single use, and the 404 lets an attacker enumerate accounts. Findings were written to REVIEW.md. It names account enumeration and predictable reset tokens. The decisions list is empty, which is acceptable. The skills listed (security review, TypeScript, authentication) were all used and cover the reference."
    ],
-   "summary": "Reviewed a pull request adding emailed password reset with a security focus, reading the request and confirmation logic. Found predictable, plain-text reset tokens that never expired and stayed valid after use, plus a response for unknown emails that allowed account enumeration. The findings were written up in a review note, and the session showed no code fixes.",
+   "summary": "Reviewed a password reset by email change for security and found predictable reset tokens stored in plain text, with no expiry or invalidation after use, plus a not-found response for unknown emails that allowed account enumeration. The findings were written up in a review file.",
    "task_type": "review",
    "decisions": [],
    "skills": [
@@ -732,18 +722,18 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported: 80M-row events table, the constant-default column add being a cheap metadata change, the plain index build blocking writes, the recommendation to build concurrently outside a transaction, the version check and the review note, with no claim that the migration was run. It names the precise problem class (write-blocking lock during index build) and the fix (concurrent index creation). The decision states a real choice with a supported reason. Skills are all used and cover the reference's PostgreSQL, SQL and migrations. 'Database locking analysis' is reasonable given the lock reasoning."
+    "Every claim in the candidate is backed by the session: the constant-default column is a cheap metadata change, the plain CREATE INDEX blocks writes for the whole build, CONCURRENTLY outside a transaction is recommended, a review note was written, and nothing shows the migration being run. It names the specific techniques (blocking lock during the index build, concurrent index creation). The decision weighs concurrent against plain index build, and the reason is supported. The skills listed match what was used. 'Online index creation' is a fair paraphrase of concurrent indexing."
    ],
-   "summary": "Reviewed a SQL migration before it ran on an 80 million row Postgres events table, finding that adding a column with a constant default was a cheap metadata change but the plain index build would block writes throughout. Advised building the index concurrently, outside a transaction, then checked the server version and wrote a short review note. The session shows no run of the migration.",
+   "summary": "Reviewed a SQL migration before it ran on a very large PostgreSQL events table. Found that adding a column with a constant default was a cheap metadata change, but that a plain index build would block writes for its whole duration, and advised building the index concurrently outside a transaction. A review note file was written; the session shows no run of the migration.",
    "task_type": "review",
    "decisions": [
-    "Recommended a concurrent index build outside a transaction over a plain index build, because the plain one locks out writes for the whole build on a very large table."
+    "Recommended a concurrent index build outside a transaction over a plain index build, because the plain one would lock out writes for the whole build on a very large table."
    ],
    "skills": [
     "PostgreSQL",
     "SQL",
     "schema migration review",
-    "database locking analysis"
+    "online index creation"
    ]
   },
   {
@@ -760,13 +750,13 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is backed by the session: missing dialog role and aria-modal, no accessible name, no focus move/restore or trap, no Escape handling, backdrop click with no keyboard equivalent, test file read, review note written. It names dialog semantics and focus management precisely. The empty decisions list is acceptable. ARIA and focus management count as part of the accessibility review the assistant actually did, so they are not padding. React is supported by the .tsx files."
+    "Every candidate claim is supported by the session: the diff was reviewed, and the assistant's findings named missing dialog role/aria-modal, accessible name, focus move/restore, focus trap, and Escape to close, plus no keyboard equivalent for backdrop click. Review notes were written to a file. Specific techniques are named (dialog semantics, focus management). The empty decisions list is acceptable. All listed skills (accessibility, code review, React/TSX, ARIA, focus management) were exercised in the review, and they cover the reference's skills."
    ],
-   "summary": "Reviewed a new modal component's diff for accessibility and found it lacked dialog semantics, an accessible name, focus management and trapping, and Escape to close, leaving backdrop-click dismissal with no keyboard equivalent. The component's tests were also read and a short review note was written.",
+   "summary": "Reviewed the diff of a new modal component for accessibility and found it lacked dialog semantics, an accessible name, focus management, focus trapping and Escape to close. Backdrop clicking closed it with no keyboard equivalent. Review notes were then written to a file.",
    "task_type": "review",
    "decisions": [],
    "skills": [
-    "Web accessibility",
+    "Accessibility review",
     "Code review",
     "React",
     "ARIA",
@@ -787,19 +777,19 @@
     "skills": true
    },
    "notes": [
-    "All claims are supported: real Postgres via the testcontainers helper, a fake clock, the off-by-one caused by the counter incrementing after the lock check, a one-line fix, and four tests passing. All three decisions state a real alternative and a reason from the session; the third (fix the code, keep the test) is grounded in the stated requirement. Skills were all used, and the reference's key skills are covered."
+    "Every claim in the candidate is backed by the session. The session shows Postgres via the existing testcontainers helper, a fake clock for expiry, the four scenarios, the off-by-one where the counter was incremented after the lock check, the one-line edit (+1 -1) and the final run with 4 passed. It names precise techniques: integration testing against a real database container, a fake clock, and the off-by-one in lockout. All three decisions state an alternative and a reason the session supports. Real Postgres was chosen over mocks, a fake clock over sleeping, and the test expectation was kept with the code fixed because it matched the lock-after-5 requirement. The skills (Vitest, TypeScript, PostgreSQL, Testcontainers, fake timers, integration testing) were all actually used and cover the reference's skills."
    ],
-   "summary": "Added integration tests for a login flow against a real Postgres, covering success, wrong password, lockout and token expiry with a fake clock. The lockout test exposed a real off-by-one: the failure counter was incremented after the lock check, so refusal came one attempt late. A one-line fix followed and all four tests passed.",
+   "summary": "Added integration tests for the login flow against a real Postgres via testcontainers, covering success, wrong password, lockout and token expiry with a fake clock. The lockout test exposed an off-by-one where the failure counter was incremented after the lock check; after a one-line fix, all four tests passed.",
    "task_type": "tests",
    "decisions": [
-    "Chose a real Postgres through the existing testcontainers helper over mocks, because the login service talks to a real Postgres.",
+    "Used the existing testcontainers helper instead of mocks because the login service talks to a real Postgres database.",
     "Used a fake clock for the token expiry test instead of real waiting, so the test does not sleep.",
-    "Changed the application code and kept the failing lockout expectation, since the expectation matched the requirement of locking after five failures."
+    "Kept the lockout test expectation and changed the login code, because the expectation matched the requirement of locking after five failures."
    ],
    "skills": [
     "Integration testing",
-    "Vitest",
     "TypeScript",
+    "Vitest",
     "Testcontainers",
     "PostgreSQL",
     "Fake timers"
@@ -819,13 +809,11 @@
     "skills": true
    },
    "notes": [
-    "The candidate's claims all match the session: Hypothesis property tests, a counterexample with a negative fixed discount that raised the price, rejection at rule construction, and 3 passed. It names property-based testing and the generated counterexample, which is precise. The decision states a real choice with a reason the session supports. Every listed skill was used, including input validation, since rules.py was edited to reject negative amounts."
+    "The candidate's claims all match the session. Hypothesis tests were added, and a falsifying example showed a negative fixed discount raising the price. rules.py and the test file were edited, and 3 tests then passed. It names property-based testing and the falsifying example, so it is specific. The decisions list is empty, which is allowed, though it misses the reference decision to reject negative amounts at rule construction. All listed skills were used. 'Input validation' is supported by the rules.py edit that rejects negative amounts."
    ],
-   "summary": "Added property-based tests with Hypothesis to a discount calculator that kept failing on edge cases. A generated counterexample showed a negative fixed discount could raise the price; rejecting negative amounts when rules are constructed led to a passing run of all three tests.",
+   "summary": "Added property-based tests with Hypothesis for a discount calculator that kept failing on edge cases. A falsifying example showed that a negative fixed discount raised the price, so the rule code was changed and the test adjusted, after which all three property tests passed.",
    "task_type": "tests",
-   "decisions": [
-    "Chose to reject negative discount amounts at rule construction after property testing showed that a negative fixed discount increases the price."
-   ],
+   "decisions": [],
    "skills": [
     "Python",
     "Hypothesis",
@@ -848,12 +836,12 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is backed by the session: the test failed intermittently on CI but passed locally, the fixed two-second sleep was swapped for a condition wait because the payment mock could be slow, and it passed 20 repeated runs. It is also correct that nothing confirms the fix on CI. 'Busy runners' is a fair paraphrase of 'slow CI runner'. It identifies the problem class (a flaky test caused by a fixed sleep, fixed with a condition-based wait), though it does not mention the role-based locator, which is an acceptable omission. The decision gives a real alternative and a reason the session supports. 'Flaky test stabilisation' is the task itself, not padding, and the Playwright, TypeScript and E2E skills match the reference."
+    "All of the candidate's claims are backed by the session: a fixed sleep was replaced with a condition wait, a slow CI payment mock was the cause, 20/20 repeated runs passed, and CI itself was never verified, which is correctly noted. It omits the role-based locator, which is acceptable. It names the specific problem class, a flaky test caused by a fixed sleep and fixed with a condition-based wait. The decision states a real alternative and gives a reason the session supports. The skills match the reference, and 'flaky test stabilisation' was actually exercised."
    ],
-   "summary": "Stabilised an intermittently failing end-to-end checkout test that passed locally but not reliably on CI, replacing a fixed sleep with a wait on the condition itself, since the payment mock could respond slowly on busy runners. The test then passed 20 repeated runs; the session shows no verification on CI.",
+   "summary": "Stabilised an intermittently failing Playwright checkout test by replacing a fixed sleep, which a slow CI runner's payment mock could outlast, with a wait on the expected condition. The test then passed all 20 repeated runs; the session shows no verification on CI itself.",
    "task_type": "tests",
    "decisions": [
-    "Chose waiting for the expected condition over a fixed two-second sleep, because on a slow CI runner the payment mock sometimes took longer than the sleep allowed."
+    "Chose waiting on the expected condition over a fixed two second sleep, because the payment mock sometimes took longer than that on a slow CI runner."
    ],
    "skills": [
     "Playwright",

@@ -1,12 +1,12 @@
 {
  "run": {
-  "date": "2026-11-26T01:31:51.380Z",
+  "date": "2026-11-26T13:44:31.596Z",
   "set": "dev-2 (evals/dev-2, used for prompt work)",
   "set_sha256": "3b8bfe73c31227737ab8d82c508d7ea2dcb7c181949b0f6761dba6b3f7a239c5",
-  "prompt_sha256": "189c5cbbe18eb73bc733f4b6b206cb3c91b6cfe60b51ed2dfef80800336a64ca",
+  "prompt_sha256": "754ef3aea4b94b309b0bce06154d5d733c21ab32e33d9d0fe7886dc9f3651651",
   "judge_sha256": "0b21a4d39d87054a28ec1b7b96ebd3254f613904281263e6b4e1d9d20245ec03",
   "claude_cli": "2.1.332 (Claude Code)",
-  "summariser_model": "sonnet",
+  "summariser_model": "claude-sonnet-5-5",
   "summariser_model_ids": [
    "claude-sonnet-5-5"
   ],
@@ -16,12 +16,13 @@
   ],
   "partial": false
  },
- "prompt_sha256": "189c5cbbe18eb73bc733f4b6b206cb3c91b6cfe60b51ed2dfef80800336a64ca",
- "model": "sonnet",
+ "prompt_sha256": "754ef3aea4b94b309b0bce06154d5d733c21ab32e33d9d0fe7886dc9f3651651",
+ "model": "claude-sonnet-5-5",
  "sessions": 30,
- "passed": 30,
+ "passed": 29,
  "leaks": 0,
  "bar": 27,
+ "workflow_heavy": [],
  "ok": true,
  "verdicts": [
   {
@@ -38,18 +39,19 @@
     "skills": true
    },
    "notes": [
-    "Every claim is backed by the session. The bug was a fixed offset captured at depot creation, replaced with IANA zone resolution. The three test cases are correct, and 'static checks' is a fair paraphrase of go vet. The candidate names the DST bug and the IANA-vs-fixed-offset technique, so it is specific. The decision states the real alternative (scheduled offset recomputation) with the reason the session gives (straddling transitions). Skills match the reference. Root cause analysis is missing, but the core skills are present and 'daylight saving time' is reasonable. It omits the cache and the unused column, which is acceptable."
+    "Every claim is supported by the session: the fixed UTC offset as root cause, cached IANA zone resolution, the three test scenarios, and vet plus the full suite passing. It names the problem precisely as a DST/time-zone bug fixed with IANA zones instead of fixed offsets. The one decision gives the real alternative (recomputing offsets on a schedule) and the session's stated reason (offsets still break for ETAs that straddle a transition). All listed skills were used: Go, time zone/DST handling, the caching layer tested by TestZonesLoadCaches, and unit tests. It omits root cause analysis as a skill, which is acceptable."
    ],
-   "summary": "Fixed delivery ETA windows that were an hour off after a daylight saving change by resolving each depot's IANA time zone instead of a fixed UTC offset stored when the depot was created. Added test cases for the day after fall-back, a zone without daylight saving and a window straddling a transition; the full test suite and static checks passed.",
+   "summary": "Fixed delivery ETAs drifting by an hour after a clock change, caused by windows built from a stored fixed UTC offset, by resolving each depot's IANA time zone with caching. Added test cases for the day after fall-back, a zone without daylight saving and a window straddling the transition; the full test suite and vet checks passed.",
    "task_type": "bugfix",
    "decisions": [
-    "Chose resolving IANA zone names per instant over recomputing stored offsets on a schedule, because recomputed offsets would still be wrong for ETAs that straddle a daylight saving transition."
+    "Chose resolving IANA zone names over recomputing stored offsets on a schedule, because recomputed offsets would still be wrong for ETAs that straddle a clock transition."
    ],
    "skills": [
     "Go",
-    "time zone handling",
-    "daylight saving time",
-    "unit testing"
+    "Time zone handling",
+    "Daylight saving time",
+    "Caching",
+    "Unit testing"
    ]
   },
   {
@@ -66,17 +68,17 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim matches the session. Switching to Decimal, normalized formatting, the mixed-type failure fixed by making doses per day an int, and the full suite passing with skips (412 passed, 3 skipped) are all supported. Specific: names the floating-point precision issue and Decimal arithmetic. Decisions: both state a choice and a reason the session supports. Decimal carried end to end instead of float, because floats can't represent the input amounts exactly and the string inputs suit it. Doses per day as an int, because it was only ever a whole count. Skills: all were actually used and match the reference."
+    "Every claim is supported by the session: the float precision tail in the label, the switch to Decimal with normalised formatting, the follow-on Decimal/float TypeError fixed by making doses per day an int, and the full suite passing (412 passed, 3 skipped). It names the problem class precisely (floating-point precision, decimal arithmetic). Both decisions name a real alternative and give a reason the assistant stated: floats can't represent the amounts exactly, and the dose count was only ever whole. Skills were all used, and they cover the reference's skills."
    ],
-   "summary": "Fixed floating-point error that leaked into a medication unit conversion shown on label previews by switching to Decimal arithmetic and formatting normalized values. A resulting mixed-type failure in the daily dose calculation was resolved by making the dose count an integer, after which the full test suite passed with a few tests skipped.",
+   "summary": "Fixed a floating-point precision error that put a long fractional tail on a converted medication dose in a label preview, by switching unit conversion to decimal arithmetic and normalizing label formatting. A follow-on type mismatch in the daily total calculation surfaced in tests and was resolved, after which the full test suite passed with a few tests skipped.",
    "task_type": "bugfix",
    "decisions": [
-    "Chose Decimal values carried end to end, quantized only at formatting, over binary float multiplication because floats cannot represent the input amounts exactly and the error reached the label.",
-    "Changed doses per day to an integer to resolve a Decimal and float multiplication error, since the value was only ever a whole count."
+    "Chose decimal arithmetic carried from the string inputs through to formatting over binary floats, because floats can't represent some decimal amounts exactly and the error leaked into labels.",
+    "Changed doses per day to an integer rather than keeping a float, since it was only ever a whole count and this removed the mixed decimal and float multiplication."
    ],
    "skills": [
     "Python",
-    "Decimal arithmetic",
+    "decimal arithmetic",
     "floating-point precision",
     "pytest"
    ]
@@ -95,19 +97,19 @@
     "skills": true
    },
    "notes": [
-    "Accurate: the candidate says the player moved into a ViewModel with buffering exposed as a flow, the crash is gone, the test fails on position because the fake player injection is no longer used, and the fix is proposed but unfinished. All of this matches the session, and nothing is invented. Specific: it names the configuration-change (rotation) crash and moving state into a ViewModel. Decisions: ViewModel versus retained fragment, with the reason given in the session (deprecated, keeps the view-bound handler). Skills: Kotlin, Android lifecycle, StateFlow, ViewModel and Robolectric were all used. 'Android' is somewhat generic but not padding."
+    "The candidate's claims are backed by the session. The player was moved into a ViewModel and buffering exposed as StateFlow. The IllegalStateException is gone, but the position assertion still fails because the FakePlayer injection is bypassed, and the ViewModel factory was only proposed. It names the problem class (rotation/config-change crash) and the technique (moving the player into a ViewModel). The decision of ViewModel over setRetainInstance, chosen because retaining is deprecated and keeps the view-bound handler, matches the session. The skills listed are ones actually used and cover the reference's key skills."
    ],
-   "summary": "Addressed a crash on screen rotation during media buffering by moving the Android player into a ViewModel and exposing buffering state as a flow. The crash no longer appeared in the test, but the rotation test still failed on playback position because its injected fake player was no longer used. Updating the injection point was proposed and left unfinished.",
+   "summary": "Addressed a crash on rotation during buffering by moving the media player from an Android fragment into a ViewModel with buffering exposed as StateFlow. The test no longer threw the lifecycle exception but still failed on playback position, because the injected fake player was bypassed. The session ended unfinished, with a ViewModel factory for test injection proposed but not made.",
    "task_type": "bugfix",
    "decisions": [
-    "Moved the player into a ViewModel instead of retaining the fragment instance, because retention is deprecated and would keep the view-bound handler around."
+    "Chose to move the player into a ViewModel over retaining the fragment instance, because retaining is deprecated and would keep the view-bound handler around."
    ],
    "skills": [
     "Kotlin",
     "Android",
     "ViewModel",
     "StateFlow",
-    "Android lifecycle management",
+    "Fragment lifecycle",
     "Robolectric"
    ]
   },
@@ -125,19 +127,19 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is supported by the session: weekly cohorts, test-account exclusion, the statement timeout, bounding events to a window so the index is used, week-1 retention rising, partial edge weeks, and missing week-8 data for recent cohorts. It names cohort retention analysis and index-enabling query bounding, so it is specific. Decision 1 (weekly over daily because of small daily counts and noisy percentages) is well supported. Decision 2 picks bounding over the unbounded query because of the timeout, also supported. Skills (PostgreSQL, SQL, cohort retention analysis, query optimization) were all used and cover the reference's key skills."
+    "Every claim is supported by the session: Postgres replica, weekly cohorts, excluded test accounts, the statement timeout, bounding events to a window after the cohort so the index is used, week-1 rising across the quarter, partial edge cohorts, and missing later-week data for recent cohorts. Names cohort retention and index-enabling query bounding precisely. The weekly vs. daily decision has the session-supported noise reason. Skills were all exercised (EXPLAIN plan read, query rewritten) and cover the reference."
    ],
-   "summary": "Built a weekly-cohort retention query over quarterly signups on a Postgres read replica, excluding test accounts. The first run hit the statement timeout; bounding each learner's events to a window after signup let it use an index and finish within the limit. Week-one retention rose from early to late cohorts, though the edge weeks are partial and recent cohorts lack week-eight data.",
+   "summary": "Built a weekly signup-cohort retention query on a Postgres read replica, excluding test accounts, and fixed a statement timeout by bounding each user's events to a window after their cohort so an index could be used. The query then ran within the limit and showed week-one retention rising across the quarter, with the caveat that edge cohorts were partial weeks and recent ones lacked later-week data.",
    "task_type": "data",
    "decisions": [
-    "Chose weekly signup cohorts over daily ones because some days had so few signups that retention percentages would have been very noisy.",
-    "Bounded each learner's events to a fixed window after their cohort, so the query could use the user and time index after the first version exceeded the replica's statement timeout."
+    "Grouped learners into weekly signup cohorts rather than daily ones, because low daily signup counts would have made the retention percentages very noisy."
    ],
    "skills": [
-    "PostgreSQL",
     "SQL",
+    "PostgreSQL",
     "cohort retention analysis",
-    "query optimization"
+    "query optimization",
+    "query plan analysis"
    ]
   },
   {
@@ -154,18 +156,18 @@
     "skills": true
    },
    "notes": [
-    "Every candidate claim is backed by the session. The cause is gateway retransmissions re-stamped with a later receive time, which slipped past dedup on (device_id, ts). The fix dedups on device sequence number. The rerun showed 0 duplicate (device_id, seq) pairs and a max of 1440 readings per device per day, i.e. no device above one per minute. A test for a retry crossing a second boundary was added and all 6 tests passed. Specificity: it names retransmission dedup and the choice of a sequence-number dedup key, which matches the reference's at-least-once delivery and idempotency-key concepts. It does not say 'at-least-once' explicitly or mention keeping the earliest timestamp, but omissions are allowed. The decision states a real alternative (rounding ts to the second) and the reasons the session gives (misses retries crossing a second boundary, could merge distinct readings). Skills Python, pandas and pytest were used. 'Data deduplication' and 'data pipelines' are fair descriptions of the work, and none of the reference's key skills are missing."
+    "Every claim in the candidate is backed by the session: gateway retransmissions re-stamped with a later receive time, the move from (device_id, ts) to (device_id, seq) keeping the earliest ts, zero duplicates on rerun, and 6 tests passing including the new second-boundary retry test. It names the actual problem class precisely: retransmission duplicates slipping past timestamp-based dedup, fixed by keying on the sequence number. The decision weighs rounding timestamps against seq-based dedup and gives the reason the session supports. The listed skills (Python, pandas, deduplication, pipeline debugging, pytest) were all used and match the reference."
    ],
-   "summary": "Traced doubled cold-chain sensor readings to gateway retransmissions re-stamped with a later receive time, which slipped past timestamp-based deduplication, and switched to deduplicating on device sequence number. A rerun on one day's data left no duplicate sequence numbers and no device above one reading per minute; a new test for retries crossing a second boundary passed with the rest.",
+   "summary": "Traced doubled reefer temperature readings to gateway retransmissions re-stamped with a slightly later receive time, which slipped past timestamp-based deduplication. Changed the cleaning step to deduplicate on device and sequence number, keeping the earliest time. A rerun on one day's data left no such duplicates, and the tests passed, including a new one for a retry crossing a second boundary.",
    "task_type": "data",
    "decisions": [
-    "Chose the device and sequence number as the deduplication key over rounding timestamps to the second, because rounding would miss retries crossing a second boundary and could merge distinct readings."
+    "Deduplicated on device and sequence number instead of rounding timestamps to the second, because rounding would miss retries crossing a second boundary and could merge distinct readings."
    ],
    "skills": [
     "Python",
     "pandas",
     "data deduplication",
-    "data pipelines",
+    "data pipeline debugging",
     "pytest"
    ]
   },
@@ -183,19 +185,19 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported: the backfill was triggered by the storage move, the load step failed on schema drift from two new upstream columns, Parquet schemas were compared across the 12th/13th boundary, row counts were checked, and the run was paused with 12 of 30 days loaded. 'Schema drift' and 'Airflow backfill' match the reference's specific list. The decision is supported by the session: the assistant explicitly declined to add columns to a shared warehouse table without approval. Skills (Airflow, PyArrow/Parquet, PostgreSQL via psql) were all actually used."
+    "Every claim is supported by the session: the backfill followed the S3 bucket move, 12 of 30 days loaded with normal row counts, one day failed and the rest were not started, and the failure was schema drift from two added columns. The candidate names the problem class (schema drift) and the technique (Airflow backfill). The decision is real and supported: the assistant paused instead of altering a shared warehouse table, citing it as a schema change it shouldn't make alone. All listed skills were used (Airflow CLI, Parquet schema inspection via pyarrow, SQL/PostgreSQL row counts). Python is omitted, but the important skills are covered."
    ],
-   "summary": "Backfilled a month of daily play events after a storage move, stopping when the load step failed partway on schema drift: the upstream export had gained two columns the warehouse table lacked. Compared file schemas across the failing boundary and checked row counts for the loaded days. The backfill was left paused with 12 of 30 days loaded, pending the engineer's choice on how to handle the new columns.",
+   "summary": "Backfilled a daily playback events pipeline after a storage move and traced a load failure to schema drift: the upstream export had added two columns that the warehouse table lacked. The backfill was left paused with 12 of 30 days loaded, with daily row counts that looked normal, one day failed and the rest not started, pending the engineer's choice between extending the table and ignoring the new fields.",
    "task_type": "data",
    "decisions": [
-    "Paused the backfill to ask the engineer instead of adding the new columns, because altering a shared warehouse table is a schema change that should not be made without their approval."
+    "Paused the backfill and left the choice to the engineer instead of adding columns to the warehouse table unprompted, because it is a schema change on a shared table."
    ],
    "skills": [
-    "Apache Airflow",
+    "Airflow",
     "data backfill",
     "schema drift diagnosis",
     "Parquet",
-    "PyArrow",
+    "SQL",
     "PostgreSQL"
    ]
   },
@@ -213,27 +215,27 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the summary is supported by the session. The OOM kills, the per-request listener on the HTTP seat-map route that is never removed, and the before/after heap snapshot comparison on staging under load all appear in the transcript. So do the listener/closure/subscription growth, the setMaxListeners(0) masking the warning, and the fact that a fix was proposed but no code was changed. It names the problem class precisely: an event listener leak found by heap snapshot diffing. The empty decisions list is acceptable. The skills match the reference: Node.js, heap analysis, load testing via autocannon and Kubernetes via kubectl. TypeScript is defensible because the engineer read and reasoned about .ts source files."
+    "Every claim is supported by the session: heap snapshot diffs around a staging load test, an HTTP seat-map route subscribing per request without unsubscribing, setMaxListeners(0) hiding the warning, and a fix proposed with no code changed. It names the problem class precisely: a listener leak found by heap snapshot diffing. The empty decisions list is acceptable. The skills match the reference. TypeScript is borderline but defensible, since the engineer read and analyzed the .ts source files."
    ],
-   "summary": "Traced recurring out-of-memory kills in a Node.js gateway to event listeners that the HTTP seat-map route registered on a shared emitter for every request and never removed. Comparing heap snapshots taken on staging before and after a load test showed listener, closure and subscription objects dominating growth, and a disabled listener limit had hidden the warning. A fix was proposed, but no code was changed.",
+   "summary": "Traced recurring out-of-memory kills in a ticketing gateway to a listener leak, using heap snapshot diffs taken around a load test on staging. The HTTP seat-map route subscribed to a shared event emitter on every request and never unsubscribed, while a disabled listener limit hid the warning. A fix was proposed, but no code was changed.",
    "task_type": "debugging",
    "decisions": [],
    "skills": [
     "Node.js",
-    "TypeScript",
-    "Heap snapshot analysis",
-    "Memory leak debugging",
-    "Load testing",
-    "Kubernetes"
+    "heap snapshot analysis",
+    "memory leak debugging",
+    "load testing",
+    "Kubernetes",
+    "TypeScript"
    ]
   },
   {
    "id": "debugging-2",
-   "pass": true,
+   "pass": false,
    "criteria": {
     "schema": true,
     "no_leak": true,
-    "task_type": true,
+    "task_type": false,
     "not_padded": true,
     "accurate": true,
     "specific": true,
@@ -241,18 +243,20 @@
     "skills": true
    },
    "notes": [
-    "The summary matches the session. It covers the lock-ordering deadlock from cart-order row updates and the fix of sorting lines by sku id (paraphrased as product identifier). It also covers the Testcontainers concurrency test that failed without the fix and passed with it, and the full suite passing. It names the problem class precisely: deadlock from inconsistent lock acquisition order. The decision compares sorting against NOWAIT with retries, and both reasons (user-visible retries on popular items, no extra round trips) come from the session. The skills were all actually used: Java, PostgreSQL, deadlock debugging, concurrency testing, and Testcontainers, which the new integration test used."
+    "task_type bugfix != debugging",
+    "Accurate: every claim matches the session. Deadlocks were traced to rows locked in cart order, lines are now sorted by sku id ('product identifier' is a fair paraphrase), the new test failed without the fix and passed with it, and the full suite of 612 tests passed. Specific: names a lock-ordering deadlock and consistent lock order, matching the reference. Decisions: sorting versus NOWAIT with retries, with the session's stated reason (user-visible retries on popular items, sorting removes the cycle without extra round trips). Skills: all were used in the session (Testcontainers is named in the final message) and cover the reference's key ones; log analysis is missing, but omission is allowed."
    ],
-   "summary": "Traced recurring Postgres deadlocks in stock reservation to inventory rows being locked in cart order, and fixed it by sorting order lines by product identifier before updating. A new Testcontainers concurrency test with opposing orders reproduced the deadlock without the fix and passed with it, and the full suite passed.",
-   "task_type": "debugging",
+   "summary": "Traced recurring Postgres deadlocks in stock reservation to inventory rows being locked in cart order, and fixed it by sorting order lines by product identifier before updating. A new concurrency test with opposing line orders reproduced the deadlock without the fix and passed with it, and the full test suite passed.",
+   "task_type": "bugfix",
    "decisions": [
-    "Chose sorting order lines into a consistent locking sequence over non-waiting row locks with retry, because retries would surface to users on popular items while sorting removes the cycle without extra round trips."
+    "Chose to sort order lines for a consistent lock order over non-waiting row locks with retries, because retries would surface to users on popular items while sorting removes the cycle without extra round trips."
    ],
    "skills": [
     "PostgreSQL",
     "Java",
     "deadlock debugging",
     "concurrency testing",
+    "integration testing",
     "Testcontainers"
    ]
   },
@@ -270,18 +274,18 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim matches the session. That covers the keep-alive mismatch (gunicorn closes idle connections well before nginx's 75 s reuse window), errors spread across all routes, failures clustering near the backend's 5 s timeout, and the fix proposed but not applied because the ops team's Ansible repo manages both hosts. Specific: names the keep-alive timeout mismatch behind a reverse proxy, which matches the reference. Decisions: not changing the configs was a real choice, and the assistant gave the Ansible ownership as its reason. Skills: nginx, Gunicorn, keep-alive tuning and log analysis were all actually used. Root cause analysis is generic but fair."
+    "Every claim in the summary is backed by the session: the keep-alive timeout mismatch, 502s on all routes rather than just uploads, failures clustering at about the 5 s backend timeout, and the fix being recommended but not applied. Naming 'idle keep-alive timeout mismatch' makes it specific. The one decision is a real choice with a reason the session supports: the configs were left unchanged because the ops team manages both hosts through Ansible. All the skills were actually used. 'Root cause analysis' is a little generic but is still accurate for this session."
    ],
-   "summary": "Traced intermittent 502 errors behind a reverse proxy to a keep-alive timeout mismatch: the application server closed idle connections well before nginx stopped reusing them. Log analysis showed errors across all routes, with failures clustering at a reuse age matching the backend timeout. Proposed timeout changes but left configs unapplied because the operations team manages them.",
+   "summary": "Traced intermittent 502 errors behind an nginx and gunicorn setup to an idle keep-alive timeout mismatch, where the backend closed connections nginx still meant to reuse. Log analysis showed errors across all routes, not just uploads, and failures clustering at the backend timeout age. A timeout change was recommended but not applied, since the configs are managed by an operations team.",
    "task_type": "debugging",
    "decisions": [
-    "Left the proxy and application server configs unchanged and only proposed the fix, because both hosts are managed through the operations team's Ansible repository."
+    "Left the proxy and backend configs unchanged and only recommended a timeout fix, rather than editing them directly, because both hosts are managed by the operations team through Ansible."
    ],
    "skills": [
     "nginx",
-    "Gunicorn",
-    "HTTP keep-alive tuning",
+    "gunicorn",
     "log analysis",
+    "HTTP keep-alive",
     "root cause analysis"
    ]
   },
@@ -299,15 +303,15 @@
     "skills": true
    },
    "notes": [
-    "Every claim checks out against the session. The README was written from the clap definitions and the --help output. Install includes the minimum Rust version taken from Cargo.toml. The usage examples were run against the fixture, including stdin and --keep-time. The options table lists defaults and the license is covered. Specific: it names README writing and CLI documentation verified against real runs. The decisions list is empty, which is acceptable. Skills: GPX is reasonable because the work handled GPX fixtures and the grep checks counted trkpt and time elements. It omits the 4,812-to-311 point figure, but leaving out details is fine."
+    "Every claim is supported by the session: the README was based on the clap definitions and --help output, and it covers install, the minimum Rust version from Cargo.toml, usage examples, option defaults and the license. The examples were run against the fixture, including stdin piped input. The candidate leaves out the 4,812 to 311 point figure and the RDP algorithm, which is fine. It names the problem class precisely: a README for a GPX simplification CLI, verified against real runs. The empty decisions list is acceptable. All listed skills were exercised, and GPX handling is a reasonable addition since the session ran the tool on GPX fixtures and counted trkpt elements."
    ],
-   "summary": "Wrote a missing README for a command-line GPX track simplifier, working from the argument definitions and help output so it matched the real interface. It covers install with the minimum Rust version, usage examples, an options table with defaults and the license. Examples were run against a sample track, including reading from standard input and keeping timestamps.",
+   "summary": "Wrote the missing README for a GPX track simplification command-line tool, basing it on the argument definitions and help output so it matched the real interface. It covered install, the minimum Rust version, usage examples, option defaults and license, with examples run against a test fixture, including piped input.",
    "task_type": "docs",
    "decisions": [],
    "skills": [
     "Technical writing",
-    "Rust",
     "CLI documentation",
+    "Rust",
     "GPX"
    ]
   },
@@ -325,17 +329,17 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim is supported by the session, including three operations, distinct 409 codes, caller guidance, limits taken from the rules module, and lint passing. Specific: names OpenAPI error documentation and reusable per-status responses. Decision: the choice between shared components and inline repetition matches the session, with a supported reason. Skills: OpenAPI and API documentation were used. 'REST error handling' is borderline, but it is fair as documenting HTTP error semantics. Reading service code is omitted, but not all key skills are missing."
+    "Every claim is supported by the session: three operations, a shared error schema, reusable responses with caller guidance, limits taken from the rules module, and lint passing. The candidate is specific because it names OpenAPI error documentation and reusable response components. Its one decision states the real alternative (components versus inline per operation) and gives the reason the session supports (new codes documented in one place); it omits the shared-envelope part of the reason, which is fine. Skills: 'API error design' is a slight stretch, since the codes already existed and were only documented, but defining the Error schema with a code enum gives it some basis. 'Reading service code for behaviour' is missing, but OpenAPI and documentation are present."
    ],
-   "summary": "Documented three appointment API operations in an OpenAPI spec to explain error statuses that were prompting partner support emails, including the distinct codes behind a single conflict status and what callers should do. Booking window and cancellation cutoff limits were taken from the application's rules code, and the spec passed lint validation.",
+   "summary": "Documented three appointment API operations in an OpenAPI spec so partners can tell apart the error codes behind conflict responses, using a shared error schema and reusable responses that say what the caller should do. Booking window and cancellation cutoff limits were taken from the application's rules code, and the spec passed linting.",
    "task_type": "docs",
    "decisions": [
-    "Chose a shared error schema and one reusable response per status over repeating error descriptions inline on each operation, so a new error code is documented in one place."
+    "Defined a shared error schema and one reusable response per status instead of repeating error descriptions on each operation, so a new error code is documented in one place."
    ],
    "skills": [
     "OpenAPI",
     "API documentation",
-    "REST error handling"
+    "API error design"
    ]
   },
   {
@@ -352,19 +356,19 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session. The candidate covers lag diagnosis, scaling within the 12-partition limit, the poison-message skip and escalation. It correctly says the dry-run reset was refused while the group was Stable, and that the full scale-to-zero sequence was left unverified to avoid stopping the QA team's environment. It names the specific domain: an on-call runbook for Kafka consumer lag. The one decision is a real choice, not scaling the shared staging consumer to zero versus testing the full sequence. Its reason, disrupting the QA team's tracking environment, is stated in the session. Kafka and Kubernetes were actually used through kafka-consumer-groups, kafka-topics and kubectl, and runbook writing matches the reference. 'Incident response' is borderline but fair for an alert runbook."
+    "Every claim is supported. The runbook covers all-partition vs single-partition lag, scaling within the 12-partition limit, poison message skipping and escalation. Describe, logs and scale commands were checked on staging. The offset-reset dry run failed because the group was Stable/active, and the step was marked unverified. The single decision is a real choice (scale staging to zero to test vs. mark unverified), and its reason (it would stop the QA team's tracking environment) is stated in the session. Skills match the reference: Kafka, runbook writing, and Kubernetes/kubectl via the kubectl get deploy check. Command verification was actually done. Names the specific problem class: Kafka consumer lag incident runbook."
    ],
-   "summary": "Wrote an on-call runbook for a Kafka consumer lag alert, covering lag diagnosis, scaling within the partition limit, skipping a poison message and escalation. Checked the diagnostic and scaling steps against staging; the offset reset was refused while consumers were active. The full scale-down, reset and restore sequence stayed marked unverified because stopping the shared staging consumer would have disrupted another team.",
+   "summary": "Wrote an on-call runbook for a Kafka consumer lag alert, covering all-partition versus single-partition lag, scaling within the partition limit, poison message skipping and escalation. The describe, logs and scale commands were checked on staging. The offset-reset sequence is marked unverified because only a dry run was tried, which failed while consumers were running.",
    "task_type": "docs",
    "decisions": [
-    "Left the offset-reset sequence untested and marked it unverified rather than scaling the staging consumer to zero, because that would have stopped the QA team's shared tracking environment."
+    "Marked the offset-reset sequence as unverified instead of scaling the staging consumer to zero to test it, because that would have stopped the QA team's tracking environment."
    ],
    "skills": [
-    "Apache Kafka",
+    "Kafka",
+    "Runbook writing",
+    "Consumer lag troubleshooting",
     "Kubernetes",
-    "runbook writing",
-    "consumer lag troubleshooting",
-    "incident response"
+    "Command verification"
    ]
   },
   {
@@ -381,20 +385,21 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported: cursor streaming, the teacher guard, the toolbar button, and passing tests for row count and the 403 are all in the session. 'A few seconds with modest extra memory' fairly paraphrases 3.8 s and 31 MB. It correctly names streaming CSV export from a Postgres cursor. The single decision (stream instead of building in memory) states the alternative and the reason the session gives (large classes, about 200k rows). Vitest and benchmarking were actually run. React (the Toolbar.tsx edit) is missing, but the core skills are present."
+    "Every claim in the candidate is supported by the session: Postgres cursor streaming, the teacher-only guard, tests for row count and the 403 for other teachers, a benchmark at 5000 students x 40 quizzes, and modest memory use. 'Largest expected class size' is a fair paraphrase. The streaming-versus-in-memory decision comes with the session's own reason. The listed skills were all exercised: Vitest and the benchmarking script were run. React is missing, but the important skills are present."
    ],
-   "summary": "Built a CSV grade export that streams rows from a PostgreSQL cursor into the response, chosen to keep memory low for very large classes, behind the existing teacher access guard, with a gradebook download button. Tests for row count and rejection of other teachers passed, and a large-class benchmark finished in a few seconds with modest extra memory.",
+   "summary": "Built a teacher-only CSV export for a class gradebook that streams rows from a Postgres cursor into the response, avoiding in-memory assembly for large classes, and added a download button. Tests for row count and rejection of other teachers passed, and a benchmark at the largest expected class size showed modest extra memory use.",
    "task_type": "feature",
    "decisions": [
-    "Chose streaming rows from a database cursor through a CSV transform over building the whole file in memory, because very large classes would produce enough rows to hold a lot of memory on each request."
+    "Chose streaming rows from a database cursor through a CSV transform over building the whole file in memory, because large classes would hold a lot of memory on each request."
    ],
    "skills": [
     "TypeScript",
     "Express",
     "PostgreSQL",
     "Node.js streams",
+    "CSV export",
     "Vitest",
-    "performance benchmarking"
+    "Performance benchmarking"
    ]
   },
   {
@@ -411,18 +416,18 @@
     "skills": true
    },
    "notes": [
-    "All of the candidate's claims are supported by the session: the agent exited on connection errors, used capped exponential backoff with full jitter, tests covered the cap and reset, clippy was clean, and the broker restart showed two retries then reconnection. It names the actual technique, full-jitter exponential backoff for MQTT reconnection. The decision states the alternatives (equal jitter, plain exponential) and gives the session's reason (thousands of devices on one broker, synchronized waves). The skills were all used, and Docker Compose was genuinely used for the restart test. It omits the 500 ms start, the 60 s cap value and the ConnAck reset detail, which is acceptable."
+    "All claims in the candidate are supported by the session: reconnect with capped exponential backoff and full jitter, tests and clippy passing, and a local broker restart showing retries, reconnect and resumed publishing. It names the precise technique (exponential backoff with full jitter for MQTT reconnection). The decision states real alternatives (plain exponential, equal jitter) and gives the session's reason (one broker, ~3,000 devices, reconnect storm). The skills were all actually used, including Docker Compose for the broker restart test. Missing tokio is acceptable because the core skills are present."
    ],
-   "summary": "Added automatic MQTT reconnection to a greenhouse sensor agent that exited on any connection error, using capped exponential backoff with full jitter to avoid synchronized retry storms across a large device fleet. Unit tests for the cap and reset passed, lint was clean, and a local broker restart showed two retries, then reconnection and resumed publishing.",
+   "summary": "Added automatic MQTT reconnect to a sensor agent using exponential backoff with a cap and full jitter, so a large fleet would not retry in synchronized waves after a broker restart. Unit tests and lint passed, and a local broker restart showed the agent retrying, reconnecting and resuming publishing.",
    "task_type": "feature",
    "decisions": [
-    "Chose full jitter over equal jitter and plain exponential backoff because thousands of devices share one broker, plain backoff retries in synchronized waves, and full jitter spreads retries most evenly."
+    "Chose full jitter over plain exponential backoff and equal jitter because it spreads retries most evenly and the single broker cannot absorb a reconnect storm from the fleet."
    ],
    "skills": [
     "Rust",
     "MQTT",
-    "Exponential backoff with jitter",
-    "Unit testing",
+    "exponential backoff with jitter",
+    "unit testing",
     "Docker Compose"
    ]
   },
@@ -440,16 +445,17 @@
     "skills": true
    },
    "notes": [
-    "Every claim matches the session. The column, migration, model and controller changes were made, and the uniqueness spec failed. The cause was traced to the factory setting discarded_at on every contact, so records were hidden by the default scope. Work ended unfixed, with restore, purge and admin UI not started. The candidate names soft delete and the default-scope pitfall, which is specific enough. The empty decisions list is acceptable. The skills Rails, RSpec and migrations were all used. 'Soft delete' is more a technique than a skill, but it is not padding."
+    "Every claim in the candidate is supported by the session: the migration, the model and controller changes, the uniqueness spec traced to a factory that sets discarded_at on every contact (hidden by the default scope), the spec still failing, and restore, purge and admin UI not started. It names soft delete and the default-scope pitfall. The empty decisions list is fine. The skills were all used: Rails, RSpec, a schema migration and test-failure debugging. 'Soft delete' is a technique rather than a skill, but it is not padding."
    ],
-   "summary": "Began soft delete for contacts with a timestamp column, migration, model and controller changes. A spec run then showed a uniqueness failure, traced to a test factory marking every contact as discarded, which hid records behind the default scope. Work stopped with that failure unfixed and restore, the 30-day purge and admin UI not started.",
+   "summary": "Began soft delete for contacts with a discard timestamp migration, model change and controller update. Traced a failing uniqueness spec to a test factory that marked every contact as discarded, hiding them behind the default scope. Work stopped unfinished: the spec still failed, and the restore endpoint, purge job and admin UI weren't started.",
    "task_type": "feature",
    "decisions": [],
    "skills": [
     "Ruby on Rails",
     "RSpec",
     "soft delete",
-    "database migration"
+    "schema migration",
+    "test failure debugging"
    ]
   },
   {
@@ -466,21 +472,19 @@
     "skills": true
    },
    "notes": [
-    "All claims are supported by the session: validation passed, the plan showed one resource to add, it was not applied, and noncurrent versions and incomplete multipart uploads were handled. Calling the multipart abort 'expire' is a fair paraphrase. The summary is a little generic ('cold tier'), but the decisions and skills name Glacier Instant Retrieval and S3 lifecycle policies, which is specific enough. Both decisions state real alternatives with reasons the session supports, including the higher storage price trade-off and the small sidecar files. All skills were used: the AWS CLI was used through aws s3api list-objects-v2, and Glacier IR is a reasonable entry."
+    "Every claim in the candidate is backed by the session: Glacier IR was chosen for millisecond retrieval at a cost below Standard, small objects were excluded because of the minimum billable size, the plan showed 1 resource to add, and nothing was applied. It names S3 lifecycle policies and storage tiering. Both decisions state a real alternative and a reason the session supports. The listed skills match the reference."
    ],
-   "summary": "Added storage lifecycle rules in Terraform for a radiology scan archive, choosing a cold tier with millisecond retrieval and excluding small objects that its minimum billable size would penalise. Noncurrent versions and incomplete multipart uploads were set to expire. Configuration validation passed and the production plan showed one new resource, but it was not applied.",
+   "summary": "Added cost-saving S3 lifecycle rules in Terraform for a radiology scan archive, choosing a cold tier that keeps millisecond retrieval and excluding small objects that would be billed at a minimum size. The production plan showed one resource to add; the change was not applied.",
    "task_type": "infra",
    "decisions": [
-    "Chose Glacier Instant Retrieval over Deep Archive and Flexible Retrieval because old studies are opened during live consults and must load in seconds, accepting a higher storage price than the other Glacier classes.",
-    "Excluded objects under the minimum billable size from the cold-tier transition rather than moving everything, since the many small sidecar files would otherwise cost more after moving."
+    "Chose Glacier Instant Retrieval over Deep Archive and Flexible Retrieval because old studies are opened during live consults and must load in seconds, while it still costs well below Standard.",
+    "Excluded objects under the minimum billable size from the transition rather than moving everything, since the many small sidecar files would cost more after moving."
    ],
    "skills": [
     "Terraform",
     "AWS S3",
     "S3 lifecycle policies",
-    "S3 Glacier Instant Retrieval",
-    "Cloud cost optimization",
-    "AWS CLI"
+    "Storage cost optimization"
    ]
   },
   {
@@ -497,19 +501,20 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session: setup-gradle writes the cache only from main, the build cache, parallel builds and a larger JVM heap were enabled, the cold run took 18 minutes and the warm run 6 minutes, down from 19. It names the actual technique: Gradle build cache and CI caching via setup-gradle. The single decision states the real alternative (a hand-rolled cache step) and the reasons the session gives: cleanup, default-branch-only saves to avoid PR thrashing, and no full invalidation on a lockfile change. The skills cover the reference's GitHub Actions, Gradle and CI optimisation. 'Android' is borderline but acceptable, since gradle.properties in the Android project was edited."
+    "The candidate's claims match the session: setup-gradle was added with the cache written only from main, parallel builds were enabled, the JVM heap was raised, and runs took 18 min cold and 6 min warm, down from 19. 'Gradle setup action' plus dependency and build caching is a precise enough technique. Decision 1 is supported, since the assistant cited lockfile invalidation, cleanup and the build summary. Decision 2 (save only from main so PRs don't thrash the cache) is a default of the chosen action, but the session states it as the reason, so it passes. All listed skills were exercised; 'Android' is borderline but fits the project context."
    ],
-   "summary": "Cut Android CI time from 19 to 6 minutes on a warm run by adding Gradle's official setup action, with cache writes limited to the main branch, and enabling the build cache, parallel builds and a larger JVM heap. The cold run took 18 minutes.",
+   "summary": "Added dependency and build caching to a slow Android CI workflow with the Gradle setup action, writing the cache only from the main branch, and also enabled parallel builds and a larger JVM heap. Recent run history showed the warm run taking 6 minutes against 19 before, while the cold run took 18.",
    "task_type": "infra",
    "decisions": [
-    "Chose the official Gradle setup action over a hand-rolled cache step because it handles cache cleanup, saves only from the default branch to avoid pull request thrashing, and avoids full invalidation on a lockfile change."
+    "Chose the Gradle setup action over a hand-rolled cache step because a manual cache key would invalidate the whole cache on any lockfile change, while the action also handles cleanup and gives a build summary.",
+    "Chose to write the cache only from the main branch, with other branches read-only, over saving from every branch so that pull requests don't thrash the cache."
    ],
    "skills": [
-    "Gradle",
     "GitHub Actions",
+    "Gradle",
     "CI caching",
-    "Android",
-    "Build performance tuning"
+    "Build performance tuning",
+    "Android"
    ]
   },
   {
@@ -526,21 +531,20 @@
     "skills": true
    },
    "notes": [
-    "All of the candidate's claims are supported by the session: 2.4 GB to 1.12 GB with a slim multi-stage build, OCR verified, the 500 MB target missed, and a large DL library (torch) used only by the legacy classifier left as a proposal. Both decisions are real choices with reasons the session supports: slim glibc base over alpine because the packages ship only glibc wheels, and dropping distroless because apt-provided tesseract would be brittle to copy in by hand. 'Multi-stage builds' and 'image size optimization' match the reference's specific items. The skills were all exercised: Docker, Python dependency changes, the switch to the headless OpenCV package, and the tesseract check. 'OpenCV' and 'Tesseract' are a little granular, but the session did touch both."
+    "All claims in the candidate hold up against the session: the image went from 2.4 GB to 1.12 GB, the build is a multi-stage slim image using headless opencv, and the OCR curl call returned items. The distroless attempt failed with TesseractNotFoundError, the 500 MB goal was missed, and torch (412 MB) is used only by legacy_classifier. The candidate leaves out the non-root user that the reference mentions, which is allowed since omissions are fine. It names the technique precisely: multi-stage builds for image size reduction. Both decisions are real choices with reasons the session supports: slim over alpine because only glibc wheels exist, and abandoning distroless because apt-sourced tesseract libs are brittle to copy. The listed skills (Docker, multi-stage builds, image optimization, Python, dependency analysis via du/grep) were all actually exercised. Linux system dependencies are not listed explicitly, but the core skills are covered."
    ],
-   "summary": "Cut a Python OCR service's container image from 2.4 GB to 1.12 GB with a slim multi-stage build, confirming it still served OCR requests. The target of under 500 MB was not met. A large deep learning library used only by a legacy classifier was identified as the main remaining saving, and removing it was left as a proposal.",
+   "summary": "Reduced an OCR service container image from 2.4 GB to 1.12 GB with a multi-stage slim Python build and headless OpenCV, with a sample OCR request returning results. The under 500 MB target was not met: a distroless trial failed because the Tesseract binary was missing, and a large torch dependency used by a legacy classifier was identified as the main remaining saving.",
    "task_type": "infra",
    "decisions": [
-    "Chose a slim glibc base over Alpine because the headless OpenCV and ONNX Runtime packages publish only glibc wheels, so musl would mean source builds or failures.",
-    "Dropped a distroless base because the OCR binary and its shared libraries come from the system package manager, and copying them in by hand would be brittle."
+    "Chose a slim glibc-based Python image over Alpine because OpenCV and onnxruntime publish only glibc wheels, so musl would force source builds or fail.",
+    "Dropped the distroless base and stayed on slim because Tesseract and its shared libraries come from the system package manager, and copying them in by hand would be brittle."
    ],
    "skills": [
     "Docker",
     "multi-stage builds",
     "image size optimization",
     "Python",
-    "OpenCV",
-    "Tesseract"
+    "dependency analysis"
    ]
   },
   {
@@ -557,18 +561,18 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is backed by the session: the numpy distutils build failure, the dependency upgrades, the replacement of the removed stdlib distutils and the pandas append API, the Series index fix, the Dockerfile and CI updates, and 134 tests passing with deprecation warnings treated as errors. It names the problem class precisely: a Python version upgrade plus migration away from removed standard library and pandas APIs. The decisions list is empty, which is allowed. The skills listed were all used, including Docker (a Dockerfile edit) and CI (a workflow edit), and they cover the reference skills. 'Version migration' overlaps somewhat with the others but is not padding."
+    "Every claim in the candidate is supported by the session: 3.8 is described as EOL, it names the distutils and DataFrame.append replacements and the positional Series fix, and it reports Dockerfile and CI updates and 134 tests passing with deprecation warnings as errors. It is specific about the problem classes: a Python version migration and replacing removed stdlib and pandas APIs. The decisions list is empty, which is acceptable. All listed skills were actually used: Python, pandas, dependency upgrades, Docker (the Dockerfile was edited), CI and pytest."
    ],
-   "summary": "Migrated a Python application from 3.8 to 3.12 after an old numpy pin failed to build without distutils, upgrading incompatible dependencies, replacing removed standard library and pandas APIs, and fixing a positional Series index. Updated the container base image and CI interpreter version; all 134 tests passed on 3.12 with deprecation warnings treated as errors.",
+   "summary": "Migrated a Python project from an end-of-life interpreter to 3.12 by upgrading incompatible dependencies, replacing the removed distutils version helper and a removed pandas append method, and fixing positional Series indexing. Moved the container base image and CI to the new version, and all 134 tests passed with deprecation warnings treated as errors.",
    "task_type": "migration",
    "decisions": [],
    "skills": [
     "Python",
     "pandas",
     "dependency upgrades",
-    "version migration",
     "Docker",
-    "continuous integration"
+    "CI configuration",
+    "pytest"
    ]
   },
   {
@@ -585,20 +589,20 @@
     "skills": true
    },
    "notes": [
-    "Every claim is backed by the session: ~40M rows, expand-contract, nullable columns, dual-write, batched backfill stopped about halfway on replica lag, reads and drop not started, contacts tests pass. Names the technique precisely (expand-contract, batched backfill). Both decisions name real alternatives with reasons stated in the session. Skills match the reference; 'schema migration' is slightly redundant but was actually used."
+    "Every claim in the candidate is supported by the session: about 40M rows, expand-contract, nullable columns, dual writes, batched backfill stopped about halfway on replica lag, steps 4 and 5 not started, and contacts tests passing (23). It names the real techniques (expand-contract, batched online backfill). Both decisions give a real alternative and a reason the session backs up (locks, one transaction, instances reading the old column, and stale read-after-write on replicas). All listed skills were actually used."
    ],
-   "summary": "Planned an online expand-contract split of a full name column on a table of about 40 million rows: added nullable columns, made the app write old and new fields, and began a batched backfill. The backfill was stopped about halfway because replica lag grew too high; switching reads and dropping the old column were not started. Contact tests passed.",
+   "summary": "Planned an online expand-contract split of a full-name column on a table of about 40M rows, added nullable columns and dual writes, and ran a batched backfill. The backfill was stopped about halfway because replica lag climbed; switching reads and dropping the old column weren't started. Contact tests passed.",
    "task_type": "migration",
    "decisions": [
-    "Chose a staged expand-contract rollout over a single migration, because one transaction would rewrite every row, hold locks and break app instances still reading the old column during deploy.",
-    "Stopped the backfill partway instead of letting it finish, because rising replica lag would have made reads from replicas noticeably stale after writes."
+    "Chose an expand-contract rollout over a single migration because one transaction updating every row would hold locks and break app instances still reading the old column during deploy.",
+    "Stopped the batched backfill partway instead of letting it finish, because rising replica lag would make read-after-write on replicas noticeably stale."
    ],
    "skills": [
     "PostgreSQL",
     "TypeScript",
-    "expand-contract migration",
-    "batched backfill",
     "schema migration",
+    "expand-contract pattern",
+    "batched backfill",
     "replication lag monitoring"
    ]
   },
@@ -616,9 +620,9 @@
     "skills": true
    },
    "notes": [
-    "Accurate: compiled, 3 failures and 6 errors of 214, the vendor OCR client on JAXB, Hibernate 6 queries and trailing-slash matching all match the session. Specific: names the Spring Boot 3 upgrade and the Jakarta namespace migration. Decisions: empty list is acceptable. Skills: all are supported, including dependency analysis via dependency:tree. It omits the positional-to-named query fix, but omission is fine."
+    "All claims are supported by the session. The candidate correctly reports the Boot 3.2 upgrade, the jakarta import switch, the SecurityFilterChain rewrite, and that verify still fails. It also correctly attributes failures to the vendor OCR client depending on javax.xml.bind, Hibernate 6 query behaviour, and trailing-slash matching, all left unfixed. It omits the positional-to-named query fix and the exact 3 failures and 6 errors out of 214, which is acceptable. It names the specific technique (Spring Boot 3 upgrade, Jakarta namespace migration). The decisions list is empty, which is fine. Every listed skill was used: 'Dependency analysis' is backed by the dependency:tree run, and the reference skills are all covered."
    ],
-   "summary": "Upgraded a claims intake service from Spring Boot 2.7 to 3.2, moving imports to the Jakarta namespace and rewriting the security configuration. The code compiled, but verification still had 3 failures and 6 errors out of 214 tests, so the upgrade was left unfinished. Remaining work covers a vendor OCR client that depends on the old JAXB namespace, Hibernate 6 query behaviour and Spring 6 trailing-slash matching.",
+   "summary": "Upgraded a claims intake service to Spring Boot 3.2, moving imports to the Jakarta namespace and rewriting security configuration as a filter chain bean. The build compiled but verification still failed with test failures and errors, including a vendor OCR client built against the old XML binding API. Remaining work, including Hibernate 6 query behaviour and trailing slash matching, was listed and left unfixed.",
    "task_type": "migration",
    "decisions": [],
    "skills": [
@@ -628,7 +632,7 @@
     "Jakarta EE migration",
     "Hibernate",
     "Maven",
-    "dependency analysis"
+    "Dependency analysis"
    ]
   },
   {
@@ -645,12 +649,12 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is supported by the session: verbatim case moves, an EnumMap that rejects duplicates at startup and unknown methods at call time, characterization tests passing unchanged, and a green full build. It names the strategy pattern and the switch replacement. Its one decision matches the reference, with a supported reason (injected collaborators that enums can't take cleanly). All listed skills were actually used, and they cover the reference's Java, Spring DI and characterization testing."
+    "Candidate matches the session: strategy beans per payment method, EnumMap dispatch rejecting duplicates at startup, case bodies moved verbatim, and the 64 characterization tests passing unchanged. It names the strategy pattern and replacing the switch. The decision (strategy beans over an enum with abstract methods, because some methods need injected collaborators) is a real choice with a reason the session supports. Skills were all used. 'Strategy pattern' is more a technique than a skill, but it is not padding."
    ],
-   "summary": "Refactored a growing switch-based fee calculator into one injectable strategy per payment method, dispatched through an enum-keyed map that rejects duplicates at startup and unknown methods at call time. Case bodies were moved verbatim to preserve behaviour; the existing characterization tests passed unchanged and the full build was green.",
+   "summary": "Refactored a growing fee calculation switch into one strategy bean per payment method, dispatched through an enum map that rejects duplicates at startup, with each case body moved verbatim. The existing characterization tests for fees passed unchanged afterwards.",
    "task_type": "refactor",
    "decisions": [
-    "Chose a strategy interface with one Spring bean per payment method over an enum with an abstract method per constant, because several methods need injected collaborators that enums can't take cleanly."
+    "Chose a strategy interface with one Spring bean per payment method over an enum with abstract methods, because several methods need injected collaborators that enums can't take cleanly."
    ],
    "skills": [
     "Java",
@@ -674,19 +678,19 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the summary is supported by the session: the ECS split into movement and collision, the tests passing, mean frame time going from 11.2 to 19.7 ms (over the 16 ms budget), the profile showing query/get lookups and grid rebuilds, and the revert putting the benchmark back at baseline. Naming the ECS refactor and the frame-time regression is specific. The decision is a real choice between reverting and reworking, and its reasons (demo due tomorrow, proper fix is a bigger change) match the session. The listed skills were all used; cProfile and profiling overlap but are both legitimate."
+    "All claims in the candidate are supported by the session. The ECS split of movement and collision did happen, and tests passed (48). The benchmark broke the 16 ms budget: mean went from 11.2 to 19.7 ms. The profile pointed at world.query, entity get() lookups and grid.rebuild. The revert brought the mean back to 11.3 ms, and the split was deferred until after the demo. It is specific: it names an ECS-style refactor and a frame-time budget regression. The decision is a real choice, revert versus rework with cached queries or archetypes. Both reasons are supported: the assistant called the fix a bigger change, and the engineer cited the demo the next day. The skills (Python, ECS, profiling, cProfile, benchmarking) were all used and match the reference's important skills."
    ],
-   "summary": "Began an ECS-style split of a large Python game world module into movement and collision systems; tests passed but mean frame time rose past the 16 ms budget. Profiling pointed to repeated component queries and lookups plus per-frame grid rebuilds. The change was reverted ahead of a demo, the benchmark returned to baseline, and the split was deferred.",
+   "summary": "Attempted an ECS-style split of movement and collision logic out of a large Python game world module under a frame-time budget. Tests passed, but the benchmark exceeded the budget; profiling pointed to repeated component lookups, world queries and per-frame grid rebuilding. The change was fully reverted, the benchmark returned to near baseline, and the split was deferred until after a demo.",
    "task_type": "refactor",
    "decisions": [
-    "Reverted the system split instead of reworking queries and storage now, because the demo build was due the next day and a proper fix was a bigger change; the split was deferred until after the demo."
+    "Reverted the system split rather than reworking it with cached queries or archetype storage, because that was a bigger change and the demo build was shipping the next day."
    ],
    "skills": [
     "Python",
-    "Entity Component System",
-    "profiling",
-    "performance benchmarking",
-    "cProfile"
+    "Entity component system",
+    "Performance profiling",
+    "cProfile",
+    "Benchmarking"
    ]
   },
   {
@@ -703,19 +707,19 @@
     "skills": true
    },
    "notes": [
-    "Every claim matches the session: the hooks conversion, the effect with a cancellation flag, React.memo for the PureComponent behaviour, the unchanged props, and typecheck, lint and 11 tests passing. It names the problem class precisely (class components to hooks). The one decision, React.memo versus a plain function component, has a reason the session states: keeping the PureComponent behaviour. All listed skills were used; Jest is missing, but the other important ones are present."
+    "Accurate: every claim matches the session. The two components were converted to hooks with the props unchanged, the effect uses a cancellation flag, React.memo preserves the PureComponent behaviour, and typecheck, lint and tests passed. Specific: it names the class-to-hooks conversion technique. Decisions: the React.memo choice states the alternative (a plain function component) and the reason (preserve PureComponent behaviour), and the session's summary supports that reason. Skills: React, hooks, TypeScript and memoisation were all used; 'component refactoring' is generic but fair. Jest is omitted, but the important skills from the reference are present."
    ],
-   "summary": "Converted a notification settings component and its channel row child from React class components to hook-based function components with an unchanged props API, using an effect with a cancellation flag for loading and memoisation to keep the pure-component behaviour. Type checking, linting and the 11 existing tests passed.",
+   "summary": "Converted a notification settings component and its channel row child from React class components to hooks while keeping the props API unchanged, using a cancellation flag in the data-loading effect and memoisation to preserve the pure-component behaviour. Type checking, linting and the existing tests passed.",
    "task_type": "refactor",
    "decisions": [
-    "Chose to wrap the channel row in React.memo rather than leave it a plain function component, to keep the earlier PureComponent behaviour."
+    "Wrapped the converted row component in React.memo, instead of leaving it a plain function component, to keep the behaviour it had as a PureComponent."
    ],
    "skills": [
     "React",
+    "React hooks",
     "TypeScript",
-    "React Hooks",
-    "Memoization",
-    "Component refactoring"
+    "component refactoring",
+    "memoisation"
    ]
   },
   {
@@ -732,18 +736,17 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported. The race detector run exposed a race on the bucket map, the limit was keyed on a client-controlled X-Forwarded-For header, buckets grow without bound, the minor Retry-After and test gaps were flagged, and no code was changed. It names the specific problem classes (data race, header spoofing bypass, unbounded memory), so it is specific. The decisions list is empty, which is acceptable. The skills were all exercised: Go, code review, race detection, concurrency and API security all match the reference. 'Rate limiting' and 'HTTP middleware' are borderline domain labels rather than skills, but they are not padding with untouched items."
+    "Every claim is backed by the session: the race detector found an unsynchronised map, rate limiting was keyed on a client-controlled header, idle buckets were never evicted, Retry-After was missing, tests were thin, and no code was changed. The summary names the technique and the problem classes precisely. The empty decisions list is acceptable. All listed skills were exercised in the review and cover the reference's skills."
    ],
-   "summary": "Reviewed a Go token-bucket rate limiting middleware and ran its tests with the race detector, which exposed a data race on the shared bucket map. Also flagged keying on a client-controlled header, which allows bypassing the limit, and unbounded memory growth, plus minor response and test coverage gaps. Findings were reported without changing code.",
+   "summary": "Reviewed a change adding token-bucket rate limiting to HTTP middleware and ran its tests with race detection, which exposed an unsynchronised map shared across requests. Also flagged a client-controlled header as the limiting key, no eviction of idle buckets, a missing retry hint on rejections and thin test coverage. Findings were reported without changing code.",
    "task_type": "review",
    "decisions": [],
    "skills": [
     "Go",
     "code review",
-    "race detection",
+    "race condition detection",
     "rate limiting",
     "HTTP middleware",
-    "concurrency",
     "API security"
    ]
   },
@@ -761,22 +764,21 @@
     "skills": true
    },
    "notes": [
-    "Every candidate claim matches the session. That includes the DB query for blank values, reading signals.py, the per-row CRM calls via post_save, the parse abort, lock holding, live vs historical model, the missing reverse, and no changes being made. It is specific: it names the backfill migration problems, historical model, bulk updates, signals and lock holding. The decisions are review recommendations, each a real choice between alternatives with a reason the assistant gave in the session. They are not diagnoses mislabeled as decisions. All listed skills were exercised (psql query, reading the migration and signals code), and the reference's key skills are present."
+    "Every claim is supported by the session: the per-row save firing a post_save CRM call for each record, the blank values found by the DB count aborting the parse, the long single transaction, the live model import, the missing reverse, and no code changes. Specific enough: it names the Django data-migration backfill problem and the historical-model, signal and transaction issues. The decisions are the review's recommendations, each a clear choice between alternatives with a reason the session supports (signal-driven CRM calls, a parse exception aborting the migration, lock duration). All listed skills were actually used, and they cover the reference's skills."
    ],
-   "summary": "Reviewed a migration that backfills normalized phone numbers across all farmer profiles, giving comments only. Checked blank values with a database query and read the save signals, then flagged per-row external CRM calls, a likely abort on unparseable numbers, long lock holding, use of the live model and a missing reverse step. No code was changed.",
+   "summary": "Reviewed a migration backfilling normalized phone numbers across a large profile table, leaving comments only. Flagged that per-row saves would fire a signal making an external CRM call for every record, that blank values counted in the database would abort the run, and that the single long transaction, direct model import and missing reverse step needed fixing. No code was changed.",
    "task_type": "review",
    "decisions": [
-    "Recommended the historical model with bulk updates over saving each live model instance, because per-row saves run custom logic and signals that would call an external CRM for every profile.",
-    "Recommended skipping blank phone values and recording unparseable ones over letting parsing errors propagate, since a single failure would abort the whole migration.",
-    "Suggested batched commits without one wrapping transaction, or a management command outside deploy, over a single long transaction that would hold locks for a long time."
+    "Recommended bulk updates on the historical model over per-row saves on the real model, because each save fires a signal that calls the external CRM and the direct import breaks once the model changes.",
+    "Suggested skipping blank phone values and recording unparseable ones over letting parsing fail, because a parse exception would abort the whole migration.",
+    "Recommended batched non-atomic commits or a separate backfill job over one transaction saving row by row, because the latter would hold locks for a long time."
    ],
    "skills": [
     "Django migrations",
     "Python",
     "PostgreSQL",
-    "code review",
-    "data backfill",
-    "Django signals"
+    "Code review",
+    "Data backfill"
    ]
   },
   {
@@ -793,20 +795,21 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is supported by the session: re-serialised JSON instead of raw bytes, non-constant-time comparison, no replay protection, no idempotency, unguarded missing secret, the 3 passing tests, the engineer agreeing, and no fixes written. It names the actual issues (raw-body HMAC verification, constant-time comparison), so it is specific. The one decision states a real choice (request changes vs approve with nits) with a reason the session supports. The skills were all exercised in the review. HMAC and idempotency were directly analysed, so they are not padding, and the important reference skills are present."
+    "Every claim in the candidate is supported by the session: tests passed, the issues it flags (re-serialised vs raw body, non-constant-time compare, no replay or idempotency protection, missing-secret handling, test gaps) all appear, and the engineer agreed to request changes. It names precise techniques such as raw-body signature verification and constant-time comparison. Both decisions are real choices with supported reasons: request changes because the issues were blocking rather than nits, and verify against the raw body because re-serialising doesn't reproduce the provider's bytes. The skills match the reference, and the added HMAC verification and idempotency were genuinely part of the review."
    ],
-   "summary": "Reviewed a new payment payout webhook handler and recommended requesting changes despite its three tests passing. Found blocking security and reliability issues: signature checked against re-serialised JSON instead of raw bytes, non-constant-time comparison, no replay protection or idempotency, and an unguarded missing secret. The engineer agreed to request changes with these points; no fixes were written in the session.",
+   "summary": "Reviewed a new payout webhook handler ahead of approval and, although its tests passed, recommended requesting changes over blocking security issues: signature checked against re-serialised rather than raw bytes, non-constant-time comparison, no replay protection or idempotency, and weak handling of a missing secret. Test coverage gaps were also flagged, and the engineer agreed to request changes.",
    "task_type": "review",
    "decisions": [
-    "Recommended requesting changes over approving with nits, because the signature and delivery handling problems were security issues serious enough to block despite passing tests."
+    "Recommended requesting changes instead of approving despite passing tests, because the security issues in the webhook handler were blocking rather than nits.",
+    "Advised verifying the signature against the raw request body over re-serialised parsed JSON, since re-serialising doesn't reproduce the provider's bytes and valid webhooks would intermittently fail."
    ],
    "skills": [
-    "Code review",
-    "Webhook security",
-    "HMAC signature verification",
+    "code review",
     "TypeScript",
+    "webhook security",
+    "HMAC signature verification",
     "Express",
-    "Idempotency"
+    "idempotency"
    ]
   },
   {
@@ -823,18 +826,16 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the summary is supported by the session: the table-driven tests, half-up rounding, zero and reduced rates, reverse-charge combinations, the wrong expectation replaced by a round-down case, and 100% coverage. It names the actual technique (table-driven tests, rounding edge cases). The single decision is a real choice, fixing the test rather than the code, and its reason is supported: 4.8 correctly rounds half-up to 5. The skills are all used: test coverage was measured with -cover, and the reference's Go and unit testing are both present."
+    "Every claim in the candidate is backed by the session: table-driven tests for LineVAT and InvoiceVAT, half-up rounding, zero and reduced rates, the reverse-charge combinations, and the wrong expectation (24 at 20% gives 4.8, which rounds to 5) being swapped for a real round-down case (22 gives 4.4, which rounds to 4). The final run passed with 100% statement coverage. It names concrete techniques: table-driven tests and rounding edge cases. The decisions list is empty, which is acceptable. All listed skills were actually used; 'rounding edge cases' is closer to the reference's test case design skill than a separate skill, but it is still real work from the session and not padding."
    ],
-   "summary": "Wrote table-driven tests for line and invoice VAT calculation, covering half-up rounding, zero and reduced rates, and reverse-charge combinations. One failing case turned out to be a wrong test expectation, not a code defect, and was replaced with a true round-down case. The final run passed with full statement coverage of the package.",
+   "summary": "Wrote table-driven tests for previously untested VAT line and invoice calculations, covering half-up rounding, zero and reduced rates, and reverse-charge combinations. One failing case proved to be a wrong test expectation rather than a code defect and was replaced with a true round-down case. The final run passed with full statement coverage of the package.",
    "task_type": "tests",
-   "decisions": [
-    "Chose to correct the failing test expectation rather than change the calculation, because the computed value rounded up correctly under half-up rounding."
-   ],
+   "decisions": [],
    "skills": [
     "Go",
     "table-driven testing",
     "unit testing",
-    "test coverage"
+    "rounding edge cases"
    ]
   },
   {
@@ -851,18 +852,18 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session: local date.today() versus UTC, Clock injection, UTC-based tomorrow, the parametrized midnight test and 1,200 passing runs. It names the problem class (flaky time-dependent test) and the technique (clock injection). Decision 1 matches the reference: inject a clock rather than freeze time with freezegun, because freezegun would hide the local/UTC mismatch. Decision 2 is also supported: the session shows the Clock was already passed to the booking service, and defaulting to the system clock keeps the cron caller in cron.py unchanged, which the grep confirmed. Skills match the reference and were all actually used."
+    "Every claim is supported by the session: local date.today() vs UTC mismatch near midnight, Clock injection with UTC, test parametrized at midday and either side of midnight, and 1,200 repeated runs passed. It names flaky time-dependent test stabilization and clock injection. Both decisions are real choices with reasons from the session: the first rejects freezegun because it would hide the mismatch, and the second reuses the existing Clock already passed to the booking service. All listed skills were actually used."
    ],
-   "summary": "Fixed a test of a 24-hour reminder job that failed intermittently near midnight UTC, caused by the job using the local calendar date while the test used UTC. Injected a clock into the job, computed the next day in UTC, and parametrized the test with fixed times around midnight; 1,200 repeated runs passed.",
+   "summary": "Fixed a midnight-only flaky reminder test whose cause was a scheduler job bucketing appointments by local calendar date while the test used UTC. Injected a clock into the job, computed the next day in UTC, and ran the test with fixed times at midday and either side of UTC midnight; 1,200 repeated runs passed.",
    "task_type": "tests",
    "decisions": [
-    "Chose injecting a clock into the reminder job over freezing time in the test, because freezing would have hidden the mismatch between local and UTC dates instead of fixing it.",
-    "Reused the clock abstraction the scheduler already passed to the booking service, and defaulted it to the system clock so the existing cron caller stayed unchanged."
+    "Injected a clock into the reminder job rather than freezing time in the test, because freezing would have hidden the mismatch between local time and UTC instead of fixing it.",
+    "Reused the clock abstraction that the scheduler already passed into the booking service for the reminder job, keeping the two consistent and using UTC throughout."
    ],
    "skills": [
     "Python",
     "pytest",
-    "flaky test stabilisation",
+    "flaky test stabilization",
     "dependency injection",
     "timezone handling"
    ]
@@ -881,20 +882,17 @@
     "skills": true
    },
    "notes": [
-    "All claims match the session: three snapshot tests (light, dark, largest dynamic type), references recorded and passing locally, CI on an older runtime, and two of three failing there due to rendering differences, with the fix left open. The decision to verify against the CI runtime rather than trust the local pass is a real choice, and its reason is stated in the session (CI uses Xcode 16.0/iOS 18.0 vs local 18.1). Skills were all exercised: Swift, SwiftUI, swift-snapshot-testing, Xcode via xcodebuild, and Dynamic Type through the accessibility XXXL test. Names the problem class precisely (snapshot testing, simulator rendering differences)."
+    "All claims are supported. Light, dark and largest dynamic type tests were added and passed locally after references were recorded. The CI runtime (iOS 18.0) was checked, and on it two of three tests failed with small pixel differences. The tests were left failing in CI pending the engineer's choice. The candidate names snapshot testing and rendering differences across simulator runtimes, which is specific enough. The empty decisions list is fine. Every listed skill was used: Swift, swift-snapshot-testing, Dynamic Type variants, and the CI workflow check for environment parity. It omits SwiftUI, but the important skills are covered."
    ],
-   "summary": "Added snapshot tests for a SwiftUI workout summary view in light, dark and largest dynamic type, then ran them against the older simulator runtime used by CI. All three passed locally after references were recorded, but two failed on the CI runtime due to rendering differences, so the work was left unfinished with those tests expected to fail in CI pending a choice of fix.",
+   "summary": "Added snapshot tests for a workout summary view in light, dark and largest dynamic type, which passed locally once references were recorded. Because CI used an older iOS runtime, they were also run against it, where two of three failed on small rendering differences. The tests were left with references that will fail in CI, pending the engineer's choice of fix.",
    "task_type": "tests",
-   "decisions": [
-    "Chose to verify the snapshots against the CI simulator runtime locally rather than rely on the local pass, because CI used a different Xcode and iOS version from the one that recorded the references."
-   ],
+   "decisions": [],
    "skills": [
     "Swift",
-    "SwiftUI",
-    "swift-snapshot-testing",
     "Snapshot testing",
-    "Xcode",
-    "Dynamic Type"
+    "swift-snapshot-testing",
+    "Dynamic Type",
+    "CI environment parity"
    ]
   }
  ]
