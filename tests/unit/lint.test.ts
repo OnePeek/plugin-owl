@@ -48,3 +48,26 @@ test("undocumented environment variables are refused", () => {
   assert.equal(lint(fixture({ "src/cli/a.ts": "const x = process.env['SECRET_THING'];\n" })).status, 1);
   assert.equal(lint(fixture({ "src/cli/a.ts": "const x = process.env['DO_NOT_TRACK'];\n" })).status, 0);
 });
+
+test("network lint cannot be bypassed: bare module names, dynamic import, computed globals, network programs, env dot access", () => {
+  const bypasses = [
+    'import { request } from "https";',
+    'import * as n from "net";',
+    'const m = await import("node:net");',
+    'const name = "node:" + "http"; const m = await import(name);',
+    'const f = globalThis["fet" + "ch"];',
+    "const f = globalThis.fetch;",
+    'import { createRequire } from "node:module"; const r = createRequire(import.meta.url);',
+    'spawn("curl", ["-d", "x", "https://a.test"]);',
+    'execFile("powershell.exe", ["Invoke-WebRequest https://a.test"]);',
+    "const x = process.env.SECRET_THING;",
+    "const k = 'SECRET'; const x = process.env[k];",
+    "const all = process.env;",
+  ];
+  for (const body of bypasses) {
+    const r = lint(fixture({ "src/clean/a.ts": body + "\n" }));
+    assert.equal(r.status, 1, body);
+  }
+  assert.equal(lint(fixture({ "src/clean/a.ts": "const x = process.env.DO_NOT_TRACK;\n" })).status, 0);
+  assert.equal(lint(fixture({ "src/clean/a.ts": 'type J = import("node:crypto").JsonWebKey;\n' })).status, 0);
+});

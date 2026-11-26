@@ -1,86 +1,109 @@
 {
- "id": "infra-3",
- "type": "infra",
- "cwd": "/work/monorepo",
- "steps": [
-  {
-   "u": "Our GitHub Actions pipeline takes 22 minutes. Most of it is install and tests that did not change. Speed it up."
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/monorepo/.github/workflows/ci.yml"
-   },
-   "r": "jobs: test: steps: - uses: actions/checkout - run: npm ci - run: npm test -- --all"
-  },
-  {
-   "a": "Three things: cache the npm store keyed on the lockfile, run tests only for packages affected by the change, and split lint, test and build into parallel jobs."
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/monorepo/.github/workflows/ci.yml",
-    "old_string": "- run: npm ci",
-    "new_string": "- uses: actions/setup-node\n        with: { node-version: 22, cache: npm }\n      - run: npm ci"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/monorepo/.github/workflows/ci.yml",
-    "old_string": "npm test -- --all",
-    "new_string": "npx nx affected -t test --base=origin/main"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/monorepo/.github/workflows/ci.yml",
-    "old_string": "jobs: test:",
-    "new_string": "jobs: lint: {...}\n  build: {...}\n  test:"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "gh run list --limit 3"
-   },
-   "r": "completed success 7m41s\ncompleted success 8m02s\ncompleted success 7m55s"
+  "id": "infra-3",
+  "type": "infra",
+  "cwd": "/srv/repos/menu-ocr",
+  "steps": [
+    {
+      "u": "The menu-ocr image is 2.4 GB and deploys are slow. Get it under 500 MB if you can. It's FastAPI + opencv + onnxruntime."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/srv/repos/menu-ocr/Dockerfile"
+      },
+      "r": "1 FROM python:3.11\n2 WORKDIR /app\n3 COPY . .\n4 RUN apt-get update && apt-get install -y libgl1 tesseract-ocr\n5 RUN pip install -r requirements.txt\n6 CMD [\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\"]"
+    },
+    {
+      "a": "Base choice first: alpine would be smallest, but opencv-python-headless and onnxruntime only publish manylinux (glibc) wheels, so on musl pip would compile from source or fail. I'll use python:3.11-slim with a multi-stage build and the headless opencv package."
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/srv/repos/menu-ocr/Dockerfile",
+        "content": "FROM python:3.11-slim AS build\nWORKDIR /w\nCOPY requirements.txt .\nRUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt\n\nFROM python:3.11-slim\nRUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \\\n && rm -rf /var/lib/apt/lists/*\nWORKDIR /app\nCOPY --from=build /wheels /wheels\nRUN pip install --no-cache-dir /wheels/* && rm -rf /wheels\nCOPY app/ app/\nUSER 10001\nCMD [\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\"]\n"
+      },
+      "r": "File created."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/srv/repos/menu-ocr/requirements.txt",
+        "old_string": "opencv-python==4.10.0.84",
+        "new_string": "opencv-python-headless==4.10.0.84"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "docker build -t menu-ocr:slim . -q && docker images menu-ocr:slim --format '{{.Size}}' && docker run --rm -d -p 8080:8000 --name mo menu-ocr:slim && sleep 3 && curl -s -F img=@tests/fixtures/menu1.jpg localhost:8080/ocr | head -c 120; docker stop mo"
+      },
+      "r": "sha256:9c1e...\n1.12GB\n{\"items\":[{\"name\":\"Margherita\",\"price\":\"11.50\"},{\"name\":\"Diavola\",\"price\":\"13.00\"}"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "docker run --rm menu-ocr:slim sh -c 'du -sh /usr/local/lib/python3.11/site-packages/* | sort -h | tail -4'"
+      },
+      "r": "48M\t/usr/local/lib/python3.11/site-packages/numpy\n62M\t/usr/local/lib/python3.11/site-packages/cv2\n301M\t/usr/local/lib/python3.11/site-packages/onnxruntime\n412M\t/usr/local/lib/python3.11/site-packages/torch"
+    },
+    {
+      "t": "Grep",
+      "i": {
+        "pattern": "import torch|from torch",
+        "path": "app"
+      },
+      "r": "app/models/legacy_classifier.py:3:import torch"
+    },
+    {
+      "a": "torch is 412 MB and only used by legacy_classifier.py. I tried moving to a distroless python base next to strip the OS layer further."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "docker build -f Dockerfile.distroless -t menu-ocr:dl . -q && docker run --rm menu-ocr:dl -c 'import pytesseract; print(pytesseract.get_tesseract_version())'"
+      },
+      "r": "pytesseract.pytesseract.TesseractNotFoundError: tesseract is not installed or it's not in your PATH.",
+      "err": true
+    },
+    {
+      "a": "Distroless doesn't work here: the tesseract binary and its shared libraries come from apt, and copying them into distroless by hand is brittle, so I dropped that and removed Dockerfile.distroless. Current state: the slim multi-stage image is 1.12 GB (from 2.4 GB) and serves OCR correctly, but it's not under 500 MB. The remaining big win is torch (412 MB) used only by the legacy classifier; if that model can be exported to ONNX or dropped, the image should land around 650-700 MB. Want me to look at the classifier?"
+    }
+  ],
+  "reference": {
+    "task_type": "infra",
+    "summary": "Slimmed a Python OCR service container from 2.4 GB to 1.12 GB with a multi-stage build on a slim Debian base, headless OpenCV and a non-root user, and verified it still serves OCR. A distroless base was tried and abandoned because the OCR binary was missing, and the 500 MB target was not met; the remaining bulk is a large ML library used by one legacy model.",
+    "facts": [
+      "The original image was 2.4 GB on the full Python base",
+      "A multi-stage slim build with headless OpenCV brought it to 1.12 GB and OCR still worked",
+      "A distroless attempt failed because tesseract was not available",
+      "torch at 412 MB is used only by one legacy classifier",
+      "The 500 MB goal was not reached"
+    ],
+    "specific": [
+      "container image size reduction",
+      "multi-stage Docker builds"
+    ],
+    "decisions": [
+      {
+        "choice": "Use a slim Debian base instead of alpine",
+        "reason": "opencv and onnxruntime ship only glibc wheels, so musl would need source builds"
+      },
+      {
+        "choice": "Abandon the distroless base",
+        "reason": "tesseract and its libraries come from apt and copying them by hand is brittle"
+      }
+    ],
+    "skills": [
+      "Docker",
+      "Python packaging",
+      "Linux system dependencies"
+    ],
+    "not_skills": [
+      "Kubernetes",
+      "Terraform",
+      "model training",
+      "CI pipeline configuration"
+    ]
   }
- ],
- "reference": {
-  "task_type": "infra",
-  "summary": "Reduced CI time from 22 minutes to about 8 by caching the npm store on the lockfile, running only affected package tests with Nx, and splitting lint, build and test into parallel jobs.",
-  "facts": [
-   "pipeline took 22 minutes",
-   "npm cache keyed on lockfile",
-   "only affected tests run",
-   "lint build test run in parallel jobs",
-   "recent runs about 8 minutes"
-  ],
-  "specific": [
-   "dependency caching",
-   "affected-only test runs"
-  ],
-  "decisions": [
-   {
-    "choice": "run tests only for packages affected by the change",
-    "reason": "most packages are unchanged in a typical pull request"
-   }
-  ],
-  "skills": [
-   "GitHub Actions",
-   "Nx",
-   "Node.js",
-   "CI/CD"
-  ],
-  "not_skills": [
-   "Terraform",
-   "Docker",
-   "Python"
-  ]
- }
 }

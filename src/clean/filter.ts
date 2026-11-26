@@ -2,7 +2,7 @@
 // and on the server before storing (rule E4); a text that fails after cleaning is HELD, never sent (rule E2).
 import { matchSecret } from "./rules.js";
 
-export type Hit = "taint" | "secret" | "email" | "url" | "path" | "ip" | "blob" | "entropy" | "quote" | "name" | "blocklist" | "sentences" | "unicode";
+export type Hit = "taint" | "secret" | "email" | "url" | "host" | "path" | "ip" | "blob" | "entropy" | "quote" | "name" | "blocklist" | "sentences" | "unicode" | "ticket";
 
 export interface Names {
   /** Names learned from the project: remote owner and repository, package names, top-level directories. */
@@ -19,6 +19,12 @@ const URL_SCHEME = /\b[a-z][a-z0-9+.-]*:\/\/\S+|\b(?:www|ftp)\.\S+/i;
 const BARE_DOMAIN = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|io|dev|app|ai|co|me|us|uk|de|fr|in|eu|cloud|xyz|sh|gg|so|ly|tech|info|biz|edu|gov|ru|cn|jp|br|ca|au|nl|ch|se|no|fi|it|es)\b/i;
 const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/;
 const IPV6 = /\b[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){3,7}\b/i;
+// A host name of any suffix: three or more dot-separated labels ending in letters (db-prod-01.corp.internal), or two labels
+// ending in a private-network suffix (build.internal, nas.local).
+const HOST = /(?<![\w.-])[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+){1,}\.[a-z]{2,}(?![\w-])|(?<![\w.-])[a-z0-9][a-z0-9-]*\.(?:internal|local|lan|corp|intranet|localdomain|home|arpa)(?![\w-])/i;
+// A ticket id (PAY-1234). Public standard names that look the same are exempt (SHA-256, UTF-8, ISO-8601, RFC-8785...).
+const TICKET = /(?<![A-Za-z0-9-])([A-Z][A-Z0-9]{1,9})-\d{1,7}(?![A-Za-z0-9])/g;
+const TICKET_OK = new Set(["SHA", "UTF", "ISO", "RFC", "ES", "IPV", "TLS", "SSL", "HTTP", "AES", "CVE", "CWE", "ECMA", "IEEE", "PEP", "JSR", "WCAG", "GPT", "PCI", "SOC", "ASVS", "OWASP", "UTC", "GMT", "MP", "COVID", "ISBN", "FIPS", "NIST", "PKCS", "ECDSA", "RSA", "MD", "CRC", "EC", "P", "X", "H", "IPV4", "IPV6", "S3", "EC2", "TOP", "OAUTH"]);
 const HEX_RUN = /[0-9a-fA-F]{20,}/;
 const B64_RUN = /[A-Za-z0-9+_=-]{20,}/g;
 const SPELLED = /(?:^|\s)(?:[A-Za-z0-9][\s.\-_,]+){7,}[A-Za-z0-9](?=\s|$|[.,;])/;
@@ -27,14 +33,22 @@ const TRIM = /^[\s.,;:!?()[\]{}<>*_-]+|[\s.,;:!?()[\]{}<>*_-]+$/g;
 // Well-known technology names that end like a file name; never a path.
 const TECH_NAMES = new Set(["node.js", "next.js", "nuxt.js", "vue.js", "react.js", "express.js", "d3.js", "three.js", "chart.js", "ember.js", "backbone.js", "alpine.js", "nest.js", "deno.js", "socket.io", "asp.net", ".net"]);
 const FILE_EXT = /^[\w-]+(?:\.[\w-]+)*\.(?:ts|tsx|js|jsx|mjs|cjs|py|rb|go|rs|java|kt|cs|php|sh|bash|zsh|json|ya?ml|toml|ini|cfg|conf|env|lock|md|txt|sql|css|scss|html|xml|csv|log|pem|key|tf|gradle|swift|c|h|cpp|hpp)$/i;
+// Any other file name. The extension list is open: a lowercase name, a dot and a lowercase extension of 2 to 10 letters or
+// digits is a file name (checkout.vue, payment.proto, deploy.ps1, schema.prisma); a capitalised name needs a known source
+// extension (Checkout.vue), so API names such as Math.random or Promise.all stay readable.
+const ANY_FILE = /^[a-z0-9_][\w-]+(?:\.[\w-]+)*\.[a-z][a-z0-9]{1,9}$/;
+const MORE_EXT = /^[\w-]{2,}(?:\.[\w-]+)*\.(?:vue|svelte|astro|proto|prisma|ps1|psm1|bat|cmd|graphql|gql|dart|scala|sc|ex|exs|erl|hs|lua|pl|pm|r|ipynb|tsv|parquet|avro|tfvars|hcl|nix|zig|sol|cue|jsonnet|bicep|rego|mdx|rst|adoc|tex|vb|fs|fsx|m|mm|groovy|kts|sbt|cabal|tf|dockerfile|plist|xib|storyboard|xaml|csproj|sln|vcxproj)$/i;
 
 /** Contract rule (2026-11-26 ruling): a token is path-like when it starts with / or ~, has 2 or more slashes, or ends in a file extension. "CI/CD" and "and/or" pass. */
 export function isPathLike(tok: string): boolean {
   if (tok.length < 3) return false;
   if (tok.startsWith("/") || tok.startsWith("\\") || tok.startsWith("~")) return true;
+  if (tok.includes("\\") || /^[A-Za-z]:[\\/]/.test(tok)) return true; // a Windows path, even with a single backslash
   if ((tok.match(/[/\\]/g) ?? []).length >= 2) return true;
+  // owner/repo or type/branch shapes (acme-corp/billing-api, feature/refund-fix); CI/CD, TCP/IP and and/or pass
+  if (/^[a-z0-9][\w.-]*\/[\w.-]+$/.test(tok) && /[-_\d]/.test(tok)) return true;
   if (TECH_NAMES.has(tok.toLowerCase())) return false;
-  return FILE_EXT.test(tok);
+  return FILE_EXT.test(tok) || ANY_FILE.test(tok) || MORE_EXT.test(tok);
 }
 
 export function shannon(s: string): number {
@@ -53,7 +67,9 @@ export function shannon(s: string): number {
  * and is not a plain kebab or snake case identifier. Slash splits runs, so path pieces and plain words stay allowed.
  */
 function isBlobRun(run: string): boolean {
-  if (/[a-z]{7,}/.test(run)) return false; // a long lowercase word means words, not key material
+  // a long lowercase word means words, not key material; unless the run is long and as random as key material (a base64
+  // key can hold a run such as nkgxlztws by chance)
+  if (/[a-z]{7,}/.test(run) && !(run.length >= 32 && /[A-Z]/.test(run) && /\d/.test(run) && shannon(run) > 4.3)) return false;
   if (!/\d/.test(run)) return /^[A-Za-z]+$/.test(run) ? false : /[+=]/.test(run) && /[a-z]/.test(run) && /[A-Z]/.test(run);
   if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/.test(run) && run.split(/[_-]/).every((seg) => seg.length <= 12)) return false;
   return true;
@@ -69,8 +85,12 @@ function containsName(text: string, name: string): boolean {
 }
 
 /** Detect every rule the text breaks. Empty list = clean. */
-export function checkText(text: string, names: Names = NO_NAMES): Hit[] {
+export function checkText(input: string, names: Names = NO_NAMES): Hit[] {
   const hits = new Set<Hit>();
+  // every rule runs on the NFKC form, so full-width or compatibility look-alikes (／etc／app, ｇｈｐ＿...) are judged as what they
+  // read as; any such character is itself a hit
+  const text = input.normalize("NFKC");
+  if (text !== input.normalize("NFC")) hits.add("unicode");
   if (text !== text.normalize("NFC") || /[\u0000-\u0008\u000b\u000c\u000e-\u001f​-‏‪-‮⁦-⁩﻿]/.test(text)) hits.add("unicode");
   if (/[`"“”„«»]/.test(text)) hits.add("quote");
   for (let i = 0; i < text.length; i++) {
@@ -85,6 +105,8 @@ export function checkText(text: string, names: Names = NO_NAMES): Hit[] {
   if (matchSecret(text) !== undefined) hits.add("secret");
   if (EMAIL.test(text)) hits.add("email");
   if (URL_SCHEME.test(text) || BARE_DOMAIN.test(text)) hits.add("url");
+  if (HOST.test(text)) hits.add("host");
+  for (const m of text.matchAll(TICKET)) if (!TICKET_OK.has(m[1] as string)) hits.add("ticket");
   if (IPV4.test(text) || IPV6.test(text)) hits.add("ip");
   if (HEX_RUN.test(text)) hits.add("blob");
   for (const m of text.matchAll(B64_RUN)) if (isBlobRun(m[0])) hits.add("blob");
@@ -119,10 +141,10 @@ export function cleanText(text: string, names: Names = NO_NAMES): string {
   return t.replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, " ").trim();
 }
 
-const squeeze = (x: string): string => x.toLowerCase().replace(/[^a-z0-9]/g, "");
-const TAINT_SLICE = 8;
+const squeeze = (x: string): string => x.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]/g, "");
+const TAINT_SLICE = 7;
 
-/** True when any run of 8 or more characters of a tainted string (letters and digits only, any case, forwards or reversed) survives in the text. Catches split, spaced, dotted and reversed copies. */
+/** True when any run of 7 or more characters of a tainted string (letters and digits only, any case, forwards or reversed) survives in the text. Catches split, spaced, dotted and reversed copies. */
 export function taintHit(text: string, taint: string[]): boolean {
   if (taint.length === 0) return false;
   const t = squeeze(text);
@@ -168,7 +190,7 @@ export function redactInput(text: string): Redacted {
   t = t.replace(/[A-Za-z0-9+_=-]{20,}/g, (m) => (isBlobRun(m) || HEX_RUN.test(m) ? (taint.push(m), "[BLOB]") : m));
   t = t.replace(MIXED_ID, (m) => (secretish(m) ? (taint.push(m), "[BLOB]") : m));
   // any other long, random-looking token (base64 with slashes, for example)
-  t = t.replace(/\S{24,}/g, (m) => (shannon(m) > 3.6 && /\d/.test(m) && /[a-z]/.test(m) && /[A-Z]/.test(m) && !/[a-z]{7,}/.test(m) ? (taint.push(m), "[BLOB]") : m));
+  t = t.replace(/\S{24,}/g, (m) => ((shannon(m) > 3.6 && /\d/.test(m) && /[a-z]/.test(m) && /[A-Z]/.test(m) && !/[a-z]{7,}/.test(m)) || (m.length >= 32 && /^[A-Za-z0-9+/=_-]+$/.test(m) && shannon(m) > 4.3 && /[a-z]/.test(m) && /[A-Z]/.test(m)) ? (taint.push(m), "[BLOB]") : m));
   return { text: t, taint };
 }
 

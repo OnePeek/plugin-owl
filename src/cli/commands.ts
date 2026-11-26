@@ -25,6 +25,10 @@ export interface Out {
 const EMPLOYER = "Your employer may not allow this. Check first.";
 
 export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset?: boolean; openUrl?: (u: string) => void; port?: number; timeoutMs?: number }): Promise<boolean> {
+  if (ctx.vault().install && !o.reset) {
+    out.line("This device is already connected. To replace its install (lost key or reinstall), run connect with --reset.");
+    return false;
+  }
   out.line(EMPLOYER);
   out.line(o.summaries ? `You answered yes to: ${CONSENT_QUESTION} Short cleaned summaries may be sent after a 10 minute hold.` : `Summaries are off (no yes was given at a terminal). Only usage numbers will be sent. To turn summaries on, run this connect command in your own terminal and answer yes.`);
   const prior = ctx.vault().install?.install_id;
@@ -42,7 +46,7 @@ export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset
   }
   const api = new Api(ctx.info.apiBase, signer, ctx.fetchImpl);
   const tok = await api.call("POST", PATHS.token, { form: { grant_type: "authorization_code", code: cb.code, code_verifier: pkce.verifier, redirect_uri: `http://127.0.0.1:${port}/callback`, client_id: CLIENT_ID } });
-  const tb = tok.body as { access_token?: string; refresh_token?: string; account_email?: string } | undefined;
+  const tb = tok.body as { access_token?: string; refresh_token?: string; account_email?: string; expires_in?: number } | undefined;
   if (tok.status !== 200 || !tb?.access_token || !tb.refresh_token) {
     out.line("Sign-in was refused. Nothing was connected.");
     return false;
@@ -69,14 +73,23 @@ export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset
     return false;
   }
   if (!software) throw new Error("hardware keys need the platform helper");
-  ctx.saveVault({
-    install: { install_id: rb.install_id, alg: software.alg, private_pem: software.privatePem, key_store: signer.keyStore, key_expires_at: rb.key_expires_at, env: rb.env ?? "prod", genesis_prev_hash: rb.genesis_prev_hash ?? "0".repeat(64), limits: rb.limits },
+  const ok = { install_id: rb.install_id, key_expires_at: rb.key_expires_at, limits: rb.limits };
+  const saved = await withLock(ctx.paths.lockFile, () => {
+    ctx.saveVault({
+    install: { install_id: ok.install_id, alg: software.alg, private_pem: software.privatePem, key_store: signer.keyStore, key_expires_at: ok.key_expires_at, env: rb.env ?? "prod", genesis_prev_hash: rb.genesis_prev_hash ?? "0".repeat(64), limits: ok.limits },
     refresh_token: tb.refresh_token,
+    access_token: tb.access_token,
+    access_expires_at: ctx.now() + (typeof tb.expires_in === "number" && tb.expires_in > 0 ? tb.expires_in * 1000 : 600_000),
     ...(api.nonce ? { dpop_nonce: api.nonce } : {}),
     ...(tb.account_email ? { account_email: tb.account_email } : {}),
-  });
-  ctx.saveConsent({ summaries: o.summaries, version: CONSENT_VERSION, at: new Date(ctx.now()).toISOString() });
-  ctx.saveControls({ summaries_consent: o.summaries });
+    });
+    ctx.saveConsent({ summaries: o.summaries, version: CONSENT_VERSION, at: new Date(ctx.now()).toISOString() });
+    ctx.saveControls({ summaries_consent: o.summaries });
+  }, 60_000);
+  if (!saved.ok) {
+    out.line("The helper is busy; nothing was saved. Run connect again in a moment.");
+    return false;
+  }
   out.line(`Connected. Logging is on; session numbers are sent after a ${Math.round(rb.limits.hold_seconds / 60)} minute hold. Pause with /onepeek-pause.`);
   return true;
 }
@@ -98,6 +111,7 @@ export function status(ctx: Ctx, out: Out): void {
   else if (c.blocked === "reconnect") out.line("Sign-in expired. Run /onepeek-connect to reconnect.");
   else if (c.blocked === "needs_reset") out.line("The server and this device disagree about the record chain. Run connect with --reset.");
   else if (c.blocked === "scope") out.line("Unexpected token scope. Nothing is sent; please update the plug-in.");
+  else if (c.blocked === "bug") out.line(`The server refused the request format (${c.last_error ?? "error"}). Nothing is sent; please update the plug-in.`);
   if (c.last_error && !c.blocked) out.line(`Last problem: ${c.last_error} (will retry).`);
   if (c.build_status && c.build_status !== "ok" && c.build_status !== "active") out.line(`Plug-in version notice: ${c.build_status}.`);
 }
@@ -115,13 +129,13 @@ export function setMode(ctx: Ctx, out: Out, mode: Mode, cwd: string | undefined)
 }
 
 export function preview(ctx: Ctx, out: Out): void {
-  const pending = ctx.spool.items().filter((i) => i.state === "pending" || i.state === "discard" || (i.state === "signed" && !i.receipt));
+  const pending = ctx.spool.items().filter((i) => i.state === "pending" || i.state === "discard" || i.state === "held" || (i.state === "signed" && !i.receipt));
   if (pending.length === 0) out.line("Nothing is waiting to be sent.");
   for (const it of pending) {
     const d = it.draft;
     const wait = Math.max(0, Math.ceil((it.eligibleAt - ctx.now()) / 60_000));
-    out.line(`- ${it.state === "discard" ? "discarded (a content-free entry will be sent)" : it.state === "signed" ? "ready to send" : `sends in ${wait} min`}`);
-    if (d && it.state !== "discard") {
+    out.line(`- ${it.state === "discard" ? "discarded (a content-free entry will be sent)" : it.state === "held" ? `held (${it.reason ?? "cleaner_hit"}): only a content-free entry will be sent` : it.state === "signed" ? "being sent (retrying after a network error)" : wait > 0 ? `sends in ${wait} min` : "sends at the next send"}`);
+    if (d && it.state !== "discard" && it.state !== "held") {
       out.line(`  numbers: ${d.usage.active_seconds}s active, ${d.usage.prompt_count} prompts, ${d.usage.turn_count} turns, +${d.usage.ai_lines_added}/-${d.usage.ai_lines_removed} lines, ${d.commits.length} commits`);
       if (d.insight) {
         out.line(`  summary: ${d.insight.summary}`);
@@ -132,11 +146,15 @@ export function preview(ctx: Ctx, out: Out): void {
   }
 }
 
-/** DISCARD (AIP-B5): every record still in its hold window becomes a content-free `discarded` chain entry. */
+/**
+ * DISCARD (AIP-B5, D12): every unsent draft becomes a content-free `discarded` chain entry: drafts in the hold window,
+ * drafts held back while capture is paused or off, and drafts the cleaner held. Drafts are unsigned until the real send,
+ * so nothing that is waiting can escape a discard.
+ */
 export async function discard(ctx: Ctx, out: Out): Promise<number> {
   const r = await withLock(ctx.paths.lockFile, () => {
     let n = 0;
-    for (const it of ctx.spool.items()) if (it.state === "pending") {
+    for (const it of ctx.spool.items()) if (it.draft && (it.state === "pending" || it.state === "held")) {
       ctx.spool.append({ t: "discard", id: it.id, at: ctx.now() });
       n++;
     }
@@ -179,8 +197,8 @@ export async function uninstall(ctx: Ctx, out: Out): Promise<void> {
     const api = new Api(ctx.info.apiBase, signer, ctx.fetchImpl);
     await api.call("POST", PATHS.revoke, { form: { token: v.refresh_token, token_type_hint: "refresh_token", client_id: CLIENT_ID } }).catch(() => undefined);
   }
-  for (const f of [ctx.paths.vaultFile, ctx.paths.spoolFile, ctx.paths.controlsFile, ctx.paths.consentFile]) rmSync(f, { force: true });
-  rmSync(ctx.paths.queueDir, { recursive: true, force: true });
+  for (const f of [ctx.paths.vaultFile, ctx.paths.spoolFile, ctx.paths.controlsFile, ctx.paths.consentFile, ctx.paths.stateFile, ctx.paths.keyStoreFile]) rmSync(f, { force: true });
+  for (const d of [ctx.paths.queueDir, ctx.paths.policyDir]) rmSync(d, { recursive: true, force: true });
   await ctx.masterStore.remove();
   await fileStore(ctx.paths.root).remove();
   out.line("Uninstalled: the spool, keys and tokens on this device are deleted. Revoke the device in the web app too.");

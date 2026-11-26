@@ -1,75 +1,88 @@
 {
- "id": "debugging-1",
- "type": "debugging",
- "cwd": "/work/search-api",
- "steps": [
-  {
-   "u": "Memory of the search service climbs until it is OOM-killed after about two days. Find the leak."
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "node --heapsnapshot-signal=SIGUSR2 dist/server.js & sleep 60; kill -USR2 $!"
-   },
-   "r": "Heap snapshot written"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "node scripts/diff-snapshots.js a.heapsnapshot b.heapsnapshot"
-   },
-   "r": "Closure x 48213 (+48000)\nEventEmitter listeners x 47990"
-  },
-  {
-   "a": "Tens of thousands of retained closures and listeners: something adds an event listener per request without removing it."
-  },
-  {
-   "t": "Grep",
-   "i": {
-    "pattern": "\\.on\\('close'|\\.on\\(\"abort\""
-   },
-   "r": "src/stream/proxy.ts:31: upstream.on('error', onError)"
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/search-api/src/stream/proxy.ts"
-   },
-   "r": "function proxy(req,res){ const upstream = pool.get(); upstream.on('error', onError); upstream.pipe(res); } // upstream returned to the pool, listener never removed"
-  },
-  {
-   "a": "The upstream socket is returned to a pool and reused, but each request adds a new error listener that is never removed. That is the leak. I have found the cause but this session ends with the diagnosis; the fix touches the shared pool code owned by another team."
+  "id": "debugging-1",
+  "type": "debugging",
+  "cwd": "/home/svc/ticketing-gateway",
+  "steps": [
+    {
+      "u": "ticketing-gateway pods get OOMKilled every ~6 hours in prod. Find out why. Don't change prod; staging is gw-staging-2.int.tixnet.local."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "kubectl -n tickets top pod -l app=gateway --containers && kubectl -n tickets get events --field-selector reason=OOMKilling | tail -3"
+      },
+      "r": "POD                        NAME     CPU(cores)  MEMORY(bytes)\ngateway-7d9f-abcde         gateway  210m        1388Mi\ngateway-7d9f-fghij         gateway  190m        902Mi\n4m   Warning  OOMKilling  node/ip-10-4-3-12  Memory cgroup out of memory: Killed process 1 (node)"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "ssh gw-staging-2.int.tixnet.local 'node --inspect=0 dist/server.js & sleep 2; curl -s localhost:9229/json | jq -r .[0].id'; node scripts/heap-snap.js gw-staging-2.int.tixnet.local before.heapsnapshot"
+      },
+      "r": "c1a9...\nwrote before.heapsnapshot (148 MB)"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "npx autocannon -d 600 -c 50 http://gw-staging-2.int.tixnet.local:8080/v1/events/123/seats >/dev/null && node scripts/heap-snap.js gw-staging-2.int.tixnet.local after.heapsnapshot && node scripts/heap-diff.js before.heapsnapshot after.heapsnapshot | head -8"
+      },
+      "r": "wrote after.heapsnapshot (611 MB)\nconstructor              delta_count   delta_size\n(closure)                +1,204,331    +188 MB\nListenerEntry            +601,880      +96 MB\nSeatMapSubscription      +601,880      +72 MB\nArray                    +1,210,002    +64 MB\nIncomingMessage          +12           +0.1 MB"
+    },
+    {
+      "t": "Grep",
+      "i": {
+        "pattern": "seatEvents\\.on\\(|seatEvents\\.off\\(|removeListener",
+        "path": "src",
+        "output_mode": "content"
+      },
+      "r": "src/routes/seats.ts:31:  seatEvents.on(`seat:${eventId}`, sub.onChange);\nsrc/ws/live.ts:44:  seatEvents.off(`seat:${eventId}`, handler);"
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/svc/ticketing-gateway/src/routes/seats.ts",
+        "offset": 22,
+        "limit": 20
+      },
+      "r": "22 router.get('/v1/events/:eventId/seats', async (req, res) => {\n23   const { eventId } = req.params;\n24   const sub = new SeatMapSubscription(eventId);\n...\n31   seatEvents.on(`seat:${eventId}`, sub.onChange);\n32   const map = await sub.snapshot();\n33   res.json(map);\n34 });"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "grep -rn 'setMaxListeners' src/"
+      },
+      "r": "src/events/bus.ts:7:seatEvents.setMaxListeners(0); // silence warnings, see INC-4471"
+    },
+    {
+      "a": "Found the cause. The plain HTTP seat-map route creates a SeatMapSubscription and registers its onChange on the shared seatEvents emitter for every request, then returns a one-off JSON snapshot without ever calling off(). Only the WebSocket path removes its listener. Each request leaks a listener entry, a closure and a subscription object (heap grew ~460 MB over a 10-minute load test, dominated by those three types). The leak was masked because setMaxListeners(0) disables Node's MaxListenersExceeded warning. The likely fix is not to subscribe at all on the HTTP route (it only needs the snapshot), and to restore a listener limit so this shows up again; I haven't changed any code yet."
+    }
+  ],
+  "reference": {
+    "task_type": "debugging",
+    "summary": "Diagnosed a Node.js memory leak causing out-of-memory kills: heap snapshot diffs under load showed listener entries, closures and subscription objects growing, traced to an HTTP route that adds an event emitter listener per request and never removes it, hidden because the max-listeners warning had been disabled. No fix was applied; removing the subscription from the route and restoring the listener limit was proposed.",
+    "facts": [
+      "Production pods were OOM killed roughly every six hours",
+      "A 10-minute load test on staging grew the heap from about 148 MB to 611 MB",
+      "Heap diff growth was dominated by closures, listener entries and subscription objects",
+      "The HTTP seat-map route registers a listener per request without removing it; only the WebSocket path removes it",
+      "setMaxListeners(0) had silenced the warning",
+      "No code was changed"
+    ],
+    "specific": [
+      "event listener memory leak",
+      "heap snapshot diffing"
+    ],
+    "decisions": [],
+    "skills": [
+      "Node.js",
+      "heap profiling",
+      "Kubernetes troubleshooting",
+      "load testing"
+    ],
+    "not_skills": [
+      "writing a fix and tests",
+      "database tuning",
+      "frontend debugging",
+      "Terraform"
+    ]
   }
- ],
- "reference": {
-  "task_type": "debugging",
-  "summary": "Traced a two-day memory growth to an event listener added to a pooled upstream connection on every request and never removed, using heap snapshot diffs; the cause was found but not fixed because the pool code belongs to another team.",
-  "facts": [
-   "memory growth until OOM kill",
-   "heap snapshot diff showed many retained closures and listeners",
-   "listener added per request on a pooled connection",
-   "never removed",
-   "fix not made in this session"
-  ],
-  "specific": [
-   "heap snapshot diffing",
-   "event listener leak on pooled connections"
-  ],
-  "decisions": [
-   {
-    "choice": "stop at the diagnosis and not change the pool code",
-    "reason": "the pool code is shared and owned by another team"
-   }
-  ],
-  "skills": [
-   "Node.js",
-   "heap profiling",
-   "memory leak debugging"
-  ],
-  "not_skills": [
-   "Docker",
-   "React",
-   "SQL"
-  ]
- }
 }

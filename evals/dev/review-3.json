@@ -1,0 +1,66 @@
+{
+ "id": "review-3",
+ "type": "review",
+ "cwd": "/work/web-shell",
+ "steps": [
+  {
+   "u": "Can you review the diff for the new modal component? Accessibility is what I care about."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "git diff origin/main -- src/ui/Modal.tsx"
+   },
+   "r": "+<div className='modal' onClick={close}>\n+  <div className='box'>{children}</div>\n+</div>"
+  },
+  {
+   "a": "Missing: role dialog and aria-modal, an accessible name, focus moved into the dialog on open and restored on close, focus trapped inside, and Escape to close. Clicking the backdrop closes it but keyboard users have no equivalent."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/web-shell/src/ui/Modal.test.tsx"
+   },
+   "r": "it('renders children')"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/web-shell/review-notes.md",
+    "content": "Use the native dialog element or add role/aria-modal, focus trap, Escape handling, focus restore. Add tests for keyboard behaviour.\n"
+   },
+   "r": "created"
+  }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed a modal component for accessibility and found no dialog role, no focus management or trap, and no keyboard close; recommended the native dialog element and keyboard tests.",
+  "facts": [
+   "reviewed a modal component",
+   "missing dialog role and aria-modal",
+   "no focus trap or restore",
+   "no escape key handling",
+   "only a render test exists"
+  ],
+  "specific": [
+   "focus management",
+   "dialog semantics"
+  ],
+  "decisions": [
+   {
+    "choice": "recommend the native dialog element",
+    "reason": "it provides focus handling and escape behaviour by default"
+   }
+  ],
+  "skills": [
+   "accessibility",
+   "React",
+   "code review"
+  ],
+  "not_skills": [
+   "SQL",
+   "Docker",
+   "Terraform"
+  ]
+ }
+}

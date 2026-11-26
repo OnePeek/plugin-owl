@@ -1,94 +1,79 @@
 {
- "id": "tests-1",
- "type": "tests",
- "cwd": "/work/auth-service",
- "steps": [
-  {
-   "u": "Our login flow has almost no tests. Please add integration tests that cover successful login, wrong password, locked account after 5 failures, and token expiry."
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/auth-service/src/login.ts"
-   },
-   "r": "export async function login(email,pw){ const u=await users.byEmail(email); if(u.locked) throw new Locked(); if(!await verify(pw,u.hash)){ await users.fail(u.id); throw new BadCreds() } return sign({sub:u.id},{expiresIn:'15m'}) }"
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/auth-service/test/helpers/db.ts"
-   },
-   "r": "export const withTestDb = async (fn) => { /* testcontainers postgres */ }"
-  },
-  {
-   "a": "The service talks to a real Postgres, so I will use the existing testcontainers helper rather than mocks, and a fake clock for the expiry test so it does not sleep."
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/auth-service/test/login.int.test.ts",
-    "content": "it('logs in with valid credentials')\nit('rejects a wrong password and counts the failure')\nit('locks the account after 5 failures')\nit('rejects an expired token using a fake clock')\n"
-   },
-   "r": "created"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npx vitest run test/login.int.test.ts"
-   },
-   "r": "1 failed | 3 passed: locks the account after 5 failures expected 423 received 401",
-   "err": true
-  },
-  {
-   "a": "The lock test fails: the failure counter increments after the lock check, so the sixth attempt is the first to be refused. The test expectation is right according to the requirement of locking after 5 failures; this is a real off-by-one in login.ts."
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/auth-service/src/login.ts",
-    "old_string": "if(u.locked) throw new Locked();",
-    "new_string": "if(u.locked || u.failures >= 5) throw new Locked();"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npx vitest run test/login.int.test.ts"
-   },
-   "r": "4 passed"
+  "id": "tests-1",
+  "type": "tests",
+  "cwd": "/home/dev/billing-svc",
+  "steps": [
+    {
+      "u": "pkg/tax/vat.go has no tests. Write table-driven tests for LineVAT and InvoiceVAT, especially rounding and the reverse-charge case."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/dev/billing-svc/pkg/tax/vat.go"
+      },
+      "r": "12 // LineVAT returns VAT in minor units, rounded half-up per line.\n13 func LineVAT(netMinor int64, rateBP int) int64 {\n14     return (netMinor*int64(rateBP) + 5000) / 10000\n15 }\n16 \n17 func InvoiceVAT(lines []Line, buyer Party) int64 {\n18     if buyer.ReverseCharge && buyer.Country != SellerCountry {\n19         return 0\n20     }\n21     var total int64\n22     for _, l := range lines { total += LineVAT(l.NetMinor, l.RateBP) }\n23     return total\n24 }"
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/home/dev/billing-svc/pkg/tax/vat_test.go",
+        "content": "package tax\n\nimport \"testing\"\n\nfunc TestLineVAT(t *testing.T) {\n\ttests := []struct {\n\t\tname   string\n\t\tnet    int64\n\t\trateBP int\n\t\twant   int64\n\t}{\n\t\t{\"zero\", 0, 2000, 0},\n\t\t{\"standard 20%\", 1000, 2000, 200},\n\t\t{\"half rounds up\", 25, 2000, 5},\n\t\t{\"just below half\", 24, 2000, 4},\n\t\t{\"reduced 5%\", 999, 500, 50},\n\t\t{\"zero rate\", 1999, 0, 0},\n\t}\n\tfor _, tt := range tests {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tif got := LineVAT(tt.net, tt.rateBP); got != tt.want {\n\t\t\t\tt.Errorf(\"LineVAT(%d, %d) = %d, want %d\", tt.net, tt.rateBP, got, tt.want)\n\t\t\t}\n\t\t})\n\t}\n}\n\nfunc TestInvoiceVAT(t *testing.T) {\n\tlines := []Line{{NetMinor: 1000, RateBP: 2000}, {NetMinor: 333, RateBP: 2000}}\n\ttests := []struct {\n\t\tname  string\n\t\tbuyer Party\n\t\twant  int64\n\t}{\n\t\t{\"domestic\", Party{Country: SellerCountry}, 267},\n\t\t{\"reverse charge cross-border\", Party{Country: \"DE\", ReverseCharge: true}, 0},\n\t\t{\"reverse charge flag but domestic\", Party{Country: SellerCountry, ReverseCharge: true}, 267},\n\t}\n\tfor _, tt := range tests {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tif got := InvoiceVAT(lines, tt.buyer); got != tt.want {\n\t\t\t\tt.Errorf(\"got %d, want %d\", got, tt.want)\n\t\t\t}\n\t\t})\n\t}\n}\n"
+      },
+      "r": "File created."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "go test ./pkg/tax/ -run VAT -v 2>&1 | grep -E 'FAIL|PASS|ok'"
+      },
+      "r": "--- FAIL: TestLineVAT/just_below_half (0.00s)\n    vat_test.go:24: LineVAT(24, 2000) = 5, want 4\n--- PASS: TestInvoiceVAT (0.00s)\nFAIL"
+    },
+    {
+      "a": "The code is right and my expectation is wrong: 24 * 0.20 = 4.8, which rounds half-up to 5. I meant a case that rounds down; 22 * 0.20 = 4.4 gives 4."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/dev/billing-svc/pkg/tax/vat_test.go",
+        "old_string": "\t\t{\"just below half\", 24, 2000, 4},",
+        "new_string": "\t\t{\"rounds down below half\", 22, 2000, 4},"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "go test ./pkg/tax/ -count=1 -cover"
+      },
+      "r": "ok  \tbilling-svc/pkg/tax\t0.005s\tcoverage: 100.0% of statements"
+    },
+    {
+      "a": "Added table-driven tests for both functions: per-line half-up rounding (including a round-down case), zero and reduced rates, and the three reverse-charge combinations. One expectation of mine was wrong (4.8 rounds to 5) and was replaced by a real round-down case; everything passes and the package is at 100% statement coverage."
+    }
+  ],
+  "reference": {
+    "task_type": "tests",
+    "summary": "Wrote table-driven Go tests for VAT calculation covering half-up rounding per line, zero and reduced rates, and the reverse-charge rule for cross-border versus domestic buyers. After correcting one wrong expectation in the table, all tests pass with full statement coverage of the package.",
+    "facts": [
+      "Tests cover line rounding, zero and reduced rates and three reverse-charge combinations",
+      "One failing case was a wrong expectation in the test, not a code bug, and was replaced by a round-down case",
+      "The package reaches 100% statement coverage"
+    ],
+    "specific": [
+      "table-driven tests",
+      "rounding edge cases"
+    ],
+    "decisions": [],
+    "skills": [
+      "Go",
+      "unit testing",
+      "test case design"
+    ],
+    "not_skills": [
+      "mocking external services",
+      "CI configuration",
+      "database testing",
+      "property-based testing"
+    ]
   }
- ],
- "reference": {
-  "task_type": "tests",
-  "summary": "Added integration tests for the login flow against a real Postgres container, with a fake clock for token expiry; the lockout test exposed an off-by-one that let a sixth attempt through, which was fixed.",
-  "facts": [
-   "integration tests for success, wrong password, lockout after 5 failures, token expiry",
-   "real Postgres through testcontainers",
-   "fake clock for expiry",
-   "lockout test found an off-by-one",
-   "four tests pass at the end"
-  ],
-  "specific": [
-   "integration testing with a real database container",
-   "fake clock"
-  ],
-  "decisions": [
-   {
-    "choice": "use a real database container and a fake clock instead of mocks and sleeping",
-    "reason": "the service depends on Postgres behaviour and sleeping would make the expiry test slow"
-   }
-  ],
-  "skills": [
-   "Vitest",
-   "TypeScript",
-   "PostgreSQL",
-   "integration testing"
-  ],
-  "not_skills": [
-   "Kubernetes",
-   "React",
-   "Terraform"
-  ]
- }
 }

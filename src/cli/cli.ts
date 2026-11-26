@@ -4,24 +4,58 @@
 import { fileURLToPath } from "node:url";
 import { COMMANDS, connect, discard, preview, setMode, status, uninstall, verify, type CommandName, type Out } from "./commands.js";
 import { createInterface } from "node:readline";
+import { randomInt } from "node:crypto";
 import { CONSENT_QUESTION } from "../send/contract.js";
 import { openCtx, type Ctx } from "./ctx.js";
+import { KeyStoreUnavailable } from "../keystore/os.js";
 
 export interface Io {
   /** Ask the person the consent question. Resolves true only for an explicit yes typed at a real terminal. */
   askConsent: () => Promise<boolean>;
 }
 
-/** The default: a TTY prompt with the exact LLD wording. No terminal (a tool call, a pipe, CI) means no answer, which is NO. */
-export const terminalIo: Io = {
-  askConsent: async () => {
-    if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await new Promise<string>((resolve) => rl.question(`${CONSENT_QUESTION} (yes/no, no is the default): `, resolve));
-    rl.close();
-    return /^\s*(yes|y)\s*$/i.test(answer);
-  },
-};
+/** One prompt and the typed line, with how long after the prompt appeared the line arrived. */
+export interface Prompter {
+  interactive: boolean;
+  ask(question: string): Promise<{ text: string; afterMs: number }>;
+}
+
+/** A line that arrives sooner than this after its prompt was typed ahead (piped, scripted): it never counts as an answer. */
+export const MIN_HUMAN_MS = 400;
+const WORDS = ["harbor", "maple", "orbit", "lantern", "meadow", "cobalt", "willow", "summit", "pebble", "falcon", "canyon", "ember", "glacier", "juniper", "quartz", "tundra"];
+
+/**
+ * The consent question (AIP-C1): an explicit "yes", then a confirmation word chosen at random and shown only now, typed
+ * back exactly. Both lines must arrive after their prompt was shown (no typeahead). No terminal means no answer, which is NO.
+ * Limit (documented in docs/guidelines.md): a program that drives a pseudo-terminal, reads the screen and types the word
+ * can still answer; the server-side consent record, visible and changeable in the web app, is the backstop.
+ */
+export async function askConsentWith(p: Prompter, word = `${WORDS[randomInt(WORDS.length)]}${randomInt(10, 100)}`): Promise<boolean> {
+  if (!p.interactive) return false;
+  const a = await p.ask(`${CONSENT_QUESTION} (type yes or no; no is the default): `);
+  if (a.afterMs < MIN_HUMAN_MS || !/^\s*yes\s*$/i.test(a.text)) return false;
+  const b = await p.ask(`To confirm, type the word ${word}: `);
+  return b.afterMs >= MIN_HUMAN_MS && b.text.trim() === word;
+}
+
+/** A real interactive terminal: stdin and stdout are TTYs and stdin can switch to raw mode (a pipe cannot). */
+export function ttyPrompter(): Prompter {
+  const stdin = process.stdin as NodeJS.ReadStream;
+  return {
+    interactive: stdin.isTTY === true && process.stdout.isTTY === true && typeof stdin.setRawMode === "function",
+    ask: (q) =>
+      new Promise((resolve) => {
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        const shown = Date.now();
+        rl.question(q, (text) => {
+          rl.close();
+          resolve({ text, afterMs: Date.now() - shown });
+        });
+      }),
+  };
+}
+
+export const terminalIo: Io = { askConsent: () => askConsentWith(ttyPrompter()) };
 
 const FLAGS = new Set(["--here", "--reset"]);
 
@@ -74,8 +108,9 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  main().catch(() => {
-    process.stdout.write("Something went wrong. Nothing was changed.\n");
+  main().catch((e: unknown) => {
+    if (e instanceof KeyStoreUnavailable) process.stdout.write(`The OS key store is unavailable (${e.store}). Nothing was changed and no new key was made: unlock the key store and run the command again.\n`);
+    else process.stdout.write("Something went wrong. Nothing was changed.\n");
     process.exitCode = 1;
   });
 }

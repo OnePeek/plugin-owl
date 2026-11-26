@@ -87,7 +87,9 @@ test("test_summariser_flags_locked_down: no tools, no MCP, no settings, no slash
 
 test("summariser child environment passes nothing but what it needs, and marks itself internal", () => {
   const env = childEnv({ PATH: "/bin", HOME: "/h", AWS_SECRET_ACCESS_KEY: "x", GITHUB_TOKEN: "y", ANTHROPIC_API_KEY: "k", CLAUDE_CODE_SESSION_ID: "z", ONEPEEK_WORKLOG_INTERNAL: "0" });
-  assert.deepEqual(Object.keys(env).sort(), ["ANTHROPIC_API_KEY", "HOME", "ONEPEEK_WORKLOG_INTERNAL", "PATH"]);
+  // the person's own model sign-in (API key, Bedrock, Vertex) passes on (finding 14); other tokens and session ids do not
+  assert.deepEqual(Object.keys(env).sort(), ["ANTHROPIC_API_KEY", "AWS_SECRET_ACCESS_KEY", "HOME", "ONEPEEK_WORKLOG_INTERNAL", "PATH"]);
+  assert.ok(!("GITHUB_TOKEN" in env) && !("CLAUDE_CODE_SESSION_ID" in env));
   assert.equal(env["ONEPEEK_WORKLOG_INTERNAL"], "1");
 });
 

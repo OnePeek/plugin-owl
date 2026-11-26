@@ -1,66 +1,79 @@
 {
- "id": "review-3",
- "type": "review",
- "cwd": "/work/web-shell",
- "steps": [
-  {
-   "u": "Can you review the diff for the new modal component? Accessibility is what I care about."
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "git diff origin/main -- src/ui/Modal.tsx"
-   },
-   "r": "+<div className='modal' onClick={close}>\n+  <div className='box'>{children}</div>\n+</div>"
-  },
-  {
-   "a": "Missing: role dialog and aria-modal, an accessible name, focus moved into the dialog on open and restored on close, focus trapped inside, and Escape to close. Clicking the backdrop closes it but keyboard users have no equivalent."
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/web-shell/src/ui/Modal.test.tsx"
-   },
-   "r": "it('renders children')"
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/web-shell/review-notes.md",
-    "content": "Use the native dialog element or add role/aria-modal, focus trap, Escape handling, focus restore. Add tests for keyboard behaviour.\n"
-   },
-   "r": "created"
+  "id": "review-3",
+  "type": "review",
+  "cwd": "/Users/lee/code/tipjar-payments",
+  "steps": [
+    {
+      "u": "Can you review the diff for the new payout webhook handler before I approve it? It's the last commit on this branch."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "git show --stat HEAD && git show HEAD -- src/webhooks/payouts.ts"
+      },
+      "r": "commit 4be1f0a  Add payout webhook handler (PAY-1182)\n src/webhooks/payouts.ts       | 54 +++++\n src/webhooks/payouts.test.ts  | 38 +++\n\n+export async function handlePayout(req: Request, res: Response) {\n+  const sig = req.header('X-Signature') ?? '';\n+  const expected = createHmac('sha256', process.env.PAYOUT_WEBHOOK_SECRET!).update(JSON.stringify(req.body)).digest('hex');\n+  if (sig !== expected) return res.status(401).end();\n+  const evt = req.body as PayoutEvent;\n+  await payouts.markSettled(evt.payout_id, evt.amount);\n+  res.status(200).end();\n+}"
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/Users/lee/code/tipjar-payments/.env.example"
+      },
+      "r": "PAYOUT_WEBHOOK_SECRET=whsec_test_51Hx9kQ2fakefakefake0000\nDATABASE_URL=postgres://localhost/tipjar"
+    },
+    {
+      "t": "Grep",
+      "i": {
+        "pattern": "express.json|bodyParser|raw\\(",
+        "path": "src",
+        "output_mode": "content"
+      },
+      "r": "src/server.ts:12:app.use(express.json());\nsrc/server.ts:27:app.post('/webhooks/payouts', handlePayout);"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "npx vitest run src/webhooks/payouts.test.ts 2>&1 | tail -4"
+      },
+      "r": " \u2713 src/webhooks/payouts.test.ts (3 tests) 22ms\n Test Files  1 passed (1)\n      Tests  3 passed (3)"
+    },
+    {
+      "a": "Tests pass, but there are security issues that I'd treat as blocking rather than nits, so I recommend requesting changes instead of approving:\n\n1. Signature is computed over JSON.stringify(req.body) after express.json() has parsed it. Re-serialising doesn't reproduce the provider's raw bytes (key order, whitespace, unicode escapes), so valid webhooks will intermittently fail. Verify against the raw body: mount express.raw({ type: 'application/json' }) on this route.\n2. sig !== expected is a non-constant-time comparison; use crypto.timingSafeEqual on equal-length buffers.\n3. No timestamp or replay protection; the provider sends a timestamp header that should be included and checked within a tolerance.\n4. markSettled isn't idempotent on payout_id; retried deliveries could double-process. Check for an existing settled event first.\n5. The non-null assertion on the secret means a missing env var yields an HMAC keyed with 'undefined'; fail at startup instead.\n6. Tests only cover the happy path and one wrong signature; add raw-body and replay cases."
+    },
+    {
+      "u": "Agreed, I'll request changes with those."
+    }
+  ],
+  "reference": {
+    "task_type": "review",
+    "summary": "Reviewed a payout webhook handler before approval and recommended requesting changes: the HMAC signature is checked against re-serialised JSON instead of the raw body, the comparison is not constant time, there is no replay protection or idempotency, and a missing secret is not caught at startup. The tests passed but only covered the happy path; no code was changed.",
+    "facts": [
+      "The handler computes the HMAC over re-serialised parsed JSON",
+      "The signature comparison is not timing safe",
+      "There is no timestamp or replay check and settlement is not idempotent",
+      "The existing 3 tests pass but cover little",
+      "The engineer agreed to request changes"
+    ],
+    "specific": [
+      "webhook signature verification review",
+      "timing-safe comparison"
+    ],
+    "decisions": [
+      {
+        "choice": "Request changes instead of approving with nits",
+        "reason": "the signature and replay issues are security bugs, not style points"
+      }
+    ],
+    "skills": [
+      "code review",
+      "TypeScript",
+      "webhook security",
+      "Express"
+    ],
+    "not_skills": [
+      "implementing the fixes",
+      "load testing",
+      "database migration",
+      "frontend review"
+    ]
   }
- ],
- "reference": {
-  "task_type": "review",
-  "summary": "Reviewed a modal component for accessibility and found no dialog role, no focus management or trap, and no keyboard close; recommended the native dialog element and keyboard tests.",
-  "facts": [
-   "reviewed a modal component",
-   "missing dialog role and aria-modal",
-   "no focus trap or restore",
-   "no escape key handling",
-   "only a render test exists"
-  ],
-  "specific": [
-   "focus management",
-   "dialog semantics"
-  ],
-  "decisions": [
-   {
-    "choice": "recommend the native dialog element",
-    "reason": "it provides focus handling and escape behaviour by default"
-   }
-  ],
-  "skills": [
-   "accessibility",
-   "React",
-   "code review"
-  ],
-  "not_skills": [
-   "SQL",
-   "Docker",
-   "Terraform"
-  ]
- }
 }

@@ -1,96 +1,98 @@
 {
- "id": "tests-2",
- "type": "tests",
- "cwd": "/work/pricing-lib",
- "steps": [
-  {
-   "u": "The discount calculator keeps breaking in edge cases. Can you add property-based tests?"
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/pricing-lib/src/discount.py"
-   },
-   "r": "def apply(price, rules): ... # percent rules first, then fixed amounts, floor at 0"
-  },
-  {
-   "a": "Properties that should always hold: the result is never negative, never higher than the input, and applying rules in a stable order gives the same result. I will use hypothesis with generated prices and rule lists."
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/pricing-lib/tests/test_discount_props.py",
-    "content": "@given(prices, rule_lists)\ndef test_never_negative(p, r): assert apply(p, r) >= 0\n@given(prices, rule_lists)\ndef test_never_exceeds_input(p, r): assert apply(p, r) <= p\n@given(prices, rule_lists)\ndef test_deterministic(p, r): assert apply(p, r) == apply(p, list(r))\n"
-   },
-   "r": "created"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "pytest tests/test_discount_props.py -q"
-   },
-   "r": "FAILED test_never_exceeds_input - Falsifying example: p=Decimal('0.00'), r=[Fixed(-5)]",
-   "err": true
-  },
-  {
-   "a": "Hypothesis found a negative fixed discount that increases the price, something no example test covered. Negative amounts should be rejected at rule construction."
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/pricing-lib/src/rules.py",
-    "old_string": "class Fixed:\n    def __init__(self, amount): self.amount = amount",
-    "new_string": "class Fixed:\n    def __init__(self, amount):\n        if amount < 0: raise ValueError('discount must not be negative')\n        self.amount = amount"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/pricing-lib/tests/test_discount_props.py",
-    "old_string": "rule_lists",
-    "new_string": "rule_lists_valid"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "pytest tests/test_discount_props.py -q"
-   },
-   "r": "3 passed"
+  "id": "tests-2",
+  "type": "tests",
+  "cwd": "/opt/src/clinic-scheduler",
+  "steps": [
+    {
+      "u": "test_reminders.py::test_sends_24h_reminder fails maybe once a week in CI, usually around midnight UTC. Make it deterministic."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/opt/src/clinic-scheduler/tests/test_reminders.py",
+        "offset": 1,
+        "limit": 25
+      },
+      "r": "8 def test_sends_24h_reminder(db, outbox):\n9     appt = make_appointment(db, starts_at=datetime.utcnow() + timedelta(hours=24))\n10    run_reminder_job(db)\n11    assert [m.appointment_id for m in outbox] == [appt.id]"
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/opt/src/clinic-scheduler/scheduler/reminders.py",
+        "offset": 1,
+        "limit": 30
+      },
+      "r": "14 def run_reminder_job(db):\n15     today = date.today()\n16     window_start = datetime.combine(today + timedelta(days=1), time.min)\n17     window_end = window_start + timedelta(days=1)\n18     for appt in db.appointments_between(window_start, window_end):"
+    },
+    {
+      "a": "The job buckets by calendar day using date.today() (local time) while the test uses utcnow()+24h, so near midnight the appointment falls on the day after tomorrow and is skipped. Options: freeze time in the test with freezegun, or give the job an injectable clock. freezegun would hide the local-vs-UTC mismatch rather than fix it, and the scheduler already passes a Clock into the booking service, so I'll inject the same Clock here and use UTC consistently."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/opt/src/clinic-scheduler/scheduler/reminders.py",
+        "old_string": "def run_reminder_job(db):\n    today = date.today()",
+        "new_string": "def run_reminder_job(db, clock: Clock = SYSTEM_CLOCK):\n    today = clock.now_utc().date()"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/opt/src/clinic-scheduler/tests/test_reminders.py",
+        "old_string": "def test_sends_24h_reminder(db, outbox):\n    appt = make_appointment(db, starts_at=datetime.utcnow() + timedelta(hours=24))\n    run_reminder_job(db)",
+        "new_string": "@pytest.mark.parametrize(\"now\", [\n    datetime(2026, 3, 10, 12, 0, tzinfo=UTC),\n    datetime(2026, 3, 10, 23, 59, tzinfo=UTC),\n    datetime(2026, 3, 11, 0, 1, tzinfo=UTC),\n])\ndef test_sends_24h_reminder(db, outbox, now):\n    clock = FixedClock(now)\n    appt = make_appointment(db, starts_at=datetime.combine(now.date() + timedelta(days=1), time(9), tzinfo=UTC))\n    run_reminder_job(db, clock=clock)"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "pytest tests/test_reminders.py -q -p no:randomly && pytest tests/test_reminders.py -q --count=200 -x 2>&1 | tail -1"
+      },
+      "r": "......\n6 passed in 0.52s\n1200 passed in 31.08s"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "grep -rn 'run_reminder_job(' scheduler/ | grep -v def"
+      },
+      "r": "scheduler/cron.py:22:    run_reminder_job(db)"
+    },
+    {
+      "a": "Made it deterministic. The job now takes a Clock (defaulting to the system clock, so the cron caller is unchanged) and computes 'tomorrow' from UTC instead of local date.today(). The test is parametrized with a fixed clock at midday, one minute before and one minute after midnight UTC; it passed 1,200 repeated runs."
+    }
+  ],
+  "reference": {
+    "task_type": "tests",
+    "summary": "Made a flaky reminder test deterministic: the job computed tomorrow from local date while the test used UTC, so it failed near midnight. An injectable clock was added to the job, which now uses UTC, and the test was parametrized with fixed times around midnight; it passed 1,200 repeated runs.",
+    "facts": [
+      "The job used local date.today() while the test used utcnow, which disagreed near midnight",
+      "The job now accepts a Clock defaulting to the system clock and uses UTC",
+      "The test is parametrized at midday and one minute either side of midnight",
+      "The test passed 1,200 repeated runs"
+    ],
+    "specific": [
+      "flaky time-dependent test",
+      "clock injection"
+    ],
+    "decisions": [
+      {
+        "choice": "Inject a clock instead of freezing time with freezegun",
+        "reason": "freezegun would hide the local versus UTC mismatch, and the codebase already injects a Clock elsewhere"
+      }
+    ],
+    "skills": [
+      "Python",
+      "pytest",
+      "time zone handling",
+      "dependency injection"
+    ],
+    "not_skills": [
+      "CI pipeline configuration",
+      "database migration",
+      "load testing",
+      "mocking HTTP services"
+    ]
   }
- ],
- "reference": {
-  "task_type": "tests",
-  "summary": "Added property-based tests with hypothesis for the discount calculator (never negative, never above the input, deterministic); they found a negative fixed discount that raised prices, now rejected when the rule is created.",
-  "facts": [
-   "property-based tests with hypothesis",
-   "three properties",
-   "found a negative fixed discount increasing the price",
-   "validation added to the rule constructor",
-   "tests pass"
-  ],
-  "specific": [
-   "property-based testing",
-   "falsifying example"
-  ],
-  "decisions": [
-   {
-    "choice": "reject negative amounts when a rule is constructed",
-    "reason": "a negative fixed discount raised the price and no example test had covered it"
-   }
-  ],
-  "skills": [
-   "Python",
-   "pytest",
-   "Hypothesis",
-   "property-based testing"
-  ],
-  "not_skills": [
-   "React",
-   "Docker",
-   "Redis"
-  ]
- }
 }

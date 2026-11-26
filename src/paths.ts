@@ -13,6 +13,8 @@ export interface Paths {
   policyDir: string;
   lockFile: string;
   workDir: string;
+  /** Which master-key store this device chose at first use (never a secret). */
+  keyStoreFile: string;
 }
 
 export function pathsFor(root: string): Paths {
@@ -27,6 +29,7 @@ export function pathsFor(root: string): Paths {
     policyDir: join(root, "policy"),
     lockFile: join(root, "helper.lock"),
     workDir: join(root, "work"),
+    keyStoreFile: join(root, "keystore.json"),
   };
 }
 

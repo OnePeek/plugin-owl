@@ -1,0 +1,100 @@
+{
+ "id": "refactor-3",
+ "type": "refactor",
+ "cwd": "/work/etl-service",
+ "steps": [
+  {
+   "u": "Our three importers each copy-paste the same retry-with-backoff code. Pull it into one helper."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "attempt <"
+   },
+   "r": "import/shopify.py:41\nimport/stripe.py:38\nimport/hubspot.py:52"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/etl-service/import/stripe.py"
+   },
+   "r": "for attempt in range(5):\n    try: return call()\n    except Timeout: time.sleep(2**attempt)\nraise"
+  },
+  {
+   "a": "The three copies differ slightly: one retries on HTTP 429 as well, and one has no jitter. A shared helper should take the retryable exceptions as a parameter and add jitter, otherwise concurrent workers retry in lockstep."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/etl-service/common/retry.py",
+    "content": "def retry(call, retry_on=(Timeout,), attempts=5, base=1.0):\n    for n in range(attempts):\n        try: return call()\n        except retry_on:\n            time.sleep(base * 2**n * random.uniform(0.5, 1.5))\n    raise\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/etl-service/import/stripe.py",
+    "old_string": "for attempt in range(5):\n    try: return call()\n    except Timeout: time.sleep(2**attempt)\nraise",
+    "new_string": "return retry(call)"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/etl-service/import/shopify.py",
+    "old_string": "for attempt in range(5): ...",
+    "new_string": "return retry(call, retry_on=(Timeout, RateLimited))"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/etl-service/import/hubspot.py",
+    "old_string": "for attempt in range(5): ...",
+    "new_string": "return retry(call)"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest tests/import -q"
+   },
+   "r": "27 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "refactor",
+  "summary": "Replaced three copy-pasted retry loops in the importers with one shared retry helper that takes the retryable exceptions as a parameter and adds jitter to the backoff; the import tests still pass.",
+  "facts": [
+   "three importers had duplicated retry code",
+   "one helper",
+   "retryable exceptions are a parameter",
+   "jitter added",
+   "tests pass"
+  ],
+  "specific": [
+   "exponential backoff with jitter",
+   "extract shared helper"
+  ],
+  "decisions": [
+   {
+    "choice": "add jitter and make retryable exceptions a parameter",
+    "reason": "concurrent workers would otherwise retry in lockstep and one importer also retries on rate limits"
+   }
+  ],
+  "skills": [
+   "Python",
+   "pytest",
+   "retry with backoff"
+  ],
+  "not_skills": [
+   "Docker",
+   "React",
+   "Kubernetes"
+  ]
+ }
+}

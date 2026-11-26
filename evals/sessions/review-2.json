@@ -1,66 +1,72 @@
 {
- "id": "review-2",
- "type": "review",
- "cwd": "/work/data-platform",
- "steps": [
-  {
-   "u": "Look over this SQL migration before we run it on the 80 million row events table. Anything dangerous?"
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/data-platform/migrations/0042_add_source.sql"
-   },
-   "r": "ALTER TABLE events ADD COLUMN source text NOT NULL DEFAULT 'web';\nCREATE INDEX idx_events_source ON events(source);"
-  },
-  {
-   "a": "On the Postgres version we run, adding a column with a constant default is a metadata change, so that part is cheap. The plain CREATE INDEX takes a lock that blocks writes for the whole build on 80 million rows; it should be CREATE INDEX CONCURRENTLY, outside a transaction."
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "psql -c \"select version()\""
-   },
-   "r": "PostgreSQL 15.4"
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/data-platform/migrations/0042_add_source.review.md",
-    "content": "Keep the ADD COLUMN. Change the index to CREATE INDEX CONCURRENTLY and move it to its own migration without a transaction wrapper.\n"
-   },
-   "r": "created"
+  "id": "review-2",
+  "type": "review",
+  "cwd": "/home/dev/fieldnotes",
+  "steps": [
+    {
+      "u": "Review migration 0047 that backfills normalized phone numbers for all farmer profiles. It's in PR #812. Comments only."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/dev/fieldnotes/profiles/migrations/0047_backfill_phone_e164.py"
+      },
+      "r": "1 from django.db import migrations\n2 import phonenumbers\n3 from profiles.models import FarmerProfile\n4 \n5 def forwards(apps, schema_editor):\n6     for p in FarmerProfile.objects.all():\n7         n = phonenumbers.parse(p.phone_raw, \"KE\")\n8         p.phone_e164 = phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)\n9         p.save()\n10\n11 class Migration(migrations.Migration):\n12     dependencies = [(\"profiles\", \"0046_farmerprofile_phone_e164\")]\n13     operations = [migrations.RunPython(forwards)]"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "psql -h localhost -d fieldnotes -c \"select count(*), count(*) filter (where phone_raw is null or phone_raw = '') as blank from profiles_farmerprofile\""
+      },
+      "r": "  count  | blank\n---------+-------\n 1840221 |  3307\n(1 row)"
+    },
+    {
+      "t": "Grep",
+      "i": {
+        "pattern": "def save|post_save",
+        "path": "profiles"
+      },
+      "r": "profiles/models.py:88:    def save(self, *args, **kwargs):\nprofiles/signals.py:14:@receiver(post_save, sender=FarmerProfile)"
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/dev/fieldnotes/profiles/signals.py",
+        "offset": 12,
+        "limit": 8
+      },
+      "r": "14 @receiver(post_save, sender=FarmerProfile)\n15 def sync_to_crm(sender, instance, **kwargs):\n16     crm_client.upsert_contact(instance.id, instance.phone_e164, instance.region)"
+    },
+    {
+      "a": "Comments for migration 0047:\n\n1. It imports the real FarmerProfile model instead of apps.get_model('profiles', 'FarmerProfile'). That breaks once the model changes in a later migration and also means the custom save() runs.\n2. p.save() fires the post_save signal, which calls the CRM upsert for every row: about 1.84 million external API calls inside a migration. Use the historical model and bulk_update with update_fields instead.\n3. phonenumbers.parse raises NumberParseException on the 3,307 blank or null phone_raw values (and likely on junk values), which aborts the whole migration. Skip blanks and record unparseable values rather than failing.\n4. Loading 1.8M rows with .all() and saving one by one in a single transaction will hold locks for a long time; iterate with .iterator(chunk_size=...) and set atomic = False with batched commits, or move the backfill into a management command run outside deploy.\n5. No reverse function; add migrations.RunPython.noop as the reverse so the migration can be rolled back.\n\nNo changes made."
+    }
+  ],
+  "reference": {
+    "task_type": "review",
+    "summary": "Reviewed a Django data migration that backfills normalised phone numbers and left comments only: it uses the live model instead of the historical one, saving each row would trigger a CRM sync signal for about 1.8 million rows, blank numbers would make parsing raise and abort the migration, the single large transaction should be batched, and it has no reverse operation.",
+    "facts": [
+      "The migration imports the live model rather than using apps.get_model",
+      "Each save would fire a post_save signal that calls the CRM, about 1.84 million times",
+      "3,307 rows have blank or null phone values that would make parsing fail",
+      "Batching with iterator and bulk_update or a management command was suggested",
+      "A no-op reverse was recommended; no changes were made"
+    ],
+    "specific": [
+      "data migration review",
+      "backfill safety in Django migrations"
+    ],
+    "decisions": [],
+    "skills": [
+      "code review",
+      "Django migrations",
+      "PostgreSQL",
+      "Python"
+    ],
+    "not_skills": [
+      "writing the corrected migration",
+      "performance benchmarking",
+      "frontend review",
+      "CI configuration"
+    ]
   }
- ],
- "reference": {
-  "task_type": "review",
-  "summary": "Reviewed a migration for an 80 million row table: the column add with a constant default is cheap on Postgres 15, but the plain index build would block writes, so it should be created concurrently in its own non-transactional migration.",
-  "facts": [
-   "migration on an 80 million row table",
-   "Postgres 15",
-   "column with constant default is a metadata change",
-   "plain index creation blocks writes",
-   "recommend concurrent index in its own migration"
-  ],
-  "specific": [
-   "blocking lock during index build",
-   "concurrent index creation"
-  ],
-  "decisions": [
-   {
-    "choice": "recommend CREATE INDEX CONCURRENTLY in a separate migration",
-    "reason": "a plain index build blocks writes on a very large table"
-   }
-  ],
-  "skills": [
-   "PostgreSQL",
-   "SQL",
-   "database migrations"
-  ],
-  "not_skills": [
-   "React",
-   "Docker",
-   "Terraform"
-  ]
- }
 }

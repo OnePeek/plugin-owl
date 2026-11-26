@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { COMMANDS, discard, preview, status, verify } from "../../src/cli/commands.js";
 import { openCtx } from "../../src/cli/ctx.js";
-import { ingest, release, send, drain } from "../../src/cli/engine.js";
+import { ingest, send, drain } from "../../src/cli/engine.js";
 import { readState, writeState } from "../../src/state/store.js";
 import { promptSha256 } from "../../src/summarise/prompt.js";
 import { runCommand, parseArgs, terminalIo } from "../../src/cli/cli.js";
 import { canaries } from "../helpers/canary.js";
-import { makeEnv, connectViaLoopback } from "../helpers/env.js";
+import { makeEnv, connectViaLoopback, NO_OS_STORE } from "../helpers/env.js";
 import { sampleTranscript } from "../helpers/sample.js";
 
 const GOOD = JSON.stringify({ summary: "Found a race between cache invalidation and refill that served stale prices after bulk updates, and fixed it by versioning cache entries.", task_type: "bugfix", decisions: ["Chose versioned cache entries over a global lock because writes are rare and a lock blocked the nightly job."], skills: ["TypeScript", "cache invalidation"] });
@@ -18,7 +18,6 @@ const out = (lines: string[]) => ({ line: (s: string) => void lines.push(s) });
 
 async function pipeline(env: Awaited<ReturnType<typeof makeEnv>>): Promise<void> {
   await ingest(env.ctx);
-  await release(env.ctx);
   await send(env.ctx);
 }
 
@@ -48,7 +47,6 @@ test("test_discard_sends_content_free_entry", async () => {
   await ingest(env.ctx);
   const lines: string[] = [];
   assert.equal(await discard(env.ctx, out(lines)), 1);
-  await release(env.ctx);
   await send(env.ctx);
   const r = env.server.accepted[0]!.record;
   assert.equal(r.kind, "discarded");
@@ -65,7 +63,6 @@ test("test_no_consent_no_text_on_wire", async () => {
   env.clock.now += 0;
   await ingest(env.ctx);
   env.clock.now += 11 * MIN;
-  await release(env.ctx);
   await send(env.ctx);
   assert.equal(called, 0);
   assert.equal(env.server.accepted.length, 1);
@@ -74,18 +71,20 @@ test("test_no_consent_no_text_on_wire", async () => {
   assert.equal(env.server.installBody?.["consent_text"], false);
 });
 
-test("cleaner hit holds the record: a held gap goes out, never the text", async () => {
+test("test_cleaner_hits_hold_record", async () => {
   const leak = JSON.stringify({ summary: "Rotated the deploy credential " + canaries.githubToken() + " and redeployed the service today.", task_type: "infra", decisions: [], skills: [] });
   const env = await makeEnv({ summariser: async () => leak });
   env.addSession("s1", sampleTranscript());
   await ingest(env.ctx);
   env.clock.now += 11 * MIN;
-  await release(env.ctx);
   await send(env.ctx);
   const r = env.server.accepted[0]!.record;
   assert.equal(r.kind, "held");
-  assert.equal(r.reason_code, "content_held");
+  assert.equal(r.reason_code, "cleaner_hit"); // the contract's device code; the person sees the code, never the matched text
   assert.ok(!env.server.allBodies.includes("deploy credential"));
+  const lines: string[] = [];
+  status(env.ctx, out(lines));
+  assert.ok(!lines.join("\n").includes("deploy credential"));
 });
 
 test("server 422: record becomes a held gap at the same seq and later drafts are re-chained", async () => {
@@ -94,7 +93,6 @@ test("server 422: record becomes a held gap at the same seq and later drafts are
   env.addSession("s2", sampleTranscript());
   await ingest(env.ctx);
   env.clock.now += 11 * MIN;
-  await release(env.ctx);
   env.server.failNext = { status: 422, reason: "content_held", index: 0 };
   await send(env.ctx);
   const acc = env.server.accepted.map((e) => [e.record.seq, e.record.kind, e.record.reason_code]);
@@ -103,16 +101,18 @@ test("server 422: record becomes a held gap at the same seq and later drafts are
   assert.ok(verify(env.ctx, out([])));
 });
 
-test("test_five_parallel_sessions_strict_seq", async () => {
+test("five parallel helpers in one process keep strict seq and the install unblocked", async () => {
   const env = await makeEnv({ summariser: async () => GOOD });
   for (let i = 0; i < 5; i++) env.addSession("p" + i, sampleTranscript());
-  const others = await Promise.all([0, 1, 2, 3, 4].map(() => openCtx({ paths: env.ctx.paths, now: () => env.clock.now, fetchImpl: env.server.fetch, claudeConfigDir: env.ctx.claudeConfigDir, platform: "win32", summariser: async () => GOOD, info: env.ctx.info })));
+  const others = await Promise.all([0, 1, 2, 3, 4].map(() => openCtx({ paths: env.ctx.paths, now: () => env.clock.now, fetchImpl: env.server.fetch, claudeConfigDir: env.ctx.claudeConfigDir, ...NO_OS_STORE, summariser: async () => GOOD, info: env.ctx.info })));
   await Promise.all(others.map((c) => ingest(c)));
   env.clock.now += 11 * MIN;
-  await Promise.all(others.map((c) => release(c)));
+  env.ctx.saveVault({ ...env.ctx.vault(), access_expires_at: 0 }); // every helper needs a fresh token
   await Promise.all(others.map((c) => send(c)));
   assert.deepEqual(env.server.accepted.map((e) => e.record.seq), [1, 2, 3, 4, 5]);
   assert.ok(verify(env.ctx, out([])));
+  assert.equal(env.server.refreshPresented.length, 1); // one refresher; the others reused the new token
+  assert.equal(env.ctx.controls().blocked, undefined);
 });
 
 test("test_crash_sweep_recovers_exactly_once", async () => {
@@ -133,7 +133,6 @@ test("test_old_spool_entries_age_out", async () => {
   env.addSession("s1", sampleTranscript());
   await ingest(env.ctx);
   env.clock.now += 8 * 86_400_000; // offline for 8 days
-  await release(env.ctx);
   await send(env.ctx);
   const r = env.server.accepted[0]!.record;
   assert.equal(r.kind, "expired");
@@ -146,7 +145,6 @@ test("test_broken_chain_stops_sending / revoked device", async () => {
   env.addSession("s1", sampleTranscript());
   await ingest(env.ctx);
   env.clock.now += 11 * MIN;
-  await release(env.ctx);
   env.server.revoked = true;
   assert.equal(await send(env.ctx), "stopped");
   const lines: string[] = [];
@@ -163,7 +161,6 @@ test("server pause: hold and retry in 10 minutes", async () => {
   env.addSession("s1", sampleTranscript());
   await ingest(env.ctx);
   env.clock.now += 11 * MIN;
-  await release(env.ctx);
   env.server.paused = true;
   await send(env.ctx);
   assert.equal(env.server.accepted.length, 0);
@@ -179,7 +176,6 @@ test("5xx backs off with doubling delay", async () => {
   env.addSession("s1", sampleTranscript());
   await ingest(env.ctx);
   env.clock.now += 11 * MIN;
-  await release(env.ctx);
   env.server.failNext = { status: 503, reason: "unavailable" };
   await send(env.ctx);
   assert.equal(env.ctx.controls().failures, 1);
@@ -192,7 +188,7 @@ test("test_refusal_never_retries_elsewhere", async () => {
     env.server.seen.push({ method: init.method, url, path: new URL(url).pathname, body: init.body ?? "" });
     return { status: 403, headers: { get: () => null }, text: async () => JSON.stringify({ reason_code: "key_revoked" }) };
   };
-  const ctx = await openCtx({ paths: env.ctx.paths, now: () => env.clock.now, fetchImpl: env.server.fetch, platform: "win32", info: env.ctx.info });
+  const ctx = await openCtx({ paths: env.ctx.paths, now: () => env.clock.now, fetchImpl: env.server.fetch, ...NO_OS_STORE, info: env.ctx.info });
   env.ctx = ctx;
   const ok = await connectViaLoopback(env, true);
   assert.equal(ok, false);
@@ -255,7 +251,7 @@ test("test_spool_edit_breaks_chain", async () => {
   for (const s of ["a", "b"]) env.addSession(s, sampleTranscript());
   await ingest(env.ctx);
   env.clock.now += 11 * MIN;
-  await release(env.ctx);
+  await send(env.ctx);
   assert.ok(verify(env.ctx, out([])));
   // an attacker holding the key re-seals a signed record with an edited field: the chain check names the bad seq
   const { Spool } = await import("../../src/spool/index.js");
@@ -299,7 +295,6 @@ test("local pause stops sending at once", async () => {
   env.addSession("s1", sampleTranscript());
   await ingest(env.ctx);
   env.clock.now += 11 * MIN;
-  await release(env.ctx);
   const st = readState(env.ctx.paths.stateFile);
   st.global = "paused";
   writeState(env.ctx.paths.stateFile, st);

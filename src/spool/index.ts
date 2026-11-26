@@ -1,7 +1,8 @@
 // The encrypted, append-only spool (AIP-D5, D9). Every line is AES-256-GCM sealed with its line number as associated data,
 // so a reordered, removed or altered line fails to open. Entries are events; the state of an item is the fold of its
-// events. Records are signed only when they leave the hold window, so DISCARD can still replace one with a content-free
-// chain entry without a gap.
+// events. Drafts are unsigned; a record is signed only inside a send, under the file lock (AIP-D12), so DISCARD can still
+// replace any unsent draft with a content-free chain entry without a gap. Every append happens under that lock: the line
+// index is part of the associated data, so two writers at once would seal two lines with the same index.
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { open, seal } from "../keystore/crypto.js";
@@ -28,17 +29,23 @@ export interface Receipt {
 }
 
 export type Event =
-  | { t: "pending"; id: string; at: number; eligible_at: number; draft: Draft }
+  | { t: "pending"; id: string; at: number; eligible_at: number; draft: Draft; project?: string }
   | { t: "discard"; id: string; at: number }
   | { t: "signed"; id: string; at: number; install_id: string; env: SignedRecord }
+  /** A server answer other than a receipt or a network error: the signed bytes are void and the draft is re-derived (AIP-D12). */
+  | { t: "unsigned"; id: string; at: number }
   | { t: "sent"; id: string; at: number; receipt: Receipt }
   | { t: "held"; id: string; at: number; reason: string }
   | { t: "dropped"; id: string; at: number; why: string };
 
 export type ItemState = "pending" | "discard" | "signed" | "sent" | "held" | "dropped";
+/** What the draft will become when it is signed: the session record, a `discarded` entry, or a `held` entry. */
+export type Intent = "session" | "discard" | "held";
 export interface Item {
   id: string;
   state: ItemState;
+  intent: Intent;
+  project?: string;
   created: number;
   eligibleAt: number;
   draft?: Draft;
@@ -80,21 +87,33 @@ export class Spool {
     const m = new Map<string, Item>();
     for (const e of this.events().events) {
       if (e.t === "pending") {
-        m.set(e.id, { id: e.id, state: "pending", created: e.at, eligibleAt: e.eligible_at, draft: e.draft });
+        m.set(e.id, { id: e.id, state: "pending", intent: "session", created: e.at, eligibleAt: e.eligible_at, draft: e.draft, ...(e.project ? { project: e.project } : {}) });
         continue;
       }
       const it = m.get(e.id);
       if (!it) continue;
-      if (e.t === "discard" && it.state === "pending") it.state = "discard";
-      else if (e.t === "signed") {
+      if (e.t === "discard") {
+        // a discard reaches every draft that is not signed yet (pending, or held by the cleaner)
+        if (it.state === "pending" || it.state === "held") {
+          it.state = "discard";
+          it.intent = "discard";
+          delete it.reason;
+        }
+      } else if (e.t === "signed") {
         it.state = "signed";
         it.signed = e.env;
         it.installId = e.install_id;
+      } else if (e.t === "unsigned") {
+        if (it.state !== "signed") continue;
+        delete it.signed;
+        delete it.installId;
+        it.state = it.intent === "discard" ? "discard" : it.intent === "held" ? "held" : "pending";
       } else if (e.t === "sent") {
         it.state = "sent";
         it.receipt = e.receipt;
       } else if (e.t === "held") {
         it.state = "held";
+        it.intent = "held";
         it.reason = e.reason;
       } else if (e.t === "dropped") {
         it.state = "dropped";

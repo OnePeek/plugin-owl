@@ -34,3 +34,20 @@ scripts/  build.mjs (tsc + build-info), lint.mjs (CI rules)
 - Privacy and injection tests gate every merge: hostile fixtures must never put a planted secret on the wire in any encoding.
 - The eval (`npm run eval`) gates a release: 27 of 30 sessions pass every criterion, 0 leaks.
 - Each rule id (AIP-*) in the LLD names a test; keep the names.
+- The eval set (`evals/sessions`) is HELD OUT: written by a separate author who never saw the prompt. Prompt work uses
+  only `evals/dev` (`npm run eval -- --set dev`); no prompt example may come from the held-out set. The judge is a
+  different model from the summariser (opus judges sonnet); `evals/results/latest.json` records the resolved model
+  ids, CLI version, prompt, judge and set sha256 and the date.
+
+## 5. Accepted limits (stated, not hidden)
+- Consent: the question needs a real interactive terminal, an explicit `yes` and a confirmation word chosen at random
+  and typed back; typed-ahead (piped) input never counts. A program that drives a pseudo-terminal, reads the screen and
+  types the word can still answer. The backstop is the server-side consent record, shown and changeable in the web app.
+- Transcript source (AIP-H2.8): only `<CLAUDE_CONFIG_DIR>/projects/**/<session_id>.jsonl` is read. Code that runs as
+  the person can write there or start the hook with its own `CLAUDE_CONFIG_DIR`; this narrows the path, it does not
+  make a crafted transcript impossible (LLD §11: a prompt-injected session has the person's powers).
+- The cleaner catches shaped secrets and anything the session itself held (taint); an unshaped secret the model invents
+  without it ever appearing in the session cannot be recognised. People and company names are caught only when learned
+  or blocklisted. A generic tool file name such as Dockerfile is allowed.
+- Key store: macOS keychain, Linux Secret Service (user-only file only when none answers at first use), Windows DPAPI.
+  Once a store is chosen, or a vault or spool exists, a failed read stops with "key store unavailable": no new key.

@@ -1,90 +1,95 @@
 {
- "id": "feature-2",
- "type": "feature",
- "cwd": "/work/dashboard-web",
- "steps": [
-  {
-   "u": "Add a dark mode toggle to the dashboard. It should follow the OS setting by default and remember the person's choice."
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/dashboard-web/src/theme/tokens.css"
-   },
-   "r": ":root{ --bg:#fff; --fg:#111; --accent:#5b3df5 }"
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/dashboard-web/src/theme/dark.css",
-    "content": ":root[data-theme='dark']{ --bg:#111; --fg:#eee; --accent:#8f7bff }\n@media (prefers-color-scheme: dark){ :root:not([data-theme='light']){ --bg:#111; --fg:#eee; --accent:#8f7bff } }\n"
-   },
-   "r": "created"
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/dashboard-web/src/theme/useTheme.ts",
-    "content": "export function useTheme(){ const [t,setT]=useState(localStorage.getItem('theme')); useEffect(()=>{ if(t) document.documentElement.dataset.theme=t; else delete document.documentElement.dataset.theme },[t]); return [t,setT] }\n"
-   },
-   "r": "created"
-  },
-  {
-   "a": "Using a data attribute with a prefers-color-scheme fallback means the OS setting applies until the person chooses, and the choice only needs one stored value."
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/dashboard-web/src/layout/Header.tsx",
-    "old_string": "<Avatar />",
-    "new_string": "<ThemeToggle /><Avatar />"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm run lint"
-   },
-   "r": "no problems"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm test"
-   },
-   "r": "31 passed"
+  "id": "feature-2",
+  "type": "feature",
+  "cwd": "/home/pi/greenhouse-agent",
+  "steps": [
+    {
+      "u": "Our greenhouse sensor agent gives up if the MQTT broker restarts. Add automatic reconnect with backoff. We have ~3,000 devices pointed at one broker."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/pi/greenhouse-agent/src/mqtt.rs"
+      },
+      "r": "18 pub async fn run(cfg: &Config, rx: Receiver<Reading>) -> Result<()> {\n19     let (client, mut eventloop) = AsyncClient::new(cfg.mqtt_options(), 64);\n20     tokio::spawn(publish_loop(client, rx));\n21     loop {\n22         match eventloop.poll().await {\n23             Ok(_) => {}\n24             Err(e) => return Err(e.into()),\n25         }\n26     }\n27 }"
+    },
+    {
+      "a": "Any connection error currently ends run(). I'll keep the event loop and retry poll with exponential backoff, capped at 60 s, resetting after a successful ConnAck. For 3,000 devices reconnecting after a broker restart, the jitter matters: plain exponential backoff makes them retry in synchronized waves. I'm using full jitter (random between 0 and the current cap) rather than equal jitter, because it spreads the retries most evenly and the broker can't take a reconnect storm."
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/home/pi/greenhouse-agent/src/backoff.rs",
+        "content": "use rand::Rng;\nuse std::time::Duration;\n\npub struct Backoff { attempt: u32, base: Duration, cap: Duration }\n\nimpl Backoff {\n    pub fn new(base: Duration, cap: Duration) -> Self { Self { attempt: 0, base, cap } }\n    pub fn reset(&mut self) { self.attempt = 0; }\n    /// Full jitter: sleep = random(0, min(cap, base * 2^attempt))\n    pub fn next_delay(&mut self) -> Duration {\n        let exp = self.base.saturating_mul(1u32 << self.attempt.min(16));\n        let ceiling = exp.min(self.cap);\n        self.attempt += 1;\n        Duration::from_millis(rand::thread_rng().gen_range(0..=ceiling.as_millis() as u64))\n    }\n}\n"
+      },
+      "r": "File created."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/pi/greenhouse-agent/src/mqtt.rs",
+        "old_string": "    loop {\n        match eventloop.poll().await {\n            Ok(_) => {}\n            Err(e) => return Err(e.into()),\n        }\n    }",
+        "new_string": "    let mut backoff = Backoff::new(Duration::from_millis(500), Duration::from_secs(60));\n    loop {\n        match eventloop.poll().await {\n            Ok(Event::Incoming(Packet::ConnAck(_))) => { backoff.reset(); info!(\"mqtt connected\"); }\n            Ok(_) => {}\n            Err(e) => {\n                let d = backoff.next_delay();\n                warn!(error = %e, delay_ms = d.as_millis() as u64, \"mqtt disconnected, retrying\");\n                tokio::time::sleep(d).await;\n            }\n        }\n    }"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/home/pi/greenhouse-agent/src/backoff_tests.rs",
+        "content": "#[test]\nfn delays_never_exceed_cap() {\n    let mut b = Backoff::new(Duration::from_millis(500), Duration::from_secs(60));\n    for _ in 0..50 { assert!(b.next_delay() <= Duration::from_secs(60)); }\n}\n#[test]\nfn reset_restarts_growth() {\n    let mut b = Backoff::new(Duration::from_millis(500), Duration::from_secs(60));\n    for _ in 0..10 { b.next_delay(); }\n    b.reset();\n    assert!(b.next_delay() <= Duration::from_millis(500));\n}\n"
+      },
+      "r": "File created."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "cargo test && cargo clippy -- -D warnings 2>&1 | tail -2"
+      },
+      "r": "running 9 tests\ntest backoff_tests::delays_never_exceed_cap ... ok\ntest backoff_tests::reset_restarts_growth ... ok\ntest readings::tests::parse_dht22 ... ok\n...\ntest result: ok. 9 passed; 0 failed; 0 ignored\n    Finished dev [unoptimized + debuginfo] target(s) in 4.12s"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "docker compose up -d mosquitto && cargo run -- --config dev.toml & sleep 5; docker compose restart mosquitto; sleep 8; docker compose logs agent --tail 4"
+      },
+      "r": "WARN mqtt disconnected, retrying error=connection closed by peer delay_ms=312\nWARN mqtt disconnected, retrying error=Connection refused (os error 111) delay_ms=874\nINFO mqtt connected\nINFO published reading sensor=bed-3 temp_c=24.1"
+    },
+    {
+      "a": "The agent now reconnects instead of exiting: exponential backoff from 500 ms capped at 60 s with full jitter, reset on ConnAck. Unit tests cover the cap and the reset, clippy is clean, and a local broker restart showed two retries then a reconnect and publishing resumed."
+    }
+  ],
+  "reference": {
+    "task_type": "feature",
+    "summary": "Added automatic MQTT reconnection to a Rust sensor agent using exponential backoff capped at 60 seconds with full jitter, reset on a successful connection acknowledgement. Unit tests and clippy pass, and restarting a local broker showed the agent retrying and resuming publishing.",
+    "facts": [
+      "Previously any event loop error ended the agent",
+      "Backoff starts at 500 ms, caps at 60 s and resets on ConnAck",
+      "Full jitter picks a random delay between zero and the current ceiling",
+      "Unit tests check the cap and the reset; clippy is clean",
+      "A local broker restart test showed two retries followed by reconnection"
+    ],
+    "specific": [
+      "exponential backoff with full jitter",
+      "MQTT reconnection"
+    ],
+    "decisions": [
+      {
+        "choice": "Use full jitter rather than plain exponential or equal jitter",
+        "reason": "about 3,000 devices share one broker and synchronized retries would cause a reconnect storm"
+      }
+    ],
+    "skills": [
+      "Rust",
+      "async programming with tokio",
+      "MQTT",
+      "unit testing"
+    ],
+    "not_skills": [
+      "database design",
+      "frontend development",
+      "Kubernetes",
+      "load testing at scale"
+    ]
   }
- ],
- "reference": {
-  "task_type": "feature",
-  "summary": "Added a dark mode toggle to the dashboard that follows the operating system preference by default and stores an explicit choice, implemented with CSS variables switched by a data attribute.",
-  "facts": [
-   "dark mode toggle",
-   "follows OS setting by default",
-   "choice remembered in local storage",
-   "CSS variables with a data attribute",
-   "lint and tests pass"
-  ],
-  "specific": [
-   "CSS custom properties theming",
-   "prefers-color-scheme"
-  ],
-  "decisions": [
-   {
-    "choice": "switch theme with a data attribute plus a prefers-color-scheme fallback",
-    "reason": "the OS setting applies until the person chooses and only one value needs storing"
-   }
-  ],
-  "skills": [
-   "React",
-   "CSS",
-   "TypeScript"
-  ],
-  "not_skills": [
-   "Docker",
-   "SQL",
-   "Redis"
-  ]
- }
 }

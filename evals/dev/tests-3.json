@@ -1,0 +1,76 @@
+{
+ "id": "tests-3",
+ "type": "tests",
+ "cwd": "/work/checkout-web",
+ "steps": [
+  {
+   "u": "Our Playwright checkout test fails about one run in five on CI but passes locally. Stabilise it."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/checkout-web/e2e/checkout.spec.ts"
+   },
+   "r": "await page.click('#pay'); await page.waitForTimeout(2000); expect(await page.textContent('.status')).toBe('Paid')"
+  },
+  {
+   "a": "The fixed two second sleep is the flake: on a slow CI runner the payment mock sometimes takes longer. The test should wait for the condition instead of the clock."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/checkout-web/e2e/checkout.spec.ts",
+    "old_string": "await page.waitForTimeout(2000); expect(await page.textContent('.status')).toBe('Paid')",
+    "new_string": "await expect(page.locator('.status')).toHaveText('Paid', { timeout: 15000 })"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/checkout-web/e2e/checkout.spec.ts",
+    "old_string": "await page.click('#pay');",
+    "new_string": "await page.getByRole('button', { name: 'Pay' }).click();"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx playwright test checkout --repeat-each=20"
+   },
+   "r": "20 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Stabilised a flaky Playwright checkout test by replacing a fixed two second sleep with an auto-retrying assertion on the status text and a role-based locator; twenty repeated runs passed.",
+  "facts": [
+   "flaky checkout end to end test on CI",
+   "fixed sleep removed",
+   "auto-waiting assertion",
+   "role-based locator",
+   "twenty repeated runs pass"
+  ],
+  "specific": [
+   "flaky test from fixed sleep",
+   "auto-waiting assertions"
+  ],
+  "decisions": [
+   {
+    "choice": "wait on the status text instead of a fixed sleep",
+    "reason": "a slow CI runner sometimes takes longer than the sleep"
+   }
+  ],
+  "skills": [
+   "Playwright",
+   "TypeScript",
+   "end-to-end testing"
+  ],
+  "not_skills": [
+   "Python",
+   "Kubernetes",
+   "SQL"
+  ]
+ }
+}
