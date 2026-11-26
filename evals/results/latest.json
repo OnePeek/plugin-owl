@@ -1,6 +1,6 @@
 {
  "run": {
-  "date": "2026-11-26T01:40:00.570Z",
+  "date": "2026-11-26T13:23:33.423Z",
   "set": "held-out (evals/sessions, written without the prompt or the dev sets)",
   "set_sha256": "658d8d942e4448a6aee9e4e6d1993f9b91ab088eeb464db9d8296f0a4b4c9057",
   "prompt_sha256": "189c5cbbe18eb73bc733f4b6b206cb3c91b6cfe60b51ed2dfef80800336a64ca",
@@ -19,10 +19,11 @@
  "prompt_sha256": "189c5cbbe18eb73bc733f4b6b206cb3c91b6cfe60b51ed2dfef80800336a64ca",
  "model": "sonnet",
  "sessions": 30,
- "passed": 29,
+ "passed": 26,
  "leaks": 0,
  "bar": 27,
- "ok": true,
+ "workflow_heavy": [],
+ "ok": false,
  "verdicts": [
   {
    "id": "bugfix-1",
@@ -38,12 +39,12 @@
     "skills": true
    },
    "notes": [
-    "Candidate matches the session: an inclusive keyset cursor (`id >= $2`) was made strict in the query, a regression test was added, and the full suite passed. It names the specific problem class (keyset pagination, inclusive vs strict cursor comparison). The one decision states the real alternative (handler row-drop) and the reason the session gives (deleted cursor row would be skipped). Skills were all used; 'keyset pagination' is closer to a topic than a skill but is not padding."
+    "Every claim is backed by the session: the inclusive keyset cursor was made strict in the query, a regression test was added, and the full suite passed. It names the problem class precisely: inclusive vs exclusive keyset cursor comparison. The single decision is a real alternative (query vs dropping a row in the handler) and carries the reason the session gives (a deleted cursor row would be skipped). Go, SQL, keyset pagination and regression testing were all actually used."
    ],
-   "summary": "Fixed a keyset pagination defect where an inclusive cursor comparison repeated the last invoice of one page at the top of the next, by making the query comparison strict. Added a regression test, and the full Go test suite passed.",
+   "summary": "Fixed duplicate rows across pages in an invoice listing endpoint, caused by an inclusive keyset cursor comparison, by making the comparison strict in the query. Added a regression test, and the full test suite passed.",
    "task_type": "bugfix",
    "decisions": [
-    "Made the cursor comparison strict in the query rather than dropping the first row in the handler, because the handler workaround would silently skip a real row if the cursor record had been deleted."
+    "Chose a strict cursor comparison in the query over dropping the first row in the handler, because the handler approach would silently skip a real row when the cursor record had been deleted."
    ],
    "skills": [
     "Go",
@@ -66,18 +67,18 @@
     "skills": true
    },
    "notes": [
-    "Every claim checks out against the session: out-of-order responses rather than the debounce, a per-run AbortController, the signal forwarded in fetchTrails, a first failed run, then edits to the API and test files and 4/4 passing. It names the race condition and AbortController cancellation precisely. The single decision weighs cancellation against changing the debounce and gives the reason the session supports. The skills (TypeScript, React, Vitest, AbortController) were all actually used and cover the reference's main ones."
+    "Accurate: the candidate traces stale results to a response race and fixes it with an AbortController that aborts the previous request while forwarding the signal. It notes the first test run failed and passed after the code and test were adjusted. Nothing is invented. It names the problem class (response race / out-of-order responses) and the technique (AbortController cancellation). The decision to abort requests rather than change the debounce, because the debounce was already cleared correctly, is supported by the session. Every listed skill was used: TypeScript, React, AbortController, race debugging, Vitest."
    ],
-   "summary": "Traced stale search results in a trail search box to out-of-order responses rather than faulty debouncing, and aborted the previous request on each new effect run with AbortController, forwarding the signal to the network call. A first test run failed; after the API function and test were updated, all four component tests passed.",
+   "summary": "Traced stale search results to a response race, where an earlier request could resolve after a newer one, and fixed it by aborting the previous request with an AbortController and forwarding the signal to the network call. After a first test run failed and the code and a test were adjusted, the component's tests passed.",
    "task_type": "bugfix",
    "decisions": [
-    "Treated the fix as cancelling superseded requests per effect run rather than changing the debounce, because the debounce was cleared correctly and an older in-flight request could still resolve after a newer one."
+    "Chose to abort and ignore superseded requests over changing the debounce, because the debounce was already cleared correctly and the stale results came from responses arriving out of order."
    ],
    "skills": [
     "TypeScript",
     "React",
     "AbortController",
-    "race condition handling",
+    "race condition debugging",
     "Vitest"
    ]
   },
@@ -95,9 +96,9 @@
     "skills": true
    },
    "notes": [
-    "Accurate: the panic, unchecked indexing in parse_header, the fix using bounds-checked get returning a truncated error, the passing header tests, and the clean CLI error on rerun all match the session. It omits the regression test, which is fine. Specific: it names unchecked buffer indexing and bounds-checked access returning an error. Decisions: the list is empty, which is acceptable. Skills: Rust and binary format parsing were really used. Error handling and bounds checking reasonably describe the fix (returning FormatError via get). It misses backtraces and cargo testing, but the important skills are not all absent."
+    "Every claim is supported by the session. The panic came from unchecked indexing in parse_header and was replaced with buf.get(..) returning FormatError::Truncated. The similar line-41 flaw for a 4-byte file was found by reading the code. The header tests passed and the rerun import printed a clean error. The candidate names the problem class precisely: unchecked buffer indexing causing a panic, fixed with bounds-checked access that returns an error. The empty decisions list is acceptable. All listed skills were actually exercised. Omitting backtrace reading and the regression test is fine because not all important skills are missing."
    ],
-   "summary": "Traced a panic on importing an empty document to unchecked buffer indexing in a Rust header parser, and replaced it with bounds-checked access that returns a truncated-file error. The header tests passed, and rerunning the import on the empty file printed a clean error instead of crashing.",
+   "summary": "Traced a crash when importing an empty document to unchecked buffer indexing in the file header parser, and replaced it with bounds-checked access that returns a truncated-file error. This also covered a similar flaw for very short files found by reading the code. Header tests passed, and rerunning the import of the empty file printed a clean error instead of panicking.",
    "task_type": "bugfix",
    "decisions": [],
    "skills": [
@@ -121,30 +122,30 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim is supported by the session. This covers ~40k NULL fare_cents from the import, keyset batches, per-batch transactions, the dry-run default, staging verification showing 0 remaining and 0 mismatched, and prod left untouched. Specific: names keyset-paginated batched backfill, the dry-run default and the verification query. Decisions: both match the reference and give reasons the session supports (rounding to avoid float truncation; per-batch transactions to avoid whole-table locks). Skills: Python, PostgreSQL, data backfill, keyset pagination, batch transactions and validation were all actually used."
+    "Every claim in the summary is backed by the session: keyset batches, one transaction per batch, dry-run default, staging verification showing 0 remaining and 0 mismatched, and prod left untouched. The 41,227 count is omitted, which is acceptable. It names the technique precisely (keyset-batched backfill with dry-run and verification). Both decisions give a real alternative and the reason the session supports: rounding instead of plain conversion to avoid float truncation, and per-batch transactions to avoid holding table-wide locks on a mid-run failure. The second decision's wording is a little compressed but the substance is right. All listed skills were actually used; keyset pagination and batch processing are genuine techniques from the script, not padding."
    ],
-   "summary": "Wrote a backfill for about 40k bookings whose integer-cent fares were left NULL by an import, using keyset batches, per-batch transactions and a dry-run default. Ran it on staging and verified by query that no NULLs or mismatches against the legacy decimal fare remained. Production was left untouched pending approval.",
+   "summary": "Wrote a backfill that filled missing integer-cent fares on bookings from the legacy decimal column, using keyset batches, one transaction per batch and a dry-run default. Ran it on staging, where a follow-up query showed no remaining gaps and no mismatches; production was left untouched pending approval.",
    "task_type": "data",
    "decisions": [
-    "Chose rounding the scaled decimal fare over plain truncation to cents, to avoid float truncation errors.",
-    "Chose one transaction per batch over a single transaction for the whole run, so a failure partway would not hold locks across the entire table."
+    "Chose to round the scaled decimal fare over a plain conversion to cents, to avoid float truncation.",
+    "Committed one transaction per batch rather than holding locks across the whole table if a failure occurred mid-run."
    ],
    "skills": [
     "Python",
     "PostgreSQL",
+    "SQL",
     "data backfill",
     "keyset pagination",
-    "batch transactions",
-    "data validation"
+    "batch processing"
    ]
   },
   {
    "id": "data-2",
-   "pass": true,
+   "pass": false,
    "criteria": {
     "schema": true,
     "no_leak": true,
-    "task_type": true,
+    "task_type": false,
     "not_padded": true,
     "accurate": true,
     "specific": true,
@@ -152,13 +153,14 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is supported by the session: 3-day lookback, merge on activity_date, full refresh succeeded, incremental run re-merged recent days (4), and all tests passed. It names the technique precisely (incremental dbt model with a lookback window). Both decisions state a real alternative and a reason the session supports: recounting late-arriving payments, and replacing reprocessed days rather than duplicating them. The skills listed were actually used and match the reference's dbt, SQL and data testing."
+    "task_type feature != data",
+    "The candidate's claims hold up against the session. It gets right the incremental model, distinct sellers with paid orders, the lookback, the merge on activity_date, the full refresh plus incremental run, and tests passing. 'Tests passing on the incremental run' matches PASS=4. It names the technique precisely: an incremental dbt model with a lookback window and merge. Both decisions have reasons the session supports: late-arriving payments get recounted, and reprocessed days are replaced rather than duplicated. All listed skills were used, and they cover the reference set."
    ],
-   "summary": "Built an incremental dbt model counting distinct sellers with at least one paid order per day, using a 3-day lookback so late payments were recounted. A full refresh succeeded, and a following incremental run re-merged recent days with all tests passing.",
-   "task_type": "data",
+   "summary": "Added an incremental dbt model counting distinct sellers with a paid order per day, using a multi-day lookback and merge on activity date so late-arriving payments get recounted. A full refresh and a following incremental run succeeded, with all tests passing on the incremental run.",
+   "task_type": "feature",
    "decisions": [
-    "Chose a 3-day lookback on each incremental run over processing only new days, so that late-arriving payments would be recounted.",
-    "Chose to merge on the activity date as the unique key over appending rows, so reprocessed days are replaced instead of duplicated."
+    "Chose a 3-day lookback over processing only new days so that late-arriving payments are recounted.",
+    "Chose a merge keyed on activity date so reprocessed days are replaced instead of duplicated."
    ],
    "skills": [
     "dbt",
@@ -182,18 +184,18 @@
    },
    "notes": [
     "task_type feature != data",
-    "Every claim is supported: pandera schema, lazy validation, station id and range checks, reject file, 14397 loaded and 3 rejected, tests passed. Names schema validation with pandera and a reject file. The decision is lazy validation, with the session-supported reason of collecting all failures in one pass. Skills were all used. CSV processing is reasonable. pandas is omitted, but the key skills are present."
+    "All of the candidate's claims are backed by the session: pandera schema, checks on missing station ids and temperature/humidity ranges, a reject file, a sample run that loaded valid rows and rejected a few, and tests passing. Leaving out the exact counts is fine. It names the specific technique (pandera schema validation) and the reject-file pattern. The lazy-validation decision states the alternative and gives a reason the session supports. Skills are all real and cover the important ones; pandas is missing but is implied."
    ],
-   "summary": "Added schema validation with pandera to a nightly sensor CSV ingest, checking station identifiers and value ranges lazily so failing rows are collected in one pass and written to a reject file instead of loaded. A run on a sample file loaded 14397 rows and rejected 3, and the existing ingest tests passed.",
+   "summary": "Added schema validation with pandera to a nightly sensor CSV ingest, checking for missing station ids and out-of-range temperature and humidity, and diverting failing rows to a reject file instead of loading them. A run on one sample file loaded the valid rows and rejected a few, and the existing ingest tests passed.",
    "task_type": "feature",
    "decisions": [
-    "Chose lazy schema validation so that every failing row is collected in a single pass and can be split from the valid rows."
+    "Chose lazy schema validation over stopping at the first failure, so that every failing row is collected in one pass and can be separated from the valid rows."
    ],
    "skills": [
     "Python",
     "pandera",
     "data validation",
-    "CSV processing"
+    "CSV ingestion"
    ]
   },
   {
@@ -210,20 +212,17 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim is supported by the session. That covers the synchronous listener evicting during iteration on the same thread, the synchronizedMap stress test still failing, three options proposed, and no code changed. Specific: it names the problem class, same-thread modification of a map during iteration from a re-entrant listener callback, though it doesn't mention modCount or the fail-fast iterator. Decisions: the single decision mostly follows the engineer's explicit instruction rather than being an independent engineering choice. It still states a real alternative (applying a fix) and a supported reason, so it passes, narrowly. Skills: all were actually used. The stress test was run, staging logs were grepped, and root cause analysis and concurrency debugging were central. Java and concurrency debugging overlap with the reference."
+    "The candidate's claims all match the session. A synchronously called listener evicts from the same HashMap during iteration on the same thread. The synchronized stress test still failed. Three options were proposed and no code was changed. It names the precise problem class: same-thread HashMap modification during iteration through a listener callback. It does not mention modCount, but the mechanism is clear. An empty decisions list is acceptable. The listed skills were all used, and log analysis is supported by the grep of the staging log."
    ],
-   "summary": "Traced an intermittent ConcurrentModificationException in a scheduled route refresh to a synchronous listener evicting entries from the same map while it was being iterated on one thread. A stress test that still failed with a synchronized map ruled out locking as a cure. Three fix options were laid out for team discussion and no code was changed.",
+   "summary": "Traced an intermittent ConcurrentModificationException in a route refresh job to a listener, called synchronously inside the cache's iteration loop, evicting from the same HashMap on the same thread. A stress test run with synchronization enabled still failed, which pointed away from a purely cross-thread race. Three fix options were laid out for team discussion, and no code was changed.",
    "task_type": "debugging",
-   "decisions": [
-    "Held back any code change and presented fix options instead, because the engineer wanted to discuss the approach with the team before merging a fix."
-   ],
+   "decisions": [],
    "skills": [
     "Java",
+    "Concurrency debugging",
+    "Root cause analysis",
     "Java Collections",
-    "concurrency debugging",
-    "root cause analysis",
-    "stress testing",
-    "log analysis"
+    "Log analysis"
    ]
   },
   {
@@ -240,9 +239,9 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session: the pods were OOMKilled in CrashLoopBackOff, commit a91e3c2 fixed the heap at 1g against a 768Mi limit, two fixes were proposed for Marco, and the chart was not changed. It names the problem class precisely (JVM heap fixed above the container memory limit, causing OOM kills), though it leaves out concrete numbers. The empty decisions list is acceptable. All listed skills were used: kubectl, git log, Helm values and JVM memory reasoning."
+    "Candidate matches the session: OOM kills in a crash loop, heap fixed above the container limit by a recent change, two options handed off, chart not changed. Specific enough: names JVM heap exceeding the container memory limit and Kubernetes crash-loop triage. Empty decisions list is fine. Skills (Kubernetes, JVM memory, Helm, OOM debugging, log analysis, Git) were all used and cover the reference set."
    ],
-   "summary": "Traced crash-looping staging pods to out-of-memory kills: a recent change had fixed the JVM heap at a size above the unchanged container memory limit. Pod state, startup logs and configuration history supported the diagnosis. Two remedies were proposed for a colleague to apply; the deployment configuration was left unchanged.",
+   "summary": "Traced a Kubernetes crash loop in a staging JVM ingest service to out-of-memory kills: a recent change had fixed the heap size above the container memory limit. Pod status, termination reason, startup logs and commit history supported the diagnosis. Two remediation options were proposed for a colleague to apply; the chart was not changed and no fix was verified.",
    "task_type": "debugging",
    "decisions": [],
    "skills": [
@@ -250,6 +249,7 @@
     "JVM memory tuning",
     "Helm",
     "OOM debugging",
+    "Log analysis",
     "Git"
    ]
   },
@@ -267,18 +267,18 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim matches the session. The only usable index was on tenant_id, rows were filtered by status and then sorted, the plan ran on the read replica, a composite index was proposed, nothing was created, and the engineer will raise it with the DB owners. Specific: it names the problem class (no composite index, causing a filter plus sort on a large tenant) and query plan analysis. It omits the 18s timing and row counts, which is acceptable. Decisions: stopping at diagnosis rather than creating the index is a real choice. The session supports the reason given: CREATE INDEX CONCURRENTLY has to run on the primary via a migration. Skills: PostgreSQL, query plan analysis, indexing and performance tuning were all used. It misses Go code reading, but the core reference skills are covered."
+    "Every claim is supported: EXPLAIN ANALYZE was run on the read replica, the only usable index was single-column on tenant_id, millions of rows were filtered by status and then sorted, a concurrent composite-index build via a migration was recommended, and the session ended at diagnosis with nothing created. It is specific because it names the missing composite index causing filter plus sort, and query plan analysis. The one decision is real: the assistant chose to stop rather than create the index, citing the concurrent build on the primary via a migration, which matches the session. Skills (PostgreSQL, query plans, index design, SQL performance tuning) were all used. It leaves out Go code reading, but the key skills from the reference are present."
    ],
-   "summary": "Diagnosed a page timeout for a high-volume tenant by running a query plan on a read replica: the only usable index covered the tenant, so millions of rows were read, filtered by status and sorted. Proposed a composite index matching the filter and sort order. Stopped at diagnosis with nothing created, and the engineer planned to raise it with the database owners.",
+   "summary": "Diagnosed a timing-out list page for a large tenant by running the query plan on a read replica: a single-column tenant index forced millions of rows to be read, filtered by status and sorted. Recommended a composite index matching the filter and sort order, built concurrently through a migration. Work stopped at diagnosis; no index was created or tested.",
    "task_type": "debugging",
    "decisions": [
-    "Stopped at diagnosis instead of creating the proposed index, because it needs a concurrent build on the primary delivered through a migration."
+    "Stopped at the diagnosis instead of creating the index, because it needs a concurrent build on the primary delivered through a migration."
    ],
    "skills": [
     "PostgreSQL",
     "query plan analysis",
-    "database indexing",
-    "query performance tuning"
+    "index design",
+    "SQL performance tuning"
    ]
   },
   {
@@ -295,12 +295,12 @@
     "skills": true
    },
    "notes": [
-    "The summary matches the session: the docs said milliseconds while the code reads seconds, the unit and default were fixed in both docs, a changelog note was added, the code was left unchanged, and the strict mkdocs build passed. It names the problem class precisely (unit mismatch between docs and code). The one decision, adding an Unreleased changelog note because the correction is user-visible, is a real choice and the assistant stated that reason. All listed skills were used. 'Reading Python code' is missing, but technical writing and mkdocs from the reference are covered."
+    "Every claim checks out against the session: the code reads seconds (default 30), both doc pages said milliseconds, the docs and CHANGELOG were updated, code was untouched, and the strict mkdocs build passed. The candidate names the precise problem class, a seconds-vs-milliseconds unit mismatch between docs and code. Its one decision (add a CHANGELOG entry because the correction is user-visible) is a real choice with a reason the assistant stated in the session. It omits the reference's main decision (fix the docs, not the code, because the behaviour is intended), but omissions are allowed. All listed skills were exercised (docs edits, mkdocs build, changelog edit). 'Reading Python code' is missing, but technical writing and mkdocs from the reference are both covered."
    ],
-   "summary": "Traced a report that a timeout setting of 500 caused very long timeouts to documentation that gave the unit as milliseconds while the code read seconds. Corrected the unit and default in both docs and added a changelog note, leaving the intended code behaviour unchanged. A strict documentation build passed.",
+   "summary": "Checked a user report of very long request timeouts and found the code read the timeout setting in seconds while both documentation pages described milliseconds. Corrected the unit and default in the docs and added a changelog note, leaving the intended code behaviour unchanged. A strict documentation build passed.",
    "task_type": "docs",
    "decisions": [
-    "Added an unreleased changelog note alongside the documentation fixes, because the correction is visible to users."
+    "Added a changelog entry alongside the documentation fix, rather than only editing the docs, because the correction is visible to users."
    ],
    "skills": [
     "Technical documentation",
@@ -322,18 +322,18 @@
     "skills": true
    },
    "notes": [
-    "The candidate's claims match the session. It added a section built from package.json and playwright.config.ts covering browser install, the compose stack, the run and UI commands, the base URL and CI retries. It left the runbook unlinked and markdownlint passed. It correctly says the test suite itself was not run. It is specific about the work: Playwright e2e contributor docs. The single decision states a real alternative (pointing newcomers to the runbook) with the session-supported reason that the repo is public. Playwright, technical writing and Markdown are all supported. 'End-to-end testing' is borderline, since the suite was documented rather than run, but it is the domain of the docs written and is not padding."
+    "The candidate's claims all match the session: the CONTRIBUTING section and its contents, derivation from package.json and playwright.config.ts, the runbook deliberately left unlinked because the repo is public, and markdownlint passing. It correctly notes the test suite itself was never run. It names the specific work: contributor docs for running Playwright e2e tests locally. Its one decision is a real choice with a reason the session supports. Its skills match the reference. 'Developer onboarding' is a slight stretch but fits, since the docs were written for new contributors."
    ],
-   "summary": "Added a contributor guide section on running the Playwright end-to-end suite locally, deriving browser setup, the compose stack, run commands, base URL setting and CI retry behaviour from the project's own configuration. The internal runbook was left unlinked because the repository is public. Markdown linting passed; the session shows no run of the test suite itself.",
+   "summary": "Added a contributor guide section on running the Playwright end-to-end suite locally, covering browser install, the compose stack, run and UI modes, base URL override and CI retry and trace behaviour, derived from the project's package and test configuration. The internal runbook was left unlinked because the repository is public, and Markdown linting passed. The session shows no run of the test suite itself.",
    "task_type": "docs",
    "decisions": [
-    "Left the internal runbook unlinked from the contributor guide, rather than pointing newcomers to it, because the repository is public."
+    "Left the longer internal runbook unlinked rather than pointing contributors to it, because the repository is public."
    ],
    "skills": [
+    "Technical writing",
     "Playwright",
-    "technical writing",
     "Markdown",
-    "end-to-end testing"
+    "Developer onboarding"
    ]
   },
   {
@@ -350,9 +350,9 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is backed by the session. It covers the rustdoc with Errors and Examples sections, the first doctest failure caused by the undeclared tempfile crate, adding tempfile as a dev-dependency, both doctests passing, and cargo doc building. It names the technique precisely: rustdoc API docs with doctests. The decisions list is empty, which is acceptable. All listed skills were used: Rust, rustdoc, doctests, and Cargo (Cargo.toml was edited and cargo test/doc were run)."
+    "Every claim in the candidate is backed by the session: rustdoc with Errors/Examples sections, the initial doctest failure on the undeclared tempfile crate, the dev-dependency fix, both doctests passing and cargo doc building. It names the specific technique (rustdoc with doctests). The empty decisions list is fine. Skills are all used, including Cargo, since Cargo.toml was edited and cargo test and cargo doc were run."
    ],
-   "summary": "Wrote rustdoc with error and example sections for the snapshot create and restore methods, with examples verified as doctests. The first doctest run failed because the examples relied on a temporary-file crate that wasn't declared; after adding it as a dev-dependency, both doctests passed and the documentation built.",
+   "summary": "Wrote rustdoc with error and example sections for a Rust database's snapshot create and restore methods, which had none. The examples first failed to compile as doctests because a temporary-file crate was undeclared; after it was added as a dev dependency, both doctests passed and the documentation built.",
    "task_type": "docs",
    "decisions": [],
    "skills": [
@@ -376,19 +376,19 @@
     "skills": true
    },
    "notes": [
-    "The candidate's claims match the session: the CSV export streams rows in batches to keep memory flat, the existing membership scope returns not-found for non-members, and the new and existing request specs passed (8 examples, 0 failures). Calling it a 'Rails API' is a minor stretch but not a substantive invention. It is specific because it names streaming batched CSV export and scoped-membership access control. The one decision listed (batched iteration over loading everything at once, for memory) is a real choice with the reason the session gives. The skills match what was used and cover the reference's key ones (Rails, RSpec, CSV). Access control is borderline since it reused the existing scope, but it was deliberately relied on and tested."
+    "Every claim is supported by the session: batched reads via find_each, the memory reason, the 404 from the existing membership scope, and new plus existing specs passing (8 examples, 0 failures). It is specific enough because it names a batched, members-only CSV export enforced through a scoped finder, although it does not mention streaming or the endpoint path. The decision contrasts batched iteration with loading every task, and its reason (flat memory on big projects) matches the session. All listed skills were used; 'Batch processing' is justified by find_each."
    ],
-   "summary": "Added a CSV export of a project's tasks to a Rails API, streaming rows in batches to keep memory flat on large projects and relying on the existing membership scope so non-members get a not-found response. New and existing task request specs passed.",
+   "summary": "Added a members-only CSV export of a project's tasks, reading records in batches to keep memory flat on large projects and relying on the existing membership scope to return not found to non-members. The new and existing task request specs passed.",
    "task_type": "feature",
    "decisions": [
-    "Chose batched row iteration for the export over loading all tasks at once, to keep memory flat for big projects."
+    "Chose batched record iteration over loading all tasks at once for the export, to keep memory flat on big projects."
    ],
    "skills": [
-    "Ruby",
     "Ruby on Rails",
-    "CSV export",
     "RSpec",
-    "Access control"
+    "CSV export",
+    "Request specs",
+    "Batch processing"
    ]
   },
   {
@@ -405,12 +405,12 @@
     "skills": true
    },
    "notes": [
-    "Accurate: the claims are all backed by the session. That covers IOException-only retry, coroutine delay for virtual time, and 2 of 3 tests passing. It also covers the timing test failing on the default dispatcher with delays in real time, and the fix being proposed but not applied pending review. Specific: names exponential backoff and virtual time testing. Decisions: the one decision, coroutine delay so tests can skip time via virtual time, is a real choice with a reason the session supports. Skills: all were exercised, and Kotlin coroutines and virtual time testing cover the key reference skills. Unit testing and exponential backoff are also legitimate."
+    "Every claim is backed by the session: IOException-only retry, coroutine delay for virtual time, 2 of 3 tests passing, the timing test failing because of the default IO dispatcher, and the fix left unapplied pending review. It names exponential backoff and virtual-time testing. The one decision has a real alternative (real-time waiting) and the reason the session gives. All listed skills were used. The 'default IO dispatcher' point lines up with the reference's test-dispatcher skill."
    ],
-   "summary": "Added retry with exponential backoff, limited to I/O failures, to a Kotlin weather forecast fetch, with coroutine delays chosen so tests could use virtual time. The work ended unfinished: two of three new tests passed, while the timing test failed because it left the repository on the default dispatcher, so delays ran in real time. A fix was proposed but not applied, pending the engineer's review.",
+   "summary": "Added exponential backoff retry, limited to IO errors, to a Kotlin weather forecast fetch, using coroutine delays so tests could run on virtual time. The final run left the timing test failing while the other two passed; it was traced to that test building the repository with the default IO dispatcher, so delays ran in real time. The proposed fix was not yet applied, pending the engineer's review.",
    "task_type": "feature",
    "decisions": [
-    "Chose coroutine-based delays for the backoff helper so that tests could skip waiting through virtual time."
+    "Chose coroutine delay for the backoff wait so that tests could skip the waiting with virtual time instead of spending it in real time."
    ],
    "skills": [
     "Kotlin",
@@ -434,17 +434,17 @@
     "skills": true
    },
    "notes": [
-    "Accurate: every claim matches the session. That covers the context provider, the OS preference default, localStorage persistence with try/catch, the root data-theme attribute, the header toggle, the new test, and the passing tests and tsc. Specific: it names React context-based theming with a persisted preference. Decisions: the list is empty, which is acceptable. Skills: React, TypeScript, Context and Vitest were all used. Web Storage and prefers-color-scheme media queries were actually used in the code. Testing Library is missing but it is a minor omission."
+    "Every claim is supported by the session: a context provider, an OS prefers-color-scheme default, localStorage persistence guarded with try/catch, a data-theme attribute on <html>, and tests plus tsc passing at the end. It names the technique precisely (React context theming with a persisted preference). The empty decisions list is acceptable. The skills were all exercised: the prefers-color-scheme media query and localStorage count as CSS media queries and Web Storage, and the key reference skills (React context, TypeScript, Vitest) are present."
    ],
-   "summary": "Added a light and dark theme toggle to a React app header using a context provider that defaults to the operating system colour preference, remembers the choice in local storage with error handling, and applies it through a root document attribute. A small new test was written, and the test suite and type check passed.",
+   "summary": "Added a light and dark theme toggle to the header of a React app using a context provider that defaults to the OS colour-scheme preference, persists the choice in browser storage with guarded access, and applies it through a root-level data attribute. The test suite and type check passed at the end.",
    "task_type": "feature",
    "decisions": [],
    "skills": [
     "React",
     "TypeScript",
     "React Context",
-    "Web Storage API",
     "CSS media queries",
+    "Web Storage API",
     "Vitest"
    ]
   },
@@ -462,18 +462,17 @@
     "skills": true
    },
    "notes": [
-    "Accurate: the candidate correctly gives the cause (CI pinned an older Go than go.mod required), the two-version matrix, module caching and the local-only toolchain. It also correctly says actionlint passed, the 1.22 leg passed `go test -race` under act, and the 1.23 leg was not run. Specific: it names the Go version mismatch and the build matrix, which match the reference. Decisions: the GOTOOLCHAIN=local choice is a real alternative (vs. auto-downloading the 1.23.2 toolchain), and the reason given is supported by the session. Skills: all listed skills were exercised, including dependency caching via setup-go on go.sum, and the reference's key skills are covered."
+    "Accurate: the cause is right (CI pinned an older Go than go.mod required). The matrix, GOTOOLCHAIN=local, caching, the actionlint pass and the act run of the 1.22 leg with race tests are all supported, and saying the newer leg was not run is correct. Specific: it names the Go version mismatch and the build matrix. Decisions: disabling auto toolchain download in favour of local per-leg Go matches the stated reason. Skills: Go, GitHub Actions, matrix builds and dependency caching were all actually used."
    ],
-   "summary": "Fixed a red CI test job caused by the pipeline pinning an older Go than the module file required, using a two-version Go matrix, module caching and a local-only toolchain setting so each leg runs its own compiler. The workflow linter passed and the older-version leg passed race-detector tests in a local runner; the newer leg was not run.",
+   "summary": "Traced a red CI test job to the workflow pinning an older Go release than the module file required, then moved the job to a two-version Go matrix with automatic toolchain downloads disabled and module caching enabled. The workflow linter passed and the older matrix leg passed its race-enabled tests locally; the newer leg was not run.",
    "task_type": "infra",
    "decisions": [
-    "Chose to disable automatic toolchain downloads over letting Go fetch the module file's preferred toolchain, so that each matrix leg really tests with its own Go version."
+    "Chose to disable automatic toolchain downloads over letting Go fetch the toolchain named by the module, so that each matrix leg really tests with its own Go version."
    ],
    "skills": [
     "Go",
     "GitHub Actions",
-    "CI configuration",
-    "Build matrix",
+    "CI matrix builds",
     "Dependency caching"
    ]
   },
@@ -491,18 +490,19 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate matches the session: versioning, Glacier archival described as cold storage, expiry, noncurrent version expiry, fmt/validate passing, a plan with only additions, and nothing applied. It names the specific problem class: an S3 lifecycle/retention policy with noncurrent version expiration. Both decisions carry reasons the session supports, the delete-marker growth issue and the AWS provider v4+ resource style. The skills listed were all actually used and match the reference."
+    "The summary matches the session: versioning was added, plus a lifecycle rule that moves objects to Glacier, sets an expiry, and expires noncurrent versions. fmt and validate passed, the plan showed 2 to add with 0 changed or destroyed, and nothing was applied. It names specific techniques: the S3 lifecycle policy and noncurrent version expiration. Both decisions give reasons the session supports. The second one's 'over inline bucket settings' alternative is implied by the v4+ separate-resource style. All listed skills were actually used and match the reference."
    ],
-   "summary": "Added versioning and a retention lifecycle to an access log storage bucket in Terraform, archiving to cold storage and later expiring objects, and also expiring noncurrent versions so storage would not keep growing. Format and validation checks passed and the staging plan showed only additions; nothing was applied.",
+   "summary": "Added versioning and a lifecycle policy in Terraform to an access log bucket that retained everything, with Glacier transition, expiry and cleanup of noncurrent versions to meet a retention policy. Format and validation checks passed and the staging plan showed two additions with no changes or deletions; nothing was applied.",
    "task_type": "infra",
    "decisions": [
-    "Added expiry for noncurrent versions on top of the requested rules, rather than expiring only current objects, because with versioning on that only adds delete markers and storage would keep growing.",
-    "Used separate versioning and lifecycle resources for the bucket, following the style of newer AWS provider versions."
+    "Chose to expire noncurrent object versions as well as current ones, because with versioning on, expiring current objects only adds delete markers and storage would keep growing.",
+    "Chose separate versioning and lifecycle configuration resources over inline bucket settings, following the style of version 4 and later of the AWS provider."
    ],
    "skills": [
     "Terraform",
     "AWS S3",
     "S3 lifecycle policies",
+    "S3 versioning",
     "Data retention"
    ]
   },
@@ -520,19 +520,18 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session. The size change from 2.1 GB to 642 MB, the multi-stage build with wheels and a slim runtime, the dockerignore described as excluding unneeded build context, and the smoke test showing the model loaded with /healthz ok all appear in the transcript. The candidate does not mention the non-root user or layer caching order, but omissions are allowed. It names the specific technique, a multi-stage Docker build for reducing image size. The decision gives a real alternative (a single full base image) and a reason the session backs: build tools and pip cache were being left in the final image. The skills were all actually used. 'Smoke testing' is backed by the docker run plus curl check, and Docker and Python packaging are the core skills, which the reference also lists."
+    "All claims match the session: 2.1 GB to 642 MB, multi-stage build with wheels from a builder stage installed into a slim runtime, an ignore file, a non-root user (stated in the final assistant message), and a /healthz smoke test returning status ok with model loaded. 'Multi-stage Docker build for image size reduction' is named precisely. The decision contrasts with the original full python:3.11 single-stage base, and the reason (keeping build tools and pip cache out of the final image) is supported. Skills Docker, multi-stage builds, Python and image optimization were all exercised; container hardening is only lightly reflected through the non-root user, but the important skills are present."
    ],
-   "summary": "Shrank a model inference container image from 2.1 GB to 642 MB with a multi-stage Docker build that compiled wheels separately, used a slim runtime and excluded unneeded build context. A smoke run confirmed the container started, loaded the model and passed its health check.",
+   "summary": "Shrank an oversized inference container image from 2.1 GB to 642 MB with a multi-stage build that compiles wheels in a builder stage and installs them into a slim runtime, plus an ignore file and a non-root user. A smoke test showed the container starting and its health check reporting the model loaded.",
    "task_type": "infra",
    "decisions": [
-    "Chose a multi-stage build with a slim runtime over the single full base image, because build tools and package cache were left in the final image and inflated its size."
+    "Chose a multi-stage build with a slim runtime over the single full Python base image, so build tools and the package cache stay out of the final image."
    ],
    "skills": [
     "Docker",
-    "multi-stage builds",
+    "Multi-stage builds",
     "Python",
-    "image size optimization",
-    "smoke testing"
+    "Container image optimization"
    ]
   },
   {
@@ -549,19 +548,21 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session: the English default, batched backfill, NOT VALID check constraint validated separately, nil-safe display fallback, clean migrate/rollback/migrate, and passing model and mailer specs. Specific enough because it names the separately validated check constraint and the batched backfill. The one decision is a real choice between alternatives, and its reason (avoiding an exclusive lock during a full scan) matches the session. Skills were all used; RSpec is missing, but the core Rails, PostgreSQL and Ruby skills are present."
+    "Every claim is supported by the session: the default 'en', the batched backfill, the check constraint validated separately, the display fallback, clean migrate/rollback/migrate, and passing specs. It names the precise technique, a NOT VALID check constraint validated separately plus a batched backfill. Decision 1 gives a real alternative (setting NOT NULL directly) and the session's reason (avoiding an ACCESS EXCLUSIVE lock during the full scan). Decision 2 matches the assistant's stated 'for safety' rationale. The skills listed were all used and cover the reference's key ones (Rails migrations, PostgreSQL, Ruby). RSpec is omitted, which is acceptable."
    ],
-   "summary": "Fixed a mailer crash caused by NULL user locales by giving the column an English default, backfilling in batches and enforcing non-null through a separately validated check constraint to keep locking short. Also added an English fallback in the display method. The migration applied, rolled back and re-applied cleanly, and model and mailer specs passed.",
+   "summary": "Fixed a mailer crash caused by NULL user locales by adding a default of English, backfilling existing rows in batches and enforcing non-null through a separately validated check constraint, plus a fallback in the display method. The migration ran, rolled back and re-ran cleanly, and model and mailer specs passed.",
    "task_type": "migration",
    "decisions": [
-    "Chose a check constraint added as not valid and validated separately over directly enforcing non-null, so Postgres would not hold an exclusive lock during a full scan of a big table."
+    "Chose a check constraint added as not valid and validated separately over directly setting the column non-null, to avoid Postgres holding an exclusive lock during a full scan of a big table.",
+    "Added an English fallback in the locale display method alongside the schema change, as a safety measure against missing values."
    ],
    "skills": [
-    "Ruby on Rails",
     "PostgreSQL",
-    "Schema migration",
-    "Batched backfill",
-    "Ruby"
+    "Ruby on Rails",
+    "Ruby",
+    "schema migration",
+    "batched backfill",
+    "check constraints"
    ]
   },
   {
@@ -578,12 +579,12 @@
     "skills": true
    },
    "notes": [
-    "Every claim is backed by the session: Alembic migration, model and dependent code updated, API field kept, upgrade/downgrade/upgrade cycle, 40 tests passing. It names the problem class precisely (column rename via an Alembic migration). It is slightly less specific than the reference, since it leaves out that the migration is reversible as a technique, though it does mention the downgrade cycle. The one decision (keep the API field name because it is a public contract) matches the session's reasoning. The skills are all genuinely used, and 'schema migration' is a fair label."
+    "Every claim in the candidate is backed by the session: the Alembic migration, updates to the model, the items endpoint and the shopping service, the API field left as qty, upgrade and downgrade both exercised, and 40 tests passing. It identifies the technique specifically as a column rename done through an Alembic migration. The one decision it lists, keeping the API field because it is a public contract, carries a reason the session supports. The skills are ones actually used, and 'schema migration' is a reasonable description of the work rather than padding."
    ],
-   "summary": "Renamed a database column through an Alembic migration and updated the SQLAlchemy model and dependent code, keeping the public API field name unchanged so clients were unaffected. Verified an upgrade, downgrade and re-upgrade cycle, and 40 tests passed.",
+   "summary": "Renamed a pantry quantity column through an Alembic migration and updated the SQLAlchemy model, items endpoint and shopping service, while keeping the public API field unchanged for clients. Upgrade and downgrade were both exercised, and 40 tests passed.",
    "task_type": "migration",
    "decisions": [
-    "Kept the public API field under its old name and renamed only the column and internal code, because the field is a public contract that clients depend on."
+    "Kept the old field name in the public API schema and renamed only the database column and internal code, because the API field is a public contract that clients depend on."
    ],
    "skills": [
     "Python",
@@ -606,13 +607,13 @@
     "skills": true
    },
    "notes": [
-    "Every claim is backed by the session: only the persistence, validation and servlet javax imports were rewritten, SecurityConfig was ported to a filter chain bean, compilation still fails on springfox, the replacement was left open, and tests were not run. It omits the counts (47 imports, 31 files) and the version numbers, but omission is allowed. It names the javax-to-jakarta namespace migration for a Boot 3 upgrade. Both decisions match the reference and give the supported reasons: the JDK keeps crypto and SQL, and springdoc changes the docs URL. The skills were all exercised; Jakarta EE fits the namespace migration, and 'Framework migration' is generic but describes the task."
+    "Every claim is supported by the session: the Boot 2.7 to 3.2 upgrade, the selective javax-to-jakarta rewrite, the move to a SecurityFilterChain bean, the compile failure from springfox lacking Boot 3 support, the replacement left open, and tests not run. The candidate is specific enough: it names the Boot major-version upgrade, the Jakarta namespace migration and the filter-chain security port, though it does not name the two documentation libraries. Both decisions give a real alternative and a reason the session supports (the crypto and SQL packages stay in the JDK; the docs URL changes). All listed skills were used, and Jakarta EE fits the namespace migration."
    ],
-   "summary": "Began a Spring Boot 2.7 to 3.2 upgrade, moving only the Jakarta-affected javax imports and porting security configuration to a filter chain bean. The upgrade is unfinished: compilation still failed because the unmaintained API docs library does not support Boot 3, its replacement was left for the engineer to decide, and tests were not run.",
+   "summary": "Began a Spring Boot 2.7 to 3.2 upgrade, moving only the Jakarta-affected imports to the new namespace and porting security setup to a filter chain bean. The upgrade is unfinished: compilation still failed because the API documentation library has no Spring Boot 3 support, the choice of replacement was left open, and tests were not run.",
    "task_type": "migration",
    "decisions": [
-    "Rewrote only the persistence, validation and servlet imports to Jakarta rather than every javax import, because the crypto and SQL packages remain part of the JDK.",
-    "Left the switch to a different API documentation library for the engineer to decide instead of applying it, because the usual replacement changes the URL of the generated docs."
+    "Rewrote only the persistence, validation and servlet imports to the Jakarta namespace instead of every javax import, because the crypto and SQL packages remain in the JDK.",
+    "Left the API documentation library replacement for the engineer to decide instead of switching outright, because the usual successor changes the address of the generated docs."
    ],
    "skills": [
     "Java",
@@ -620,7 +621,7 @@
     "Spring Security",
     "Jakarta EE",
     "Gradle",
-    "Framework migration"
+    "dependency migration"
    ]
   },
   {
@@ -637,19 +638,18 @@
     "skills": true
    },
    "notes": [
-    "All of the candidate's claims are supported by the session: the two-method consumer-side interface, the in-memory fake replacing LocalStack, go vet clean, tests passing and the API unchanged. It names dependency inversion and test fakes precisely. The single decision gives the real alternative (a broad SDK wrapper) and the reason the session supports (the accept-interfaces idiom, callers unchanged). Listing AWS S3 as a skill is acceptable since the S3 client types were actually used. It omits the compile-time assertion, but omissions are allowed."
+    "Every claim is supported by the session: a two-method consumer-side interface, an in-memory fake replacing LocalStack, an unchanged public API, and vet and tests passing. Naming dependency inversion via a narrow interface is precise. The decision states the alternative (a broad SDK wrapper) and a reason the session supports (Go's 'accept interfaces' idiom). The skills match the work; AWS S3 is relevant because the code wraps the S3 client. Omitting the compile-time assertion is fine."
    ],
-   "summary": "Decoupled a Go uploader from the concrete S3 client by introducing a two-method consumer-side interface, and replaced the LocalStack test dependency with an in-memory fake. Static checks were clean, the shown upload tests passed, and the public API stayed unchanged.",
+   "summary": "Decoupled a Go uploader from the concrete S3 client by introducing a two-method consumer-side interface, replacing LocalStack in its tests with an in-memory fake. The public API was left unchanged, and vet and the tests passed.",
    "task_type": "refactor",
    "decisions": [
-    "Chose a narrow consumer-side interface with only the two storage operations in use over a broad wrapper around the whole SDK client, following the Go idiom of accepting interfaces, so callers did not need to change."
+    "Chose a narrow consumer-side interface covering only the two storage operations in use over a broad wrapper around the whole SDK client, following the Go idiom of accepting interfaces."
    ],
    "skills": [
     "Go",
     "AWS S3",
     "dependency inversion",
-    "test fakes",
-    "unit testing"
+    "test fakes"
    ]
   },
   {
@@ -666,25 +666,24 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session: the lifecycle trio became one portId-keyed effect, 3 behaviour tests passed, the snapshot failure was blamed on Enzyme recording the class wrapper, the interval-restart behaviour change was noted, and the snapshot was left failing pending confirmation. Specificity is good: it names the class-to-hooks refactor and the stale snapshot caused by the wrapper. Both decisions are real choices with supported reasons; the second (one effect instead of mirroring separate lifecycles) rests on the assistant's stated mapping rationale. Skills were all used: Jest appears as snapshot testing, and 'Component refactoring' is slightly generic but not padding."
+    "Candidate claims match the session: one effect keyed on the port handling load, the 30s interval and cleanup; 3 behaviour tests pass; the snapshot fails because of the class wrapper; regeneration awaits confirmation; the interval now restarts on port change. It names the class-to-hooks refactor and the stale snapshot. The decision gives a real choice and a session-supported reason. Skills match the reference (React hooks, JavaScript, Jest), and snapshot testing was exercised. Minor: the reference mentions a cancellation flag that the condensed session does not show, and the candidate rightly omits it."
    ],
-   "summary": "Converted a React class component to a function component, replacing three lifecycle methods with one effect keyed on the port. Three behaviour tests passed, but the snapshot test was left failing, attributed to the old snapshot recording the class wrapper while the rendered list was judged unchanged. The effect also now restarts the refresh interval on port change, which the class version did not.",
+   "summary": "Converted a React class component to a function component with hooks, folding the mount, update and unmount lifecycle into one effect that loads data and manages the polling interval. Three behaviour tests passed, but a snapshot test was left failing: it was attributed to the old snapshot recording the class wrapper, and regeneration awaited the engineer's confirmation. Unlike before, the interval now also restarts when the port changes.",
    "task_type": "refactor",
    "decisions": [
-    "Chose to leave the failing snapshot test for the engineer to confirm over regenerating it automatically, because updating it would hide the difference between the class wrapper record and the rendered output.",
-    "Chose one effect keyed on the port for loading, polling and cleanup over mirroring separate lifecycle methods, because the mount, update and unmount logic maps onto it."
+    "Chose to leave the failing snapshot for the engineer to confirm over regenerating it outright, because an automatic update would hide that the difference came from the class wrapper element rather than the rendered output."
    ],
    "skills": [
     "React",
     "React Hooks",
     "JavaScript",
-    "Component refactoring",
+    "Jest",
     "Snapshot testing"
    ]
   },
   {
    "id": "refactor-3",
-   "pass": true,
+   "pass": false,
    "criteria": {
     "schema": true,
     "no_leak": true,
@@ -693,19 +692,19 @@
     "accurate": true,
     "specific": true,
     "decisions": true,
-    "skills": true
+    "skills": false
    },
    "notes": [
-    "Every claim is supported by the session: six topic modules, 16 names re-exported via __all__, one unused import caught by ruff and fixed, and 75 tests passed. It names the technique, a module split with backward-compatible re-exports. The one decision is a real choice (package with re-exports) with a reason the session supports (existing imports must keep working). The skills were all actually used, and Python module work overlaps the reference. Ruff and pytest are omitted, but they are not the only important skills."
+    "Accurate: every claim is supported by the session (topic split, explicit __all__ re-exports, one unused import fixed automatically by the linter, all tests passed). Specific: it names module splitting with backward-compatible re-exports. Decisions: re-exporting from the package init has the session-supported reason of not breaking existing imports. Skills: 'module refactoring' and 'backward compatibility' are fair, but ruff linting and pytest, both actually used and listed in the reference, are missing, and the list is generic."
    ],
-   "summary": "Split a large module of unrelated Python helpers into a package of six topic modules, re-exporting all 16 names with an explicit export list so existing imports kept working. A lint check caught one unused import left over from the split; after the fix, all 75 tests passed.",
+   "summary": "Split a large catch-all Python utility module into a package of topic modules, re-exporting every public name with an explicit export list so existing imports keep working. A linter caught one unused import left over from the split; after the automatic fix, all tests passed.",
    "task_type": "refactor",
    "decisions": [
-    "Chose to turn the helper module into a package that re-exports every name through an explicit export list, so existing import statements would not break."
+    "Chose to re-export all names from the new package initializer with an explicit export list, so that existing imports would not break after the split."
    ],
    "skills": [
     "Python",
-    "module decomposition",
+    "module refactoring",
     "backward compatibility"
    ]
   },
@@ -723,9 +722,9 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session: map data race confirmed with go test -race, two blockers (race and cache key), unbounded refresh goroutines, no eviction, double upstream call, and a review-only outcome. Names the precise problem classes: map data race found by the race detector, and a cache key that leaks responses across users. Empty decisions list is acceptable. Skills match what was used and cover the reference's key ones (Go concurrency, race detection, HTTP caching, code review). The candidate omits the missing-tests point and the singleflight recommendation, but omission is fine."
+    "Every claim is backed by the session: race detector confirmed the map race, the cache key could leak responses across users, plus unbounded refresh goroutines, no eviction, double upstream calls, and no code pushed. It names the precise problem classes (map data race found by the race detector, a cache key that leaks responses). The decisions list is empty, which is acceptable. Skills match the reference, with only minor overlap ('Go' and 'concurrency')."
    ],
-   "summary": "Reviewed a pull request adding a per-route response cache to a Go proxy, confirming a map data race with the race detector. Flagged it and a cache key that could serve one user's response to another as blockers, plus unbounded background refreshes, missing eviction and duplicate upstream calls. No code was changed or pushed.",
+   "summary": "Reviewed a pull request adding per-route response caching to a proxy, and confirmed a map data race with the race detector. Also flagged a cache key that could serve one user's response to another, unbounded background refreshes, missing eviction and duplicate upstream calls. Findings were reported as review comments, with no code changed or pushed.",
    "task_type": "review",
    "decisions": [],
    "skills": [
@@ -750,17 +749,19 @@
     "skills": true
    },
    "notes": [
-    "Summary matches the session: review only with no edits, both blockers (no tenant filter, legal_hold never checked), plus blob-before-commit ordering, the missing-policy crash, naive timestamps and missing tests. It names the precise problem classes: multi-tenant isolation and commit ordering. Empty decisions list is fine. Skills reflect real work: 'data retention' and 'transaction safety' describe the review substance. SQLAlchemy is omitted, but the key reference skills are present."
+    "Every claim in the candidate is backed by the session: a review-only pass, two blockers (no tenant filter, unchecked legal_hold), blobs deleted before commit, missing-policy crash, naive timestamps, no tests. It names the right problem classes: tenant scoping/isolation and the blob-before-commit ordering. The one decision listed is a real choice the reviewer made (rows-first commit vs the existing blob-first order), and its reason (dangling rows if the commit fails) comes straight from the session. Skills are grounded; SQLAlchemy is missing, but code review, Python and multi-tenancy are present, and transaction consistency matches the reasoning used."
    ],
-   "summary": "Reviewed a branch adding per-tenant document retention before a pilot, without editing code. Found two blockers in the purge logic: a missing tenant filter that would delete other tenants expired documents, and no legal hold check. Also flagged blob deletion before commit, a crash for tenants without a policy, naive timestamps and missing tests.",
+   "summary": "Reviewed a branch adding per-tenant document retention ahead of a pilot, without editing code. Flagged two blockers: the purge query lacked tenant scoping, so one tenant's policy would delete other tenants documents, and legal holds were never checked. Also raised blob deletion before database commit, an unhandled missing policy, naive timestamps and absent tests.",
    "task_type": "review",
-   "decisions": [],
+   "decisions": [
+    "Recommended committing row deletions before deleting blobs, rather than the existing blob-first order, because a failed commit would leave rows pointing at missing blobs."
+   ],
    "skills": [
+    "Code review",
     "Python",
-    "code review",
-    "multi-tenant data isolation",
-    "data retention",
-    "transaction safety"
+    "Multi-tenant data isolation",
+    "Data retention",
+    "Transaction consistency"
    ]
   },
   {
@@ -777,16 +778,17 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is supported by the session: 5/5 tests passed, the work was review only, the review checked verify against how tokens are signed in tokens.ts, and the recommendations match. It names algorithm pinning and the issuer check specifically. The decisions list is empty, which is acceptable. The skills JWT, TypeScript, code review and authentication security were all used. Express is omitted, which is fine."
+    "Claims match the session: review only, 5 vitest tests passing, algorithm pinning and issuer check, strict Bearer parsing, generic errors, runtime claim validation, negative tests, and a comparison against the signing in tokens.ts. Names the precise technique (JWT verification hardening). Empty decisions list is fine. Skills were all exercised, including Vitest, which was actually run; omitting Express is acceptable."
    ],
-   "summary": "Reviewed a new JWT authentication middleware before a pull request, checking it against how tokens are signed, and recommended pinning the algorithm and issuer, stricter header parsing, generic error responses, claim validation and more negative tests. The 5 existing tests passed, and no code was changed.",
+   "summary": "Reviewed a new JWT authentication middleware before a pull request, with its 5 existing tests passing, and recommended pinning the signing algorithm, checking the issuer, stricter header parsing, generic error responses, runtime claim validation and more negative tests. The review compared verification with how tokens were signed. No code was changed.",
    "task_type": "review",
    "decisions": [],
    "skills": [
     "JWT",
     "TypeScript",
     "code review",
-    "authentication security"
+    "authentication security",
+    "Vitest"
    ]
   },
   {
@@ -803,20 +805,19 @@
     "skills": true
    },
    "notes": [
-    "Every claim is supported by the session: an injectable clock drove deterministic tests, the 3 drain/refill/cap tests passed, and a disabled test reproduced the integer-division refill bug and was confirmed failing. The limiter was not changed. It names deterministic time testing and the integer-division refill bug. The single decision is a real choice, and its reason (only tests were requested, keep the suite green) matches what the assistant said. Skills are justified: Gradle was actually run and JUnit/Java were used. 'Rate limiting' is domain context rather than a skill, but that is acceptable."
+    "Accurate: the summary matches the session. It covers the 3 passing tests, the integer-division refill bug, the disabled test confirmed failing when run with -PincludeDisabled, and the limiter left unchanged. Leaving out the lastNanos reset is an omission, not an error. Specific: it names the injected fake clock / deterministic time testing and the integer-division truncation bug in refill. Decisions: the one decision (a disabled failing test instead of changing the limiter) gives both reasons the session supports: only tests were requested, and it keeps the suite green. Skills: Java, JUnit, unit testing and deterministic time testing were all used. 'Rate limiting' is domain-level but reasonable."
    ],
-   "summary": "Wrote deterministic unit tests for an untested token bucket rate limiter by driving its injectable clock. Three tests for draining, refill and capacity cap passed; a fourth, disabled one reproduced a real defect where integer division stops frequent callers from ever refilling, and was confirmed to fail when enabled. The limiter itself was left unfixed.",
+   "summary": "Wrote unit tests for a previously untested token bucket rate limiter, driving time with an injected fake clock. Three tests passed, and a fourth, disabled one reproduced a real defect when run on its own: integer division of elapsed time meant callers arriving more than once a second never got tokens back. The limiter itself was left unfixed.",
    "task_type": "tests",
    "decisions": [
-    "Chose to record the refill defect as a disabled failing test rather than change the limiter, because only tests were requested and the suite should stay green."
+    "Chose to pin the refill defect with a disabled failing test over changing the limiter, so the suite stayed green and the work stayed within the request for tests only."
    ],
    "skills": [
     "Java",
+    "unit testing",
     "JUnit",
-    "Gradle",
-    "Unit testing",
-    "Deterministic time testing",
-    "Rate limiting"
+    "deterministic time testing",
+    "rate limiting"
    ]
   },
   {
@@ -833,20 +834,20 @@
     "skills": true
    },
    "notes": [
-    "Every claim in the candidate is backed by the session. It covers the three properties (round-trip including bytes consumed, no panic on arbitrary input, error on truncated frames), the first compile failing because Frame had no PartialEq, the derives being added, and all 3 tests passing. It names property-based testing with proptest on a binary codec in Rust, which is specific. The empty decisions list is fine. The listed skills match what the session used and the reference."
+    "The candidate's claims match the session: the round-trip, no-panic and truncation properties, the PartialEq compile failure fixed with derives, and all 3 tests passing. It names property-based testing with proptest for a binary codec, so it is specific. The decisions list is empty, which is fine. Rust and proptest were actually used, and the listed skills match the reference."
    ],
-   "summary": "Added property-based tests for a frame codec in Rust, covering encode-decode round trips with bytes consumed, panic-free decoding of arbitrary input, and errors on truncated frames. The first run failed to compile because the frame type lacked equality support; after adding derives, all three tests passed.",
+   "summary": "Added property-based tests for a Rust frame codec, covering encode-decode round-trips including bytes consumed, no panics on arbitrary input, and errors on truncated frames. The first run failed to compile because the frame type lacked equality support; after deriving the needed traits, all three tests passed.",
    "task_type": "tests",
    "decisions": [],
    "skills": [
     "Rust",
-    "property-based testing",
-    "proptest"
+    "proptest",
+    "property-based testing"
    ]
   },
   {
    "id": "tests-3",
-   "pass": true,
+   "pass": false,
    "criteria": {
     "schema": true,
     "no_leak": true,
@@ -854,15 +855,17 @@
     "not_padded": true,
     "accurate": true,
     "specific": true,
-    "decisions": true,
+    "decisions": false,
     "skills": true
    },
    "notes": [
-    "Every claim matches the session: coverage went from 61% to 94%, tests targeted empty input, tolerance, duplicate bank references and date-window fallback, parametrized and fixture-factory tests were used, 11 passed, and the remaining misses are a logging-only branch and a defensive exit. It names coverage-driven branch testing with parametrization and fixtures precisely. The empty decisions list is acceptable. All listed skills were exercised, and pytest, coverage and Python are present."
+    "Accurate: 61%→94% coverage, the four targeted branches, the parametrized tolerance test with three cases, the remaining misses (logging-only branch, defensive early exit) and all tests passing all match the session. Specific: names coverage-driven branch testing with pytest and parametrization, which matches the reference. Decisions: the listed choice (one parametrized test for tolerance, focused tests for the other paths) only restates what was done. The assistant announced the plan but never gave a reason, and 'covering three cases in one test' describes the action rather than justifying it. So it is a decision without a session-supported reason, which fails the criterion. Skills: Python, pytest, branch coverage analysis, parametrized tests and fixtures were all actually used and cover the reference's skills."
    ],
-   "summary": "Raised branch coverage of a reconciliation module from 61% to 94% by targeting unexercised paths, including empty input, tolerance, duplicate bank references and date-window fallback, with focused and parametrized tests built on shared fixture factories. All 11 tests passed; a logging-only branch and a defensive early exit remained uncovered.",
+   "summary": "Raised branch coverage of a reconciliation module from 61% to 94% by targeting unexercised paths: empty input, tolerance matching, duplicate bank references and date-window fallback. A coverage run showed all tests passing, with the remaining misses described as a logging-only branch and a defensive early exit.",
    "task_type": "tests",
-   "decisions": [],
+   "decisions": [
+    "Chose a parametrized test for the tolerance branch, covering three cases in one test, while giving the other missed paths their own focused tests."
+   ],
    "skills": [
     "Python",
     "pytest",

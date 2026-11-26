@@ -21,7 +21,9 @@ export function waitForCallback(port: number, state: string, timeoutMs = 300_000
         return;
       }
       const ok = u.searchParams.get("state") === state;
-      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", Connection: "close" }).end(ok ? "OnePeek is connected. You can close this tab." : "Sign-in did not match. You can close this tab.");
+      // docs#364: Cancel on the "Connect this device?" page comes back as error=access_denied
+      const page = !ok ? "Sign-in did not match. You can close this tab." : u.searchParams.get("error") === "access_denied" ? "Connection cancelled. Nothing was connected. You can close this tab." : u.searchParams.get("code") ? "OnePeek is connected. You can close this tab." : "Sign-in did not finish. You can close this tab.";
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", Connection: "close" }).end(page);
       finish(ok ? { ...(u.searchParams.get("code") ? { code: u.searchParams.get("code") as string } : {}), ...(u.searchParams.get("error") ? { error: u.searchParams.get("error") as string } : {}) } : { error: "state_mismatch" });
     });
     const timer = setTimeout(() => finish({ error: "timeout" }), timeoutMs);

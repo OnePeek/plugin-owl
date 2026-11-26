@@ -20,6 +20,18 @@ export function deviceLabel(os: string = osPlatform()): string {
   return `${os === "darwin" ? "macOS" : os === "win32" ? "Windows" : "Linux"} - Claude Code`;
 }
 
+/**
+ * The account email from the token reply (contract TokenResponse.account_email), shown only in this person's own terminal
+ * and kept only in this device's vault; never part of a record. Anything that is not a plain email (control or escape
+ * characters, spaces, over 254 characters) is not printed, so a server reply cannot write terminal escapes.
+ */
+export function shownEmail(v: unknown): string | undefined {
+  return typeof v === "string" && v.length <= 254 && EMAIL_SHAPE.test(v) ? v : undefined;
+}
+const EMAIL_SHAPE = /^[A-Za-z0-9.!#$%&'*+=?^_{|}~-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,63}$/;
+
+const SIGNED_IN_NO_EMAIL = "Signed in to OnePeek (the server did not name the account; the device list in the web app shows it)";
+
 export const COMMANDS = ["connect", "status", "pause", "resume", "off", "on", "preview", "discard", "verify", "uninstall"] as const;
 export type CommandName = (typeof COMMANDS)[number];
 
@@ -40,11 +52,16 @@ export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset
   const { signer, software } = await createInstallSigner();
   const pkce = newPkce();
   const port = o.port ?? randomPort();
-  const url = authorizeUrl(ctx.info.apiBase, PATHS.authorize, { clientId: CLIENT_ID, scope: SCOPE, port, pkce, jkt: thumbprint(signer.publicJwk) });
+  const url = authorizeUrl(ctx.info.apiBase, PATHS.authorize, { clientId: CLIENT_ID, scope: SCOPE, port, pkce, jkt: thumbprint(signer.publicJwk), deviceLabel: deviceLabel() });
   const waiting = waitForCallback(port, pkce.state, o.timeoutMs);
   (o.openUrl ?? openBrowser)(url);
   out.line("Opening your browser to sign in to OnePeek...");
   const cb = await waiting;
+  if (cb.error === "access_denied") {
+    // the person pressed Cancel on the web page: a clear stop, no retry
+    out.line("Connection cancelled in the browser. Nothing was connected.");
+    return false;
+  }
   if (!cb.code) {
     out.line("Sign-in did not finish. Nothing was connected.");
     return false;
@@ -56,7 +73,8 @@ export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset
     out.line("Sign-in was refused. Nothing was connected.");
     return false;
   }
-  out.line(`Signed in as ${tb.account_email ?? "your OnePeek account"}. Registering this device...`);
+  const email = shownEmail(tb.account_email);
+  out.line(`${email ? `Signed in as ${email}` : SIGNED_IN_NO_EMAIL}. Registering this device...`);
   const body = {
     public_key: signer.publicJwk,
     key_alg: signer.alg,
@@ -86,7 +104,7 @@ export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset
     access_token: tb.access_token,
     access_expires_at: ctx.now() + (typeof tb.expires_in === "number" && tb.expires_in > 0 ? tb.expires_in * 1000 : 600_000),
     ...(api.nonce ? { dpop_nonce: api.nonce } : {}),
-    ...(tb.account_email ? { account_email: tb.account_email } : {}),
+    ...(email ? { account_email: email } : {}),
     });
     ctx.saveConsent({ summaries: o.summaries, version: CONSENT_VERSION, at: new Date(ctx.now()).toISOString() });
     ctx.saveControls({ summaries_consent: o.summaries });
@@ -105,7 +123,7 @@ export function status(ctx: Ctx, out: Out): void {
   const st = readState(ctx.paths.stateFile);
   const items = ctx.spool.items();
   const count = (s: string): number => items.filter((i) => i.state === s).length;
-  out.line(v.install ? `Connected as ${v.account_email ?? "your account"}; install ${v.install.install_id}.` : "Not connected: run /onepeek-connect.");
+  out.line(v.install ? `Connected as ${shownEmail(v.account_email) ?? "your OnePeek account (the server did not name it)"}; install ${v.install.install_id}.` : "Not connected: run /onepeek-connect.");
   out.line(`Capture: ${isOff(ctx.paths) ? "off (environment or flag file)" : st.global}${Object.keys(st.projects).length ? `, ${Object.keys(st.projects).length} project override(s)` : ""}.`);
   out.line(`Summaries: ${ctx.consent()?.summaries ? "yes (you agreed)" : "no (numbers only)"}.`);
   if (v.install) out.line(`Key: ${v.install.alg}, ${v.install.key_store}${ctx.keyStoreName === "user-file" ? ", secrets in a user-only file (no OS key store found)" : ""}, expires ${v.install.key_expires_at}.`);

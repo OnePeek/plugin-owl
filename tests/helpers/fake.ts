@@ -33,6 +33,8 @@ export class FakeServer {
   installJwk: PublicJwk | undefined;
   installId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
   installBody: Record<string, unknown> | undefined;
+  /** The token reply's account_email (contract optional); undefined leaves it out. */
+  accountEmail: string | undefined = "me@example.test";
   private nonce = "nonce-1";
   private refreshLive = new Set<string>();
   private tokens = new Map<string, string>(); // access token -> jkt
@@ -95,7 +97,7 @@ export class FakeServer {
     this.tokens.set(at, jkt);
     this.refreshLive.add(rt);
     this.keyJkt = jkt;
-    return json(200, { access_token: at, token_type: "DPoP", expires_in: 600, refresh_token: rt, scope: "worklog.capture", audience: "api", account_email: "me@example.test" });
+    return json(200, { access_token: at, token_type: "DPoP", expires_in: 600, refresh_token: rt, scope: "worklog.capture", audience: "api", ...(this.accountEmail !== undefined ? { account_email: this.accountEmail } : {}) });
   }
 
   private register(body: string, jkt: string): ReturnType<FetchLike> {

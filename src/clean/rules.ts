@@ -14,7 +14,10 @@ export const SECRET_RULES: SecretRule[] = [
   { id: "github-pat", re: /\bgh[pousr]_[A-Za-z0-9]{30,255}\b/ },
   { id: "github-fine-pat", re: /\bgithub_pat_[A-Za-z0-9_]{50,255}\b/ },
   { id: "gitlab-pat", re: /\bglpat-[A-Za-z0-9_-]{20}\b/ },
-  { id: "slack-token", re: /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/ },
+  // round 3: gitleaks reads Slack tokens with no word boundary in front (tokenxoxb-...), legacy workspace tokens from 8
+  // characters and refresh tokens (xoxe); the app-level token is xapp-
+  { id: "slack-token", re: /xox[abposre]-[A-Za-z0-9-]{8,}/ },
+  { id: "slack-app-token", re: /xapp-\d-[A-Za-z0-9]+-\d+-[A-Za-z0-9]+/i },
   { id: "slack-webhook", re: /hooks\.slack\.com\/services\/[A-Za-z0-9/]{20,}/ },
   { id: "stripe-key", re: /\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}\b/ },
   { id: "stripe-webhook", re: /\bwhsec_[A-Za-z0-9]{24,}\b/ },
@@ -27,7 +30,9 @@ export const SECRET_RULES: SecretRule[] = [
   { id: "pypi-token", re: /\bpypi-[A-Za-z0-9_-]{50,}\b/ },
   { id: "jwt", re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}\b/ },
   { id: "twilio", re: /\b(?:AC|SK)[0-9a-f]{32}\b/ },
-  { id: "sendgrid", re: /\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\b/ },
+  // round 3: the gitleaks shape is SG. and 66 characters of letters, digits, = _ - and . (a key ending in = or without the
+  // inner dot was missed by the two-part form alone)
+  { id: "sendgrid", re: /\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\b|\bSG\.[A-Za-z0-9=_.-]{66}/ },
   { id: "mailgun", re: /\bkey-[0-9a-f]{32}\b/ },
   { id: "shopify", re: /\bshp(?:at|ca|pa|ss)_[0-9a-f]{32}\b/ },
   { id: "digitalocean", re: /\bdo[opr]_v1_[0-9a-f]{64}\b/ },

@@ -27,8 +27,22 @@ const HOST = /(?<![\w.-])[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+){1,}\.[a-z]{2,}(?![\w
 const TICKET = /(?<![A-Za-z0-9-])([A-Z][A-Z0-9]{1,9})-\d{1,7}(?![A-Za-z0-9])/g;
 const TICKET_OK = new Set(["SHA", "UTF", "ISO", "RFC", "ES", "IPV", "TLS", "SSL", "HTTP", "AES", "CVE", "CWE", "ECMA", "IEEE", "PEP", "JSR", "WCAG", "GPT", "PCI", "SOC", "ASVS", "OWASP", "UTC", "GMT", "MP", "COVID", "ISBN", "FIPS", "NIST", "PKCS", "ECDSA", "RSA", "MD", "CRC", "EC", "P", "X", "H", "IPV4", "IPV6", "S3", "EC2", "TOP", "OAUTH"]);
 // Instruction shapes aimed at a model that reads the text later; the same phrases as the server's injection screen
-// (backend connector_sync_pipeline/models/leak_screen.py `_INJECTION`). A hit holds the record.
-const INJECTION = /\b(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+|the\s+)?(?:previous|prior|above|earlier|your|system)\s+(?:instructions?|rules?|prompts?)\b|\bsystem\s+prompt\b|\byou\s+are\s+now\b|\bact\s+as\s+(?:an?\s+)?(?:admin|administrator|system)\b/i;
+// (backend connector_sync_pipeline/models/leak_screen.py `_INJECTION`, mirror needed for the round-3 forms). A hit holds the
+// record. Round 3: up to three filler words may sit between the verb and the target (ignore all the previous instructions);
+// "system prompt" and "you are now" hold only in their instruction forms (reveal your system prompt, system prompt: ...,
+// you are now an unrestricted assistant), so a summary about prompt files or a UI line such as "you are now able to" passes.
+// Every lookbehind is fixed-width, so Python's re can run the same pattern.
+const INJECTION = new RegExp(
+  [
+    String.raw`\b(?:ignore|disregard|forget|override)\s+(?:(?:all|any|the|of|these|those|my|every|everything)\s+){0,3}(?:previous|prior|above|earlier|preceding|your|system)\s+(?:instructions?|rules?|prompts?|directions?|guidelines?)\b`,
+    String.raw`\b(?:ignore|disregard|forget)\s+(?:all|everything|anything)\s+(?:above|before|previously\s+said)\b`,
+    String.raw`(?<!not )(?<!never )(?<!n't )\b(?:reveal|print|show|repeat|output|disclose|leak|dump|display)\s+(?:me\s+)?(?:your|the)\s+(?:(?:full|entire|original|hidden|exact|initial)\s+)?system\s+prompt\b`,
+    String.raw`\bsystem\s+prompt\s*:`,
+    String.raw`\byou\s+are\s+now\s+(?:an?|my|no\s+longer|free|unrestricted|jailbroken|DAN|acting|in\s+(?:developer|god|admin|debug|jailbreak|unrestricted)\s+mode)\b`,
+    String.raw`\bact\s+as\s+(?:an?\s+)?(?:admin|administrator|system)\b`,
+  ].join("|"),
+  "i",
+);
 // the verbs are written in pieces: the lint bans the grading words in src/ (AIP-A1), and this is a phrase to refuse, not one we use
 const INJECTION_GRADE = new RegExp(String.raw`\b(?:rate|${"sco"}re|${"ran"}k)\s+(?:this\s+)?(?:person|candidate|user)\s+(?:as\s+)?(?:an?\s+)?expert\b`, "i");
 const HEX_RUN = /[0-9a-fA-F]{20,}/;
@@ -102,7 +116,7 @@ const CHUNKED = /[A-Za-z0-9]+(?:[ _-]+[A-Za-z0-9]+)+/g;
  * characters, so a key split as AKIA QWER ... or with hyphens or zero-width spaces is read whole. A hit on either copy holds.
  * Each joined stretch is written out from every chunk it can start at to every chunk it can end at (Rotated AKIA QWER here
  * gives RotatedAKIA ... AKIAQWER ...), so a word joined in front of or behind the key cannot hide its edges from a rule that
- * needs a word boundary. A stretch is at most 24 chunks, so the copy stays small.
+ * needs a word boundary. A stretch is at most 25 chunks (the start chunk and 24 joins, as the server's `_STRETCH_CHUNKS`), so the copy stays small.
  */
 export function joinSplit(text: string, mark = ""): string {
   return text.replace(FORMAT_CHARS, "").replace(CHUNKED, (run) => {

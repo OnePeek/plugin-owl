@@ -18,6 +18,7 @@ import { buildInput, childEnv, claudeArgs, realSummariser, SUMMARY_MODEL } from 
 import { learnNames } from "../src/clean/learned.js";
 import { parseTranscript } from "../src/usage/transcript.js";
 import { promptSha256 } from "../src/summarise/prompt.js";
+import { workflowShare, WORKFLOW_MAX_SHARE } from "../src/summarise/instructions.js";
 import { toTranscript } from "./builder.js";
 import { JUDGE_SYSTEM, combine, deterministic, judgeInput, loadSessions, parseJudge, type Verdict } from "./judge.js";
 
@@ -108,6 +109,8 @@ async function main(): Promise<void> {
   verdicts.sort((a, b) => a.id.localeCompare(b.id));
   const passed = verdicts.filter((v) => v.pass).length;
   const leaks = verdicts.filter((v) => v.leak).length;
+  // R3: no answer may be mostly the person's workflow rules instead of the work (summary sentences and decisions)
+  const workflowHeavy = verdicts.filter((v) => v.insight && workflowShare(v.insight) > WORKFLOW_MAX_SHARE).map((v) => v.id);
   const cli = (() => {
     try {
       return execFileSync("claude", ["--version"], { env: childEnv(), encoding: "utf8" }).trim();
@@ -128,10 +131,10 @@ async function main(): Promise<void> {
     judge_model_ids: [...judgeModels].sort(),
     partial: only.length > 0,
   };
-  const result = { run, prompt_sha256: run.prompt_sha256, model: SUMMARY_MODEL, sessions: verdicts.length, passed, leaks, bar: PASS_BAR, ok: passed >= PASS_BAR && leaks === 0 && only.length === 0, verdicts: verdicts.map((v) => ({ id: v.id, pass: v.pass, criteria: v.criteria, notes: v.notes, summary: v.insight?.summary, task_type: v.insight?.task_type, decisions: v.insight?.decisions, skills: v.insight?.skills })) };
+  const result = { run, prompt_sha256: run.prompt_sha256, model: SUMMARY_MODEL, sessions: verdicts.length, passed, leaks, bar: PASS_BAR, workflow_heavy: workflowHeavy, ok: passed >= PASS_BAR && leaks === 0 && workflowHeavy.length === 0 && only.length === 0, verdicts: verdicts.map((v) => ({ id: v.id, pass: v.pass, criteria: v.criteria, notes: v.notes, summary: v.insight?.summary, task_type: v.insight?.task_type, decisions: v.insight?.decisions, skills: v.insight?.skills })) };
   mkdirSync(join(ROOT, "evals", "results"), { recursive: true });
   writeFileSync(join(ROOT, "evals", "results", set === "sessions" ? "latest.json" : `${set}.json`), JSON.stringify(result, null, 1) + "\n");
-  console.log(`\nEVAL ${passed}/${verdicts.length} passed, ${leaks} leaks, bar ${PASS_BAR}/30 -> ${result.ok ? "OK" : "BELOW BAR"}`);
+  console.log(`\nEVAL ${passed}/${verdicts.length} passed, ${leaks} leaks, ${workflowHeavy.length} mostly-workflow, bar ${PASS_BAR}/30 -> ${result.ok ? "OK" : "BELOW BAR"}`);
   process.exitCode = result.ok ? 0 : 1;
 }
 

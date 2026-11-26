@@ -1,5 +1,6 @@
 import { redactInput, type Redacted } from "../clean/filter.js";
 import type { Step } from "../usage/transcript.js";
+import { dropInstructionText, isInstructionFile, refusedBeforeRun, stripContextBlocks } from "./instructions.js";
 
 const MAX_CHARS = 60_000;
 const CAP = { prompt: 1500, reply: 1200, command: 220, note: 260, out: 200 };
@@ -18,16 +19,26 @@ function base(p: string): string {
 export function condense(steps: Step[]): Redacted {
   const out: string[] = [];
   for (const s of steps) {
-    if (s.kind === "prompt") out.push(`ENGINEER: ${cut(s.text.trim(), CAP.prompt)}`);
-    else if (s.kind === "reply") out.push(`ASSISTANT: ${cut(s.text.trim(), CAP.reply)}`);
-    else {
+    // R3: the session's work, not its instructions. Context blocks (system reminders) go everywhere; the assistant's
+    // sentences about instruction files, memory or process rules go; a read of an instruction file goes, and so does a
+    // tool call refused before it ran (it did nothing). The engineer's
+    // own words and any edit of an instruction file stay: changing those files can be the work itself.
+    if (s.kind === "prompt") {
+      const t = stripContextBlocks(s.text).trim();
+      if (t !== "") out.push(`ENGINEER: ${cut(t, CAP.prompt)}`);
+    } else if (s.kind === "reply") {
+      const t = dropInstructionText(s.text);
+      if (t !== "") out.push(`ASSISTANT: ${cut(t, CAP.reply)}`);
+    } else if ((s.name === "Read" && isInstructionFile(s.target)) || (s.ok === false && refusedBeforeRun(s.note))) {
+      continue;
+    } else {
       let line = `TOOL ${s.name}`;
       if (s.command) line += `: ${cut(s.command, CAP.command)}`;
       else if (s.target) line += `: ${base(s.target)}`;
       if (s.added || s.removed) line += ` (+${s.added ?? 0} -${s.removed ?? 0} lines)`;
-      if (s.ok === false) line += ` -> FAILED${s.note ? `: ${cut(s.note.replace(/\s+/g, " "), CAP.note)}` : ""}`;
+      if (s.ok === false) line += ` -> FAILED${s.note ? `: ${cut(stripContextBlocks(s.note).replace(/\s+/g, " "), CAP.note)}` : ""}`;
       else if (s.ok === true && s.command) line += " -> ok";
-      if (s.ok !== false && s.out && (s.name === "Bash" || s.name === "WebFetch" || s.name === "WebSearch" || s.name.startsWith("mcp__"))) line += ` => ${cut(s.out.replace(/\s+/g, " "), CAP.out)}`;
+      if (s.ok !== false && s.out && (s.name === "Bash" || s.name === "WebFetch" || s.name === "WebSearch" || s.name.startsWith("mcp__"))) line += ` => ${cut(stripContextBlocks(s.out).replace(/\s+/g, " "), CAP.out)}`;
       out.push(line);
     }
   }
