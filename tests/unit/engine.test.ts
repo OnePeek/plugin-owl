@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { isatty } from "node:tty";
 import { COMMANDS, discard, preview, status, verify } from "../../src/cli/commands.js";
 import { openCtx } from "../../src/cli/ctx.js";
 import { ingest, send, drain } from "../../src/cli/engine.js";
@@ -302,11 +303,12 @@ test("local pause stops sending at once", async () => {
   assert.equal(env.server.accepted.length, 0);
 });
 
-test("test_consent_never_from_args_or_model", async () => {
+test("test_consent_never_from_args_or_model", async (t) => {
   // no flag can carry the answer
   for (const a of ["--summaries=yes", "--summaries=no", "--summaries", "--yes", "yes"]) assert.ok("error" in parseArgs(["connect", a]), a);
   // without a terminal (a tool call, a pipe) the question gets no answer: NO text
-  assert.equal(process.stdin.isTTY && process.stdout.isTTY ? "tty" : "none", "none");
+  // (isatty, not process.stdin: opening stdin on a CI pipe could keep this test file running)
+  if (isatty(0) && isatty(1)) return t.skip("run from a real terminal: the no-terminal case needs stdin and stdout without a TTY (CI and npm test pipes)");
   assert.equal(await terminalIo.askConsent(), false);
   // the answer comes only from the injected terminal; connect sends exactly that
   for (const answer of [true, false]) {
@@ -318,4 +320,26 @@ test("test_consent_never_from_args_or_model", async () => {
     assert.equal(env.server.installBody?.["consent_text"], answer);
     assert.equal(env.ctx.consent()?.summaries, answer);
   }
+});
+
+test("the OAuth loopback closes a kept-alive browser connection, so the helper process can exit", async () => {
+  const { waitForCallback } = await import("../../src/send/loopback.js");
+  const { Agent, get } = await import("node:http");
+  const port = await freePort();
+  const done = waitForCallback(port, "S1", 5000);
+  const agent = new Agent({ keepAlive: true });
+  const closed = new Promise<boolean>((resolve) => {
+    const tryGet = (n: number): void => {
+      const req = get({ host: "127.0.0.1", port, path: "/callback?code=C&state=S1", agent }, (res) => {
+        res.resume();
+        req.socket?.once("close", () => resolve(true));
+      });
+      req.on("error", () => (n > 0 ? setTimeout(() => tryGet(n - 1), 20) : resolve(false)));
+    };
+    tryGet(50);
+  });
+  assert.deepEqual(await done, { code: "C" });
+  const timer = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000).unref());
+  assert.equal(await Promise.race([closed, timer]), true, "the server must not keep the browser connection open");
+  agent.destroy();
 });
