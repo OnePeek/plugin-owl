@@ -348,7 +348,9 @@ test("B7: the device label is built from OS and tool only, never the host name",
   const { deviceLabel } = await import("../../src/cli/commands.js");
   const { hostname } = await import("node:os");
   const l = deviceLabel();
-  assert.match(l, /^(macOS|Windows|Linux) · Claude Code$/);
+  assert.match(l, /^(macOS|Windows|Linux) - Claude Code$/);
+  // the contract pattern for device_name (ai-plugin.yaml) for every OS
+  for (const os of ["darwin", "win32", "linux", "freebsd"]) assert.match(deviceLabel(os), /^[A-Za-z0-9 ._-]+$/);
   const h = (hostname().split(".")[0] ?? "").toLowerCase();
   assert.ok(h.length < 4 || !l.toLowerCase().includes(h));
 });

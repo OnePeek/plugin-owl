@@ -16,9 +16,8 @@ import { fileStore } from "../keystore/os.js";
 import { platform as osPlatform } from "node:os";
 
 /** A generic label from the OS and the tool only; the machine host name is never sent (rule E1). */
-export function deviceLabel(): string {
-  const os = osPlatform();
-  return `${os === "darwin" ? "macOS" : os === "win32" ? "Windows" : "Linux"} · Claude Code`;
+export function deviceLabel(os: string = osPlatform()): string {
+  return `${os === "darwin" ? "macOS" : os === "win32" ? "Windows" : "Linux"} - Claude Code`;
 }
 
 export const COMMANDS = ["connect", "status", "pause", "resume", "off", "on", "preview", "discard", "verify", "uninstall"] as const;
