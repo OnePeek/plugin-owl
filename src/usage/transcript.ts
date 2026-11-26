@@ -33,7 +33,7 @@ export interface Usage {
 }
 
 /** One block of the session as the summariser and the usage code see it. Local only; never serialised into a record. */
-export type ToolStep = { kind: "tool"; ts: number; name: string; target: string; command?: string; ok?: boolean; note?: string; added?: number; removed?: number };
+export type ToolStep = { kind: "tool"; ts: number; name: string; target: string; command?: string; ok?: boolean; note?: string; out?: string; added?: number; removed?: number };
 export type Step = { kind: "prompt"; ts: number; text: string } | { kind: "reply"; ts: number; text: string } | ToolStep;
 
 export interface Parsed {
@@ -174,7 +174,9 @@ export function parseTranscript(raw: string): Parsed {
         if (!st) continue;
         const isErr = b["is_error"] === true;
         st.ok = !isErr;
-        if (isErr) st.note = textOf(b["content"]).slice(0, 400);
+        const text = textOf(b["content"]);
+        st.out = text.slice(0, 300);
+        if (isErr) st.note = text.slice(0, 400);
         const k = kindOfCmd.get(id);
         if (k) {
           const c = k === "tests" ? tests : builds;

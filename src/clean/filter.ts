@@ -2,13 +2,15 @@
 // and on the server before storing (rule E4); a text that fails after cleaning is HELD, never sent (rule E2).
 import { matchSecret } from "./rules.js";
 
-export type Hit = "secret" | "email" | "url" | "path" | "ip" | "blob" | "entropy" | "quote" | "name" | "blocklist" | "sentences" | "unicode";
+export type Hit = "taint" | "secret" | "email" | "url" | "path" | "ip" | "blob" | "entropy" | "quote" | "name" | "blocklist" | "sentences" | "unicode";
 
 export interface Names {
   /** Names learned from the project: remote owner and repository, package names, top-level directories. */
   learned: string[];
   /** The person's own blocklist. */
   blocklist: string[];
+  /** Secret-shaped strings found in THIS session's input (see `redactInput`): no fragment of them may appear in the output. */
+  taint?: string[];
 }
 export const NO_NAMES: Names = { learned: [], blocklist: [] };
 
@@ -19,6 +21,7 @@ const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/;
 const IPV6 = /\b[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){3,7}\b/i;
 const HEX_RUN = /[0-9a-fA-F]{20,}/;
 const B64_RUN = /[A-Za-z0-9+/_=-]{20,}/g;
+const SPELLED = /(?:^|\s)(?:[A-Za-z0-9][\s.\-_,]+){7,}[A-Za-z0-9](?=\s|$|[.,;])/;
 const TRIM = /^[\s.,;:!?()[\]{}<>*_-]+|[\s.,;:!?()[\]{}<>*_-]+$/g;
 
 // Well-known technology names that end like a file name; never a path.
@@ -85,7 +88,10 @@ export function checkText(text: string, names: Names = NO_NAMES): Hit[] {
     const tok = raw.replace(TRIM, "");
     if (isPathLike(tok)) hits.add("path");
     if (tok.length >= 16 && shannon(tok) > 3.5) hits.add("entropy");
+    if (tok.length >= 10 && /^[A-Za-z0-9]+$/.test(tok) && (tok.match(/\d/g) ?? []).length >= 3 && (tok.match(/[A-Za-z]/g) ?? []).length >= 3) hits.add("blob"); // fragments of split secrets
   }
+  if (SPELLED.test(text)) hits.add("blob"); // a secret spelled out one character at a time
+  if (taintHit(text, names.taint ?? [])) hits.add("taint");
   for (const n of names.learned) if (containsName(text, n)) hits.add("name");
   for (const n of names.blocklist) if (containsName(text, n)) hits.add("blocklist");
   return [...hits];
@@ -108,16 +114,40 @@ export function cleanText(text: string, names: Names = NO_NAMES): string {
   return t.replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, " ").trim();
 }
 
-/** Redact the model's INPUT: secrets, emails, URLs and addresses never reach the summariser. */
-export function redactInput(text: string): string {
-  let t = text;
-  t = t.replace(/-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|$)/g, "[SECRET]");
+const squeeze = (x: string): string => x.toLowerCase().replace(/[^a-z0-9]/g, "");
+const TAINT_SLICE = 8;
+
+/** True when any run of 8 or more characters of a tainted string (letters and digits only, any case, forwards or reversed) survives in the text. Catches split, spaced, dotted and reversed copies. */
+export function taintHit(text: string, taint: string[]): boolean {
+  if (taint.length === 0) return false;
+  const t = squeeze(text);
+  for (const item of taint) {
+    const q = squeeze(item);
+    if (q.length < TAINT_SLICE) continue;
+    const r = [...q].reverse().join("");
+    for (let i = 0; i + TAINT_SLICE <= q.length; i++) if (t.includes(q.slice(i, i + TAINT_SLICE)) || t.includes(r.slice(i, i + TAINT_SLICE))) return true;
+  }
+  return false;
+}
+
+export interface Redacted {
+  text: string;
+  /** What was removed because it looked secret: kept in memory only, to catch copies of it in the model's answer. */
+  taint: string[];
+}
+
+const MIXED_ID = /(?<![A-Za-z0-9])[A-Za-z0-9]{10,19}(?![A-Za-z0-9])/g;
+
+/** Redact the model's INPUT: secrets, emails, URLs and addresses never reach the summariser. Secrets and blobs also become `taint`. */
+export function redactInput(text: string): Redacted {
+  const taint: string[] = [];
   const global = (re: RegExp): RegExp => new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
-  for (const r of SECRET_RULES_FOR_INPUT) t = t.replace(global(r), "[SECRET]");
+  let t = text.replace(/-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|$)/g, (m) => (taint.push(m), "[SECRET]"));
+  for (const r of SECRET_RULES) t = t.replace(global(r.re), (m) => (taint.push(m), "[SECRET]"));
   t = t.replace(global(EMAIL), "[EMAIL]").replace(global(URL_SCHEME), "[URL]").replace(global(IPV4), "[IP]");
-  t = t.replace(/[A-Za-z0-9+/_=-]{20,}/g, (m) => (isBlobRun(m) || HEX_RUN.test(m) ? "[BLOB]" : m));
-  return t;
+  t = t.replace(/[A-Za-z0-9+/_=-]{20,}/g, (m) => (isBlobRun(m) || HEX_RUN.test(m) ? (taint.push(m), "[BLOB]") : m));
+  t = t.replace(MIXED_ID, (m) => ((m.match(/\d/g) ?? []).length >= 3 && (m.match(/[A-Za-z]/g) ?? []).length >= 3 ? (taint.push(m), "[BLOB]") : m));
+  return { text: t, taint };
 }
 
 import { SECRET_RULES } from "./rules.js";
-const SECRET_RULES_FOR_INPUT = SECRET_RULES.map((r) => r.re);

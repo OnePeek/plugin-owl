@@ -80,8 +80,7 @@ test("cleaner hit holds the record: a held gap goes out, never the text", async 
   env.addSession("s1", sampleTranscript());
   await ingest(env.ctx);
   env.clock.now += 11 * MIN;
-  await send(env.ctx); // nothing signed yet
-  await (await import("../../src/cli/engine.js")).releaseHeldDrafts(env.ctx);
+  await release(env.ctx);
   await send(env.ctx);
   const r = env.server.accepted[0]!.record;
   assert.equal(r.kind, "held");

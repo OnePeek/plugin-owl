@@ -60,6 +60,7 @@ export async function connectViaLoopback(env: Env, summaries: boolean, reset = f
     summaries,
     reset,
     port,
+    timeoutMs: 8000,
     openUrl: (u) => {
       const q = new URL(u).searchParams;
       const hit = async (n: number): Promise<void> => {
@@ -69,7 +70,7 @@ export async function connectViaLoopback(env: Env, summaries: boolean, reset = f
           if (n > 0) setTimeout(() => void hit(n - 1), 50);
         }
       };
-      void hit(10);
+      void hit(60);
     },
   });
 }

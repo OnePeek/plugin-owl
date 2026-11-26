@@ -1,11 +1,14 @@
 // The background drain, started detached by the hook on SessionStart, PreCompact and SessionEnd. It takes no arguments and
 // reads no input: it processes whatever the queue and the spool already hold (AIP-B1, AIP-H2.8). Silent on any failure.
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import { defaultPaths } from "../paths.js";
 import { openCtx } from "./ctx.js";
 import { drain } from "./engine.js";
 
 async function main(): Promise<void> {
   if (process.env["ONEPEEK_WORKLOG_INTERNAL"] === "1") return;
+  if (!existsSync(defaultPaths().vaultFile)) return; // never connected: nothing to build, and no key store is touched
   await drain(await openCtx());
 }
 

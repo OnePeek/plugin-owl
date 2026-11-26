@@ -55,7 +55,7 @@ test("cleaner repairs typography but never edits secrets into shape", () => {
 test("redactInput removes secrets, emails, urls and addresses before the model sees them", () => {
   const parts = [canaries.awsKey(), canaries.githubToken(), canaries.email(), canaries.url(), canaries.ip(), canaries.envLine(), canaries.hex40()];
   const key = canaries.privateKeyHeader() + "\nMIIEvQ\n-----END " + "RSA PRIVATE" + " KEY-----";
-  const red = redactInput([...parts, key].join("\n"));
+  const red = redactInput([...parts, key].join("\n")).text;
   for (const bad of parts) assert.ok(!red.includes(bad), "still present: " + bad.slice(0, 12));
   assert.ok(!red.includes("MIIEvQ"));
   assert.ok(red.includes("[SECRET]"));

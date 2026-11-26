@@ -24,7 +24,7 @@ export interface Out {
 
 const EMPLOYER = "Your employer may not allow this. Check first.";
 
-export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset?: boolean; openUrl?: (u: string) => void; port?: number; hardware?: undefined }): Promise<boolean> {
+export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset?: boolean; openUrl?: (u: string) => void; port?: number; timeoutMs?: number }): Promise<boolean> {
   out.line(EMPLOYER);
   out.line(`Question: ${CONSENT_QUESTION} You answered: ${o.summaries ? "yes" : "no"}. Without a yes, no summary text ever leaves this device.`);
   const prior = ctx.vault().install?.install_id;
@@ -32,7 +32,7 @@ export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset
   const pkce = newPkce();
   const port = o.port ?? randomPort();
   const url = authorizeUrl(ctx.info.apiBase, PATHS.authorize, { clientId: CLIENT_ID, scope: SCOPE, port, pkce, jkt: thumbprint(signer.publicJwk) });
-  const waiting = waitForCallback(port, pkce.state);
+  const waiting = waitForCallback(port, pkce.state, o.timeoutMs);
   (o.openUrl ?? openBrowser)(url);
   out.line("Opening your browser to sign in to OnePeek...");
   const cb = await waiting;

@@ -108,9 +108,10 @@ export async function ingest(ctx: Ctx): Promise<IngestReport> {
     const wantsText = ctx.consent()?.summaries === true && ctx.controls().summaries_consent !== false;
     if (wantsText) {
       const names = await learnNames(cwd, readBlocklist(join(ctx.paths.policyDir, "blocklist.json")));
-      const raw = await ctx.summariser(condense(parsed.steps));
+      const input = condense(parsed.steps);
+      const raw = await ctx.summariser(input.text);
       if (raw !== undefined) {
-        const r = finalizeInsight(raw, names);
+        const r = finalizeInsight(raw, { ...names, taint: input.taint });
         if (r.ok) insight = r.insight;
         else if (r.reason === "leak") holdReason = "content_held"; // AIP-E2: a leak hit after cleaning holds the record
       }
@@ -147,7 +148,7 @@ export async function release(ctx: Ctx): Promise<number> {
     let n = 0;
     const installId = v.install!.install_id;
     for (const it of ctx.spool.items()) {
-      const due = it.state === "discard" || (it.state === "pending" && it.eligibleAt <= ctx.now());
+      const due = it.state === "discard" || ((it.state === "pending" || (it.state === "held" && !it.signed)) && it.eligibleAt <= ctx.now());
       if (!due || !it.draft) continue;
       const head = ctx.spool.head(installId);
       const seq = (head?.record.seq ?? 0) + 1;
@@ -155,6 +156,7 @@ export async function release(ctx: Ctx): Promise<number> {
       const m = meta(ctx, seq, prev, it.draft.created_at_device, v.install!.key_store, it.draft.tool_version);
       let rec;
       if (it.state === "discard") rec = buildGap(m, "discarded");
+      else if (it.state === "held") rec = buildGap(m, "held", it.reason ?? "content_held"); // the cleaner held it: a content-free gap goes out instead
       else if (ctx.now() - it.created > age) rec = buildGap(m, "expired", "record_too_old");
       else rec = buildSession(m, it.draft.session_ref, it.draft.usage, it.draft.commits, it.draft.insight);
       if (validateRecord(rec).length > 0) {
@@ -167,22 +169,6 @@ export async function release(ctx: Ctx): Promise<number> {
     return n;
   });
   return r.ok ? r.value : 0;
-}
-
-/** Items that were held while still pending (the cleaner hit): they leave as a `held` gap entry, never as content. */
-export async function releaseHeldDrafts(ctx: Ctx): Promise<void> {
-  // A draft marked held by the cleaner is still state "held" in the fold; turn it into a gap at its place in the chain.
-  const v = ctx.vault();
-  const signer = ctx.signer();
-  if (!v.install || !signer) return;
-  await withLock(ctx.paths.lockFile, () => {
-    for (const it of ctx.spool.items()) {
-      if (it.state !== "held" || it.signed || !it.draft || it.eligibleAt > ctx.now()) continue;
-      const head = ctx.spool.head(v.install!.install_id);
-      const m = meta(ctx, (head?.record.seq ?? 0) + 1, head?.record_hash ?? GENESIS, it.draft.created_at_device, v.install!.key_store, it.draft.tool_version);
-      ctx.spool.append({ t: "signed", id: it.id, at: ctx.now(), install_id: v.install!.install_id, env: signRecord(buildGap(m, "held", it.reason ?? "content_held"), signer) });
-    }
-  });
 }
 
 export type SendOutcome = "idle" | "sent" | "wait" | "stopped";
@@ -327,7 +313,6 @@ export async function drain(ctx: Ctx, sleep: (ms: number) => Promise<void> = (ms
   for (;;) {
     try {
       await ingest(ctx);
-      await releaseHeldDrafts(ctx);
       await release(ctx);
       await send(ctx);
     } catch {
