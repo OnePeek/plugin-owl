@@ -1,0 +1,89 @@
+{
+ "id": "docs-1",
+ "type": "docs",
+ "cwd": "/home/dev/src/pyquanta",
+ "steps": [
+  {
+   "u": "A user says setting QUANTA_TIMEOUT=500 made every request time out after 8 minutes. Check what the docs say vs the code and fix the docs; the code behaviour is intended."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "QUANTA_TIMEOUT",
+    "path": "."
+   },
+   "r": "README.md:84:| `QUANTA_TIMEOUT` | Request timeout in milliseconds | `30000` |\ndocs/configuration.md:22:`QUANTA_TIMEOUT` sets the request timeout in **milliseconds** (default 30000).\npyquanta/config.py:41:    timeout: float = float(os.environ.get(\"QUANTA_TIMEOUT\", \"30\"))\npyquanta/client.py:67:        self._session.request(method, url, timeout=self.config.timeout, **kw)"
+  },
+  {
+   "a": "The code reads seconds (default 30, passed straight to the `requests` timeout), so 500 means 500 s, about 8 minutes. Both docs say milliseconds with a default of 30000. I'll fix the README table and docs/configuration.md, and add a CHANGELOG note under Unreleased since this is a user-visible correction."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/pyquanta/README.md",
+    "old_string": "| `QUANTA_TIMEOUT` | Request timeout in milliseconds | `30000` |",
+    "new_string": "| `QUANTA_TIMEOUT` | Request timeout in seconds (float, e.g. `2.5`) | `30` |"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/pyquanta/docs/configuration.md",
+    "old_string": "`QUANTA_TIMEOUT` sets the request timeout in **milliseconds** (default 30000).",
+    "new_string": "`QUANTA_TIMEOUT` sets the request timeout in **seconds** (default `30`). Fractions are allowed, so `0.5` is 500 ms. The value is passed to `requests` as both the connect and read timeout."
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/pyquanta/CHANGELOG.md",
+    "old_string": "## Unreleased\n",
+    "new_string": "## Unreleased\n\n### Documentation\n- Corrected `QUANTA_TIMEOUT` docs: the value is in seconds, not milliseconds (behaviour unchanged).\n"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "mkdocs build --strict 2>&1 | tail -3"
+   },
+   "r": "INFO    -  Cleaning site directory\nINFO    -  Building documentation to directory: /home/dev/src/pyquanta/site\nINFO    -  Documentation built in 0.94 seconds"
+  },
+  {
+   "a": "Docs now say seconds (default 30) in the README and docs/configuration.md, with a CHANGELOG entry; no code changed. The strict mkdocs build passes."
+  }
+ ],
+ "reference": {
+  "task_type": "docs",
+  "summary": "Corrected the documentation of a request timeout setting in a Python client library: the README and the configuration guide said milliseconds with a default of 30000, but the code reads seconds with a default of 30. Updated both docs and added a changelog note without touching code, and the strict mkdocs build passes.",
+  "facts": [
+   "User set 500 expecting ms and got about 8-minute timeouts",
+   "pyquanta/config.py reads QUANTA_TIMEOUT as seconds, default 30",
+   "README table and docs/configuration.md wrongly said milliseconds",
+   "Docs and CHANGELOG updated; code behaviour unchanged by request",
+   "mkdocs build --strict succeeded"
+  ],
+  "specific": [
+   "documentation/code unit mismatch (seconds vs milliseconds)"
+  ],
+  "decisions": [
+   {
+    "choice": "fix the docs rather than the code",
+    "reason": "the engineer said the seconds behaviour is intended"
+   }
+  ],
+  "skills": [
+   "technical writing",
+   "reading Python code",
+   "mkdocs"
+  ],
+  "not_skills": [
+   "changing the timeout implementation",
+   "writing unit tests",
+   "API design",
+   "debugging network issues"
+  ]
+ }
+}

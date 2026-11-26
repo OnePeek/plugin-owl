@@ -1,0 +1,71 @@
+{
+ "id": "review-3",
+ "type": "review",
+ "cwd": "/home/dev/src/relaybox",
+ "steps": [
+  {
+   "u": "Can you review the new JWT middleware in src/middleware/auth.ts before I open the PR? Run the tests too. Just tell me what to change."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/relaybox/src/middleware/auth.ts"
+   },
+   "r": "export function requireAuth(req: Request, res: Response, next: NextFunction) {\n  const header = req.headers.authorization ?? '';\n  const token = header.replace('Bearer ', '');\n  try {\n    const payload = jwt.verify(token, config.jwtSecret) as Claims;\n    req.user = { id: payload.sub, roles: payload.roles };\n    next();\n  } catch (e) {\n    res.status(401).json({ error: (e as Error).message });\n  }\n}"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx vitest run src/middleware 2>&1 | tail -4"
+   },
+   "r": " \u2713 src/middleware/auth.test.ts (5 tests) 37ms\n\n Test Files  1 passed (1)\n      Tests  5 passed (5)"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/relaybox/src/middleware/auth.test.ts"
+   },
+   "r": "describe('requireAuth', () => {\n  it('accepts a valid token', ...);\n  it('sets req.user from claims', ...);\n  it('rejects an expired token with 401', ...);\n  it('rejects a malformed token with 401', ...);\n  it('rejects a missing header with 401', ...);\n});"
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "jwt.sign\\(",
+    "path": "src"
+   },
+   "r": "src/auth/tokens.ts:22:  return jwt.sign({ sub: user.id, roles: user.roles }, config.jwtSecret, { algorithm: 'HS256', expiresIn: '15m', issuer: 'relaybox' });"
+  },
+  {
+   "a": "Tests pass (5/5), but I'd change these before opening the PR:\n\n1. **Pin the algorithm**: call `jwt.verify(token, secret, { algorithms: ['HS256'], issuer: 'relaybox' })`. Tokens are signed with HS256 and an issuer in `src/auth/tokens.ts`, but verify accepts any algorithm and doesn't check the issuer.\n2. **Header parsing**: `replace('Bearer ', '')` accepts headers without the prefix and is case-sensitive. Require `/^Bearer (.+)$/i` and return 401 if it doesn't match.\n3. **Error leakage**: returning `e.message` exposes details like `jwt expired` or `invalid signature`. Return a generic `unauthorized` and log the reason server-side.\n4. **Claims typing**: the `as Claims` cast is unchecked. Validate that `sub` is a string and `roles` an array (e.g. with zod) before trusting them.\n5. **Tests**: add cases for a token signed with a different algorithm, a wrong issuer, and a missing `Bearer` prefix; the current 5 tests cover only the happy path, expiry, malformed tokens and a missing header.\n\nI didn't change any code."
+  }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed a new Express JWT auth middleware in TypeScript before a pull request, without changing code, and ran its tests, which all 5 pass. Recommended pinning the allowed algorithm and checking the issuer when verifying, strict Bearer header parsing, not leaking verification errors, validating claims instead of an unchecked cast, and adding negative tests.",
+  "facts": [
+   "Review only; no code changes",
+   "Ran vitest on the middleware: 5 passed",
+   "jwt.verify did not pin algorithms or check issuer, though tokens are signed with HS256 and issuer relaybox",
+   "Header parsing via replace('Bearer ', '') is too lax",
+   "Error messages from verify leaked to clients",
+   "Suggested runtime claim validation and extra negative tests"
+  ],
+  "specific": [
+   "JWT verification hardening (algorithm pinning, issuer check)",
+   "security code review"
+  ],
+  "decisions": [],
+  "skills": [
+   "security code review",
+   "TypeScript",
+   "Express",
+   "JWT"
+  ],
+  "not_skills": [
+   "implementing the changes",
+   "OAuth integration",
+   "rate limiting",
+   "penetration testing"
+  ]
+ }
+}

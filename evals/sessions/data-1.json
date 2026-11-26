@@ -1,0 +1,90 @@
+{
+ "id": "data-1",
+ "type": "data",
+ "cwd": "/home/dev/src/orbitfare",
+ "steps": [
+  {
+   "u": "About 40k bookings have fare_cents NULL since the March import; legacy fare_decimal is still there. Write a backfill and run it on staging. Prod waits for my go."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "psql \"$STAGING_DSN\" -c \"SELECT count(*) FROM bookings WHERE fare_cents IS NULL AND fare_decimal IS NOT NULL;\""
+   },
+   "r": "psql: connected to db-staging-02.orbitfare.internal:5432 (orbitfare_staging)\n count\n-------\n 41227\n(1 row)"
+  },
+  {
+   "a": "I'll write `scripts/backfill_fare_cents.py`: keyset batches of 2,000 by id, `ROUND(fare_decimal * 100)` to avoid float truncation, one transaction per batch so a failure mid-run doesn't hold locks on the whole table, and `--dry-run` as the default."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/orbitfare/scripts/backfill_fare_cents.py",
+    "content": "import argparse, os, psycopg\n\nSQL = \"\"\"\nUPDATE bookings SET fare_cents = ROUND(fare_decimal * 100)::bigint\nWHERE id IN (SELECT id FROM bookings WHERE id > %s AND fare_cents IS NULL\n             AND fare_decimal IS NOT NULL ORDER BY id LIMIT %s)\nRETURNING id\n\"\"\"\n\ndef main():\n    p = argparse.ArgumentParser()\n    p.add_argument('--commit', action='store_true')\n    p.add_argument('--batch', type=int, default=2000)\n    a = p.parse_args()\n    last, total = 0, 0\n    with psycopg.connect(os.environ['DSN']) as conn:\n        while True:\n            with conn.transaction():\n                ids = [r[0] for r in conn.execute(SQL, (last, a.batch))]\n                if not ids:\n                    break\n                last, total = max(ids), total + len(ids)\n                print(f'batch up to id={last} total={total}')\n                if not a.commit:\n                    conn.rollback(); break\n    print(('updated' if a.commit else 'would update (first batch only)'), total)\n\nif __name__ == '__main__':\n    main()\n"
+   },
+   "r": "File created successfully at: /home/dev/src/orbitfare/scripts/backfill_fare_cents.py"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "DSN=\"$STAGING_DSN\" python scripts/backfill_fare_cents.py"
+   },
+   "r": "batch up to id=1180442 total=2000\nwould update (first batch only) 2000"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "DSN=\"$STAGING_DSN\" python scripts/backfill_fare_cents.py --commit"
+   },
+   "r": "batch up to id=1180442 total=2000\nbatch up to id=1192871 total=4000\n...\nbatch up to id=1415508 total=41227\nupdated 41227"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "psql \"$STAGING_DSN\" -c \"SELECT count(*) FILTER (WHERE fare_cents IS NULL AND fare_decimal IS NOT NULL) AS remaining, count(*) FILTER (WHERE fare_cents <> ROUND(fare_decimal*100)) AS mismatched FROM bookings;\""
+   },
+   "r": " remaining | mismatched\n-----------+------------\n         0 |          0\n(1 row)"
+  },
+  {
+   "a": "Staging backfill done: 41,227 rows updated, 0 remaining NULLs, 0 mismatches against fare_decimal. The script is in `scripts/backfill_fare_cents.py`; I have not touched prod. Run the same command with the prod DSN when you're ready."
+  }
+ ],
+ "reference": {
+  "task_type": "data",
+  "summary": "Wrote a Python backfill script that fills missing integer fare amounts on bookings from a legacy decimal column, in keyset-paginated batches with one transaction per batch and a dry run by default. Ran it on staging: 41,227 rows updated, with 0 remaining and 0 mismatched on verification. Production was deliberately not run and waits for the engineer.",
+  "facts": [
+   "About 41k bookings had NULL fare_cents with fare_decimal present",
+   "Backfill uses batches of 2,000 keyed by id, one transaction per batch",
+   "Uses ROUND(fare_decimal * 100) to convert to cents",
+   "Dry run first, then --commit on staging updated 41,227 rows",
+   "Verification query showed 0 remaining and 0 mismatched",
+   "Production not run yet"
+  ],
+  "specific": [
+   "batched data backfill with keyset pagination",
+   "dry-run then commit with verification query"
+  ],
+  "decisions": [
+   {
+    "choice": "use one transaction per batch rather than one big transaction",
+    "reason": "a failure midway should not hold locks on the whole table"
+   },
+   {
+    "choice": "round the decimal value times 100 when converting",
+    "reason": "plain float conversion could truncate the integer cents"
+   }
+  ],
+  "skills": [
+   "Python",
+   "PostgreSQL",
+   "SQL",
+   "data backfill and verification"
+  ],
+  "not_skills": [
+   "schema migration",
+   "ORM modelling",
+   "Airflow DAG authoring",
+   "production deployment"
+  ]
+ }
+}

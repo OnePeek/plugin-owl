@@ -1,0 +1,77 @@
+{
+ "id": "tests-1",
+ "type": "tests",
+ "cwd": "/home/dev/src/tallyroute",
+ "steps": [
+  {
+   "u": "TokenBucketLimiter has zero tests. Write a proper unit test class for it."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/tallyroute/src/main/java/com/tallyroute/limit/TokenBucketLimiter.java"
+   },
+   "r": "public final class TokenBucketLimiter {\n  private final int capacity; private final int refillPerSecond; private final LongSupplier clock;\n  private double tokens; private long lastNanos;\n  public synchronized boolean tryAcquire() {\n    refill();\n    if (tokens >= 1) { tokens -= 1; return true; }\n    return false;\n  }\n  private void refill() {\n    long now = clock.getAsLong();\n    long elapsedMs = (now - lastNanos) / 1_000_000;\n    tokens = Math.min(capacity, tokens + (elapsedMs / 1000) * refillPerSecond);\n    lastNanos = now;\n  }\n}"
+  },
+  {
+   "a": "It takes an injectable `LongSupplier` clock, so I can drive time deterministically. One thing stands out: `(elapsedMs / 1000)` is integer division, so any call less than a second after the previous one adds zero tokens, and because `lastNanos` is still reset, frequent callers never refill. I'll write the tests and pin that case down with a test that fails today, disabled so the suite stays green, rather than changing the limiter, since you only asked for tests."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/tallyroute/src/test/java/com/tallyroute/limit/TokenBucketLimiterTest.java",
+    "content": "class TokenBucketLimiterTest {\n  private final AtomicLong now = new AtomicLong();\n  private TokenBucketLimiter limiter(int cap, int rate) { return new TokenBucketLimiter(cap, rate, now::get); }\n  private void advanceMs(long ms) { now.addAndGet(ms * 1_000_000); }\n\n  @Test void startsFullAndDrainsToCapacity() {\n    var l = limiter(3, 1);\n    assertTrue(l.tryAcquire()); assertTrue(l.tryAcquire()); assertTrue(l.tryAcquire());\n    assertFalse(l.tryAcquire());\n  }\n\n  @Test void refillsAfterOneSecond() {\n    var l = limiter(1, 1);\n    l.tryAcquire(); advanceMs(1000);\n    assertTrue(l.tryAcquire());\n  }\n\n  @Test void neverExceedsCapacity() {\n    var l = limiter(2, 5);\n    advanceMs(10_000);\n    assertTrue(l.tryAcquire()); assertTrue(l.tryAcquire()); assertFalse(l.tryAcquire());\n  }\n\n  @Disabled(\"BUG: integer division in refill() drops sub-second elapsed time\")\n  @Test void refillsAcrossFrequentCalls() {\n    var l = limiter(1, 1);\n    l.tryAcquire();\n    for (int i = 0; i < 4; i++) { advanceMs(300); l.tryAcquire(); }\n    assertTrue(l.tryAcquire(), \"1.2s elapsed in total, a token should be available\");\n  }\n}\n"
+   },
+   "r": "File created successfully at: /home/dev/src/tallyroute/src/test/java/com/tallyroute/limit/TokenBucketLimiterTest.java"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew test --tests 'com.tallyroute.limit.TokenBucketLimiterTest'"
+   },
+   "r": "TokenBucketLimiterTest > startsFullAndDrainsToCapacity() PASSED\nTokenBucketLimiterTest > refillsAfterOneSecond() PASSED\nTokenBucketLimiterTest > neverExceedsCapacity() PASSED\nTokenBucketLimiterTest > refillsAcrossFrequentCalls() SKIPPED\n\nBUILD SUCCESSFUL in 9s"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew test --tests '*TokenBucketLimiterTest.refillsAcrossFrequentCalls' -PincludeDisabled 2>&1 | grep -A2 FAILED"
+   },
+   "r": "TokenBucketLimiterTest > refillsAcrossFrequentCalls() FAILED\n    org.opentest4j.AssertionFailedError: 1.2s elapsed in total, a token should be available ==> expected: <true> but was: <false>"
+  },
+  {
+   "a": "Added TokenBucketLimiterTest with a fake clock: 3 passing tests (drain, refill after 1s, capacity cap) and 1 @Disabled test that reproduces a real bug: `refill()` uses integer division on elapsed seconds and resets `lastNanos`, so callers more often than once a second never get tokens back. Confirmed it fails when enabled. The fix is to compute `elapsedNanos / 1e9 * refillPerSecond` as a double; I haven't changed the limiter."
+  }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Wrote a JUnit 5 test class for a Java token bucket rate limiter using an injected fake clock. While writing it, found a refill bug where integer division on elapsed seconds plus resetting the last refill time means frequent callers never refill, and captured it in a disabled failing test instead of fixing the code. The 3 enabled tests pass, and the disabled test was confirmed to fail.",
+  "facts": [
+   "Limiter had no tests; new TokenBucketLimiterTest added",
+   "Fake clock via AtomicLong passed as LongSupplier",
+   "3 tests pass: drain to capacity, refill after one second, capacity cap",
+   "Bug: (elapsedMs / 1000) integer division plus lastNanos reset loses sub-second time",
+   "Bug documented in a @Disabled test confirmed failing; limiter code not changed"
+  ],
+  "specific": [
+   "deterministic time testing with an injected clock",
+   "integer-division truncation bug in rate limiter refill"
+  ],
+  "decisions": [
+   {
+    "choice": "capture the bug in a disabled failing test instead of fixing the limiter",
+    "reason": "the engineer asked only for tests and it keeps the suite green"
+   }
+  ],
+  "skills": [
+   "JUnit 5",
+   "Java",
+   "test design with fake clocks"
+  ],
+  "not_skills": [
+   "fixing the rate limiter",
+   "concurrency stress testing",
+   "Spring Boot",
+   "benchmarking"
+  ]
+ }
+}

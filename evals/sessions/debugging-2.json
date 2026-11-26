@@ -1,0 +1,77 @@
+{
+ "id": "debugging-2",
+ "type": "debugging",
+ "cwd": "/home/dev/src/fernlink",
+ "steps": [
+  {
+   "u": "fernlink-ingest pods in the staging namespace are in CrashLoopBackOff since this morning's deploy. Find out why; Marco will do the infra change."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "kubectl -n staging get pods -l app=fernlink-ingest"
+   },
+   "r": "NAME                               READY   STATUS             RESTARTS      AGE\nfernlink-ingest-7c9f8d6b5d-4kqzp   0/1     CrashLoopBackOff   9 (2m ago)    41m\nfernlink-ingest-7c9f8d6b5d-xw2lm   0/1     CrashLoopBackOff   9 (3m ago)    41m"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "kubectl -n staging describe pod fernlink-ingest-7c9f8d6b5d-4kqzp | sed -n '/Last State/,/Restart Count/p;/Limits/,/Requests/p'"
+   },
+   "r": "    Last State:     Terminated\n      Reason:       OOMKilled\n      Exit Code:    137\n    Restart Count:  9\n    Limits:\n      memory:  768Mi\n    Requests:\n      memory:  512Mi"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "kubectl -n staging logs fernlink-ingest-7c9f8d6b5d-4kqzp --previous | head -5"
+   },
+   "r": "Picked up JAVA_TOOL_OPTIONS: -Xms1g -Xmx1g -XX:+UseG1GC\n12:01:44.210 INFO  c.f.ingest.ApplicationKt - Starting ApplicationKt using Java 21.0.4\n12:01:49.873 INFO  c.f.ingest.KafkaConsumerPool - starting 8 consumers"
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "JAVA_TOOL_OPTIONS|memory:",
+    "path": "deploy/helm/fernlink-ingest"
+   },
+   "r": "deploy/helm/fernlink-ingest/values.yaml:31:    memory: 768Mi\ndeploy/helm/fernlink-ingest/values.yaml:34:    memory: 512Mi\ndeploy/helm/fernlink-ingest/values-staging.yaml:12:  JAVA_TOOL_OPTIONS: \"-Xms1g -Xmx1g -XX:+UseG1GC\""
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "git log -1 --format='%h %s' -- deploy/helm/fernlink-ingest/values-staging.yaml"
+   },
+   "r": "a91e3c2 ingest: bump heap for larger batches"
+  },
+  {
+   "a": "Diagnosis: commit a91e3c2 set a fixed `-Xms1g -Xmx1g` heap in values-staging.yaml, but the container memory limit is still 768Mi. With `-Xms1g` the JVM commits 1 GiB of heap at startup plus metaspace and thread stacks, so the kernel OOM-kills it (exit 137) as soon as the 8 Kafka consumers start allocating. Two consistent fixes for Marco: raise the limit to about 1.5Gi, or drop the fixed heap and use `-XX:MaxRAMPercentage=75` so the heap follows the limit. I didn't change the chart."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Diagnosed a Kubernetes CrashLoopBackOff of a Kotlin JVM service: pods were OOMKilled with exit 137 because a recent Helm values change fixed the JVM heap at 1 GiB while the container memory limit stayed at 768Mi. Ended with the diagnosis and two fix options handed to a colleague; no chart change was made.",
+  "facts": [
+   "Pods were in CrashLoopBackOff with Last State OOMKilled, exit code 137",
+   "Container memory limit 768Mi, request 512Mi",
+   "JAVA_TOOL_OPTIONS -Xms1g -Xmx1g came from commit a91e3c2 in values-staging.yaml",
+   "JVM heap larger than the container limit",
+   "Suggested raising the limit or using MaxRAMPercentage; no change applied"
+  ],
+  "specific": [
+   "JVM heap exceeding the container memory limit (OOMKilled)",
+   "Kubernetes CrashLoopBackOff triage"
+  ],
+  "decisions": [],
+  "skills": [
+   "kubectl troubleshooting",
+   "JVM memory configuration",
+   "reading Helm values",
+   "commit history inspection"
+  ],
+  "not_skills": [
+   "editing Helm charts",
+   "Kotlin code changes",
+   "Kafka tuning",
+   "writing tests"
+  ]
+ }
+}

@@ -1,0 +1,88 @@
+{
+ "id": "refactor-1",
+ "type": "refactor",
+ "cwd": "/home/dev/src/packrat",
+ "steps": [
+  {
+   "u": "uploader.go talks to *s3.Client directly so its tests need LocalStack. Refactor so Uploader depends on a small interface and the tests can use a fake. No behaviour change."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/packrat/internal/upload/uploader.go"
+   },
+   "r": "type Uploader struct {\n\tclient *s3.Client\n\tbucket string\n}\n\nfunc (u *Uploader) Upload(ctx context.Context, key string, body io.Reader) error {\n\t_, err := u.client.PutObject(ctx, &s3.PutObjectInput{Bucket: &u.bucket, Key: &key, Body: body})\n\treturn err\n}\n\nfunc (u *Uploader) Exists(ctx context.Context, key string) (bool, error) {\n\t_, err := u.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: &u.bucket, Key: &key})\n\tvar nf *types.NotFound\n\tif errors.As(err, &nf) { return false, nil }\n\treturn err == nil, err\n}"
+  },
+  {
+   "a": "Only `PutObject` and `HeadObject` are used. I'll define a consumer-side `objectStore` interface in the upload package with just those two methods (Go's 'accept interfaces' idiom) instead of a broad wrapper around the whole SDK client; `*s3.Client` satisfies it implicitly, so callers don't change."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/packrat/internal/upload/uploader.go",
+    "old_string": "type Uploader struct {\n\tclient *s3.Client\n\tbucket string\n}",
+    "new_string": "// objectStore is the subset of *s3.Client the uploader needs.\ntype objectStore interface {\n\tPutObject(ctx context.Context, in *s3.PutObjectInput, opts ...func(*s3.Options)) (*s3.PutObjectOutput, error)\n\tHeadObject(ctx context.Context, in *s3.HeadObjectInput, opts ...func(*s3.Options)) (*s3.HeadObjectOutput, error)\n}\n\nvar _ objectStore = (*s3.Client)(nil)\n\ntype Uploader struct {\n\tclient objectStore\n\tbucket string\n}"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/packrat/internal/upload/fake_test.go",
+    "content": "package upload\n\ntype fakeStore struct{ objects map[string][]byte }\n\nfunc (f *fakeStore) PutObject(_ context.Context, in *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {\n\tb, _ := io.ReadAll(in.Body)\n\tf.objects[*in.Key] = b\n\treturn &s3.PutObjectOutput{}, nil\n}\n\nfunc (f *fakeStore) HeadObject(_ context.Context, in *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {\n\tif _, ok := f.objects[*in.Key]; !ok {\n\t\treturn nil, &types.NotFound{}\n\t}\n\treturn &s3.HeadObjectOutput{}, nil\n}\n"
+   },
+   "r": "File created successfully at: /home/dev/src/packrat/internal/upload/fake_test.go"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/packrat/internal/upload/uploader_test.go",
+    "old_string": "\tu := &Uploader{client: localstackClient(t), bucket: \"test\"}",
+    "new_string": "\tu := &Uploader{client: &fakeStore{objects: map[string][]byte{}}, bucket: \"test\"}"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "go vet ./... && go test ./internal/upload/... -count=1 -v 2>&1 | tail -6"
+   },
+   "r": "--- PASS: TestUploadThenExists (0.00s)\n--- PASS: TestExistsMissingKey (0.00s)\n--- PASS: TestUploadEmptyBody (0.00s)\nPASS\nok  \tgithub.com/packrat/packrat/internal/upload\t0.019s"
+  },
+  {
+   "a": "Uploader now depends on a two-method `objectStore` interface (with a compile-time assertion that `*s3.Client` satisfies it). Tests use an in-memory `fakeStore` instead of LocalStack and run in 0.02s; go vet is clean and the public API is unchanged."
+  }
+ ],
+ "reference": {
+  "task_type": "refactor",
+  "summary": "Refactored a Go uploader to depend on a narrow consumer-side interface with only the put and head object calls instead of the concrete S3 client, with a compile-time check, so tests use an in-memory fake instead of LocalStack. Behaviour is unchanged; go vet is clean and the upload tests pass in about 0.02 seconds.",
+  "facts": [
+   "Uploader previously held *s3.Client directly and tests needed LocalStack",
+   "Defined an objectStore interface with only PutObject and HeadObject",
+   "Added var _ objectStore = (*s3.Client)(nil) compile-time check",
+   "New in-memory fakeStore in fake_test.go returns types.NotFound for missing keys",
+   "go vet clean; 3 upload tests pass"
+  ],
+  "specific": [
+   "dependency inversion via a narrow consumer-side interface",
+   "test fake replacing an external service"
+  ],
+  "decisions": [
+   {
+    "choice": "define a small consumer-side interface with only the two methods used instead of a broad SDK wrapper",
+    "reason": "Go favours accepting interfaces and the S3 client satisfies it implicitly, so callers do not change"
+   }
+  ],
+  "skills": [
+   "Go",
+   "interface design",
+   "unit testing with fakes"
+  ],
+  "not_skills": [
+   "cloud infrastructure changes",
+   "adding new features",
+   "mocking framework setup",
+   "concurrency"
+  ]
+ }
+}

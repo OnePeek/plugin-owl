@@ -1,0 +1,70 @@
+{
+ "id": "review-1",
+ "type": "review",
+ "cwd": "/home/dev/src/harborgate",
+ "steps": [
+  {
+   "u": "Please review PR 482 (adds a per-route response cache to the proxy). Leave your findings here as review comments; don't push anything."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "gh pr diff 482"
+   },
+   "r": "diff --git a/internal/proxy/cache.go b/internal/proxy/cache.go\nnew file mode 100644\n+type routeCache struct {\n+\tentries map[string]cachedResp\n+\tttl     time.Duration\n+}\n+\n+func (c *routeCache) get(key string) (cachedResp, bool) {\n+\te, ok := c.entries[key]\n+\tif !ok || time.Since(e.at) > c.ttl { return cachedResp{}, false }\n+\treturn e, true\n+}\n+\n+func (c *routeCache) put(key string, r cachedResp) { c.entries[key] = r }\ndiff --git a/internal/proxy/handler.go b/internal/proxy/handler.go\n@@ -41,6 +41,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {\n+\tkey := r.Method + r.URL.Path\n+\tif resp, ok := h.cache.get(key); ok {\n+\t\twriteCached(w, resp)\n+\t\treturn\n+\t}\n+\tgo h.refreshUpstream(context.Background(), key, r)\n"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/harborgate/internal/proxy/handler.go"
+   },
+   "r": "41  func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {\n42  \tkey := r.Method + r.URL.Path\n43  \tif resp, ok := h.cache.get(key); ok {\n44  \t\twriteCached(w, resp)\n45  \t\treturn\n46  \t}\n47  \tgo h.refreshUpstream(context.Background(), key, r)\n48  \th.rp.ServeHTTP(w, r)\n49  }\n...\n88  func (h *Handler) refreshUpstream(ctx context.Context, key string, r *http.Request) {\n89  \tresp, err := h.fetch(ctx, r)\n90  \tif err == nil { h.cache.put(key, resp) }\n91  }"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "gh pr checkout 482 && go test -race ./internal/proxy/... 2>&1 | tail -12"
+   },
+   "r": "Switched to branch 'feat/route-cache'\n==================\nWARNING: DATA RACE\nWrite at 0x00c0001a4180 by goroutine 31:\n  runtime.mapassign_faststr()\n  github.com/harborgate/harborgate/internal/proxy.(*routeCache).put()\n      internal/proxy/cache.go:16 +0x64\nPrevious read at 0x00c0001a4180 by goroutine 29:\n  github.com/harborgate/harborgate/internal/proxy.(*routeCache).get()\n      internal/proxy/cache.go:9 +0x4c\n==================\n--- FAIL: TestHandlerConcurrentRequests (0.03s)\n    testing.go:1398: race detected during execution of test\nFAIL\tgithub.com/harborgate/harborgate/internal/proxy\t0.412s"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "git checkout main"
+   },
+   "r": "Switched to branch 'main'"
+  },
+  {
+   "a": "Review comments for PR 482 (nothing pushed, no code changed):\n\n1. **Blocker, cache.go:9/16: data race.** `entries` is a plain map read in `get` and written in `put` from concurrent requests and the refresh goroutine. `go test -race` fails `TestHandlerConcurrentRequests`. Guard it with a `sync.RWMutex`, or use `sync.Map` if the access pattern is read-mostly.\n2. **Blocker, handler.go: cache key** `r.Method + r.URL.Path` ignores the query string and auth/tenant headers, so `/v1/items?page=2` gets page 1's response and one user's response can be served to another. Include `RawQuery` and skip caching for authenticated requests or add a `Vary`-style key.\n3. **handler.go: detached goroutine.** `go h.refreshUpstream(context.Background(), ...)` drops request cancellation and has no bound; under load it spawns unlimited goroutines for the same key. Use `golang.org/x/sync/singleflight` and a context with timeout.\n4. **cache.go: no eviction.** Expired entries are never removed, so the map grows without bound. Add a size cap or periodic sweep.\n5. **handler.go:47-48: double upstream call.** On a miss the request is proxied by `h.rp` and the background refresh fetches the same URL again, doubling upstream load on every miss and reusing `r` after the handler returns. Cache the proxied response instead (e.g. via `ModifyResponse`).\n6. **Tests:** add cases for the query-string key and a concurrent test that passes under `-race`."
+  }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed a Go pull request that adds a per-route response cache to a reverse proxy, leaving review comments only with no code changes. The race detector on the PR branch confirmed a data race on the unsynchronized cache map; other findings were a cache key that ignores the query string and auth, a double upstream fetch on misses, an unbounded background refresh goroutine, no eviction and missing tests.",
+  "facts": [
+   "Review only; nothing pushed and no code changed",
+   "go test -race on the PR branch reported a DATA RACE in routeCache.get/put and failed TestHandlerConcurrentRequests",
+   "Recommended sync.RWMutex or sync.Map for the cache map",
+   "Cache key r.Method + r.URL.Path ignores query string and auth, risking cross-user responses",
+   "Suggested singleflight and a timeout context instead of go refreshUpstream(context.Background())",
+   "Noted double upstream fetch on a miss and missing eviction; asked for more tests"
+  ],
+  "specific": [
+   "data race on an unsynchronized Go map detected with the race detector",
+   "incorrect cache key leading to response leakage"
+  ],
+  "decisions": [],
+  "skills": [
+   "code review",
+   "Go concurrency",
+   "race detector",
+   "HTTP caching semantics"
+  ],
+  "not_skills": [
+   "implementing the cache fix",
+   "load testing",
+   "Kubernetes",
+   "writing new tests"
+  ]
+ }
+}

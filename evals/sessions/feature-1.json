@@ -1,0 +1,91 @@
+{
+ "id": "feature-1",
+ "type": "feature",
+ "cwd": "/home/dev/src/plotbook",
+ "steps": [
+  {
+   "u": "Add CSV export for a project's tasks: GET /projects/:id/tasks.csv, only for members of the project."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/plotbook/app/controllers/tasks_controller.rb"
+   },
+   "r": "class TasksController < ApplicationController\n  before_action :authenticate_user!\n  before_action :load_project\n\n  def index\n    @tasks = @project.tasks.order(:position)\n  end\n\n  private\n\n  def load_project\n    @project = current_user.projects.find(params[:project_id])\n  end\nend"
+  },
+  {
+   "a": "`load_project` already scopes to `current_user.projects`, so non-members get ActiveRecord::RecordNotFound (404). I'll add a `format.csv` branch to `index`, streaming the rows with `find_each` to keep memory flat for big projects."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/plotbook/app/controllers/tasks_controller.rb",
+    "old_string": "  def index\n    @tasks = @project.tasks.order(:position)\n  end",
+    "new_string": "  def index\n    @tasks = @project.tasks.order(:position)\n    respond_to do |format|\n      format.html\n      format.csv do\n        headers['Content-Disposition'] = %(attachment; filename=\"#{@project.slug}-tasks.csv\")\n        self.response_body = TaskCsvExporter.new(@project.tasks.includes(:assignee)).each_line\n      end\n    end\n  end"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/plotbook/app/services/task_csv_exporter.rb",
+    "content": "require 'csv'\n\nclass TaskCsvExporter\n  HEADER = %w[id title status assignee due_on].freeze\n\n  def initialize(scope) = @scope = scope\n\n  def each_line\n    Enumerator.new do |y|\n      y << CSV.generate_line(HEADER)\n      @scope.find_each do |t|\n        y << CSV.generate_line([t.id, t.title, t.status, t.assignee&.name, t.due_on&.iso8601])\n      end\n    end\n  end\nend\n"
+   },
+   "r": "File created successfully at: /home/dev/src/plotbook/app/services/task_csv_exporter.rb"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/plotbook/spec/requests/tasks_csv_spec.rb",
+    "content": "require 'rails_helper'\n\nRSpec.describe 'Tasks CSV export' do\n  let(:project) { create(:project) }\n  let(:member) { create(:user, projects: [project]) }\n\n  it 'returns CSV for members' do\n    create(:task, project:, title: 'Write intro')\n    sign_in member\n    get project_tasks_path(project, format: :csv)\n    expect(response.media_type).to eq('text/csv')\n    expect(response.body.lines.first).to eq(\"id,title,status,assignee,due_on\\n\")\n    expect(response.body).to include('Write intro')\n  end\n\n  it '404s for non-members' do\n    sign_in create(:user)\n    get project_tasks_path(project, format: :csv)\n    expect(response).to have_http_status(:not_found)\n  end\nend\n"
+   },
+   "r": "File created successfully at: /home/dev/src/plotbook/spec/requests/tasks_csv_spec.rb"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bundle exec rspec spec/requests/tasks_csv_spec.rb spec/requests/tasks_spec.rb"
+   },
+   "r": "........\n\nFinished in 1.92 seconds (files took 3.41 seconds to load)\n8 examples, 0 failures"
+  },
+  {
+   "a": "Added `GET /projects/:id/tasks.csv` via `format.csv` in TasksController#index, streaming rows from a new `TaskCsvExporter`. Non-members get 404 through the existing membership scope. Request specs pass (8 examples, 0 failures)."
+  }
+ ],
+ "reference": {
+  "task_type": "feature",
+  "summary": "Added a CSV export of a project's tasks to a Rails app: the tasks index action gained a CSV format that streams rows from a new exporter service in batches, and only project members can reach it through the existing membership scope. New request specs for the CSV content and the 404 for non-members pass along with the existing specs.",
+  "facts": [
+   "New endpoint GET /projects/:id/tasks.csv",
+   "TaskCsvExporter streams CSV lines via an Enumerator and find_each",
+   "Membership enforced by existing current_user.projects.find (404 for non-members)",
+   "Added request spec spec/requests/tasks_csv_spec.rb",
+   "rspec: 8 examples, 0 failures"
+  ],
+  "specific": [
+   "streaming CSV export in Rails",
+   "authorization via scoped finder"
+  ],
+  "decisions": [
+   {
+    "choice": "stream rows in batches through an enumerator",
+    "reason": "it keeps memory flat for big projects"
+   },
+   {
+    "choice": "reuse the existing membership-scoped project lookup for access control",
+    "reason": "non-members already get a not-found error and a 404"
+   }
+  ],
+  "skills": [
+   "Ruby on Rails",
+   "RSpec request specs",
+   "CSV generation"
+  ],
+  "not_skills": [
+   "background jobs",
+   "frontend JavaScript",
+   "database migration",
+   "caching"
+  ]
+ }
+}

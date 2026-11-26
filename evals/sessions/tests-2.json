@@ -1,0 +1,88 @@
+{
+ "id": "tests-2",
+ "type": "tests",
+ "cwd": "/home/dev/src/ripplemq",
+ "steps": [
+  {
+   "u": "Add property-based tests for the frame codec: encode then decode should round-trip for any frame, and decode must never panic on garbage."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/ripplemq/src/codec.rs"
+   },
+   "r": "pub struct Frame { pub topic: String, pub partition: u16, pub offset: u64, pub payload: Vec<u8> }\npub fn encode(f: &Frame) -> Vec<u8> { ... }\npub fn decode(buf: &[u8]) -> Result<(Frame, usize), CodecError> { ... }"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/ripplemq/Cargo.toml",
+    "old_string": "[dev-dependencies]\n",
+    "new_string": "[dev-dependencies]\nproptest = \"1.4\"\n"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/ripplemq/tests/codec_props.rs",
+    "content": "use proptest::prelude::*;\nuse ripplemq::codec::{decode, encode, Frame};\n\nfn arb_frame() -> impl Strategy<Value = Frame> {\n    (\"[a-z0-9._-]{1,64}\", any::<u16>(), any::<u64>(), prop::collection::vec(any::<u8>(), 0..4096))\n        .prop_map(|(topic, partition, offset, payload)| Frame { topic, partition, offset, payload })\n}\n\nproptest! {\n    #[test]\n    fn roundtrip(f in arb_frame()) {\n        let bytes = encode(&f);\n        let (g, used) = decode(&bytes).unwrap();\n        prop_assert_eq!(used, bytes.len());\n        prop_assert_eq!(g, f);\n    }\n\n    #[test]\n    fn decode_never_panics(buf in prop::collection::vec(any::<u8>(), 0..512)) {\n        let _ = decode(&buf);\n    }\n\n    #[test]\n    fn truncated_frame_is_incomplete(f in arb_frame(), cut in 1usize..16) {\n        let bytes = encode(&f);\n        let cut = cut.min(bytes.len());\n        prop_assert!(decode(&bytes[..bytes.len() - cut]).is_err());\n    }\n}\n"
+   },
+   "r": "File created successfully at: /home/dev/src/ripplemq/tests/codec_props.rs"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cargo test --test codec_props"
+   },
+   "r": "error[E0369]: binary operation `==` cannot be applied to type `Frame`\n  --> tests/codec_props.rs:15:9\n   |\n15 |         prop_assert_eq!(g, f);\n   = note: an implementation of `PartialEq` might be missing for `Frame`",
+   "err": true
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/ripplemq/src/codec.rs",
+    "old_string": "pub struct Frame {",
+    "new_string": "#[derive(Debug, Clone, PartialEq, Eq)]\npub struct Frame {"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cargo test --test codec_props"
+   },
+   "r": "running 3 tests\ntest decode_never_panics ... ok\ntest truncated_frame_is_incomplete ... ok\ntest roundtrip ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; finished in 2.87s"
+  },
+  {
+   "a": "Added proptest-based tests in `tests/codec_props.rs`: round-trip equality including bytes consumed, decode never panics on arbitrary input, and truncated frames return an error. `Frame` needed `Debug, Clone, PartialEq, Eq` derives for the assertions. All 3 properties pass (256 cases each by default)."
+  }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Added property-based tests with proptest for a Rust message frame codec: encoding then decoding round-trips and consumes every byte, decoding never panics on arbitrary bytes, and truncated frames return an error. Added equality and debug derives to the frame type so the assertions compile; all 3 property tests pass.",
+  "facts": [
+   "Added proptest 1.4 as a dev-dependency",
+   "Strategy arb_frame generates topic, partition, offset and payload up to 4096 bytes",
+   "Three properties: roundtrip, decode_never_panics, truncated_frame_is_incomplete",
+   "First compile failed: Frame lacked PartialEq; added derives",
+   "cargo test --test codec_props: 3 passed"
+  ],
+  "specific": [
+   "property-based testing (proptest)",
+   "round-trip and robustness properties for a binary codec"
+  ],
+  "decisions": [],
+  "skills": [
+   "Rust",
+   "proptest",
+   "test design"
+  ],
+  "not_skills": [
+   "fuzzing with cargo-fuzz",
+   "fixing codec bugs",
+   "benchmarking",
+   "async networking"
+  ]
+ }
+}

@@ -1,0 +1,85 @@
+{
+ "id": "infra-1",
+ "type": "infra",
+ "cwd": "/home/dev/src/nimbus-cli",
+ "steps": [
+  {
+   "u": "CI on main has been red since yesterday: the test job fails on 'go: updates to go.mod needed'. Also we said we'd test on both Go 1.22 and 1.23. Fix the workflow."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/nimbus-cli/.github/workflows/ci.yml"
+   },
+   "r": "jobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-go@v5\n        with:\n          go-version: '1.21'\n          cache: false\n      - run: go test -race ./..."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "head -5 go.mod"
+   },
+   "r": "module github.com/nimbus/nimbus-cli\n\ngo 1.22.0\n\ntoolchain go1.23.2"
+  },
+  {
+   "a": "go.mod was bumped to `go 1.22.0` but CI still pins Go 1.21, which can't satisfy it, hence the go.mod error. I'll read the version from a matrix of 1.22.x and 1.23.x, turn module caching back on (setup-go keys it on go.sum), and set `GOTOOLCHAIN=local` so each matrix leg really uses its own Go instead of auto-downloading the 1.23.2 toolchain."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/nimbus-cli/.github/workflows/ci.yml",
+    "old_string": "  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-go@v5\n        with:\n          go-version: '1.21'\n          cache: false\n      - run: go test -race ./...",
+    "new_string": "  test:\n    runs-on: ubuntu-latest\n    strategy:\n      fail-fast: false\n      matrix:\n        go: ['1.22.x', '1.23.x']\n    env:\n      GOTOOLCHAIN: local\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-go@v5\n        with:\n          go-version: ${{ matrix.go }}\n          cache: true\n          cache-dependency-path: go.sum\n      - run: go test -race ./..."
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "actionlint .github/workflows/ci.yml && echo OK"
+   },
+   "r": "OK"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "act -j test --matrix go:1.22.x -q 2>&1 | tail -4"
+   },
+   "r": "[CI/test-1] \u2b50 Run Main go test -race ./...\n| ok  \tgithub.com/nimbus/nimbus-cli/cmd\t2.114s\n| ok  \tgithub.com/nimbus/nimbus-cli/internal/config\t1.032s\n[CI/test-1]   \u2705  Success - Main go test -race ./..."
+  },
+  {
+   "a": "The CI test job now runs a matrix on Go 1.22.x and 1.23.x with GOTOOLCHAIN=local and setup-go module caching on go.sum. The red build came from CI pinning Go 1.21 against `go 1.22.0` in go.mod. actionlint is clean and the 1.22 leg passes locally under act."
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Fixed a failing GitHub Actions workflow for a Go CLI: the test job pinned Go 1.21 while the module file required Go 1.22. Replaced it with a matrix over Go 1.22 and 1.23, a local-only toolchain setting and module caching keyed on the checksum file. actionlint passes and the Go 1.22 leg passed locally with act.",
+  "facts": [
+   "CI failed with 'go: updates to go.mod needed'",
+   "Workflow pinned go-version 1.21 while go.mod says go 1.22.0 with toolchain go1.23.2",
+   "Added a matrix of Go 1.22.x and 1.23.x with fail-fast false",
+   "Set GOTOOLCHAIN=local and enabled caching with cache-dependency-path go.sum",
+   "actionlint OK; act run of the 1.22 leg succeeded"
+  ],
+  "specific": [
+   "CI Go version mismatch with go.mod",
+   "GitHub Actions build matrix"
+  ],
+  "decisions": [
+   {
+    "choice": "force the local toolchain in CI",
+    "reason": "each matrix leg should use its own Go version instead of downloading the newer toolchain named in the module file"
+   }
+  ],
+  "skills": [
+   "GitHub Actions",
+   "Go toolchain management",
+   "CI debugging"
+  ],
+  "not_skills": [
+   "Go application code changes",
+   "Docker",
+   "release automation",
+   "writing tests"
+  ]
+ }
+}

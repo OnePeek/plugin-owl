@@ -1,0 +1,95 @@
+{
+ "id": "bugfix-1",
+ "type": "bugfix",
+ "cwd": "/home/dev/src/ledgerline",
+ "steps": [
+  {
+   "u": "Priya (priya.nandakumar@ledgerline-corp.example) reports that page 2 of GET /v1/invoices repeats the last invoice from page 1. Can you fix it?"
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "func (s \\*Store) ListInvoices",
+    "path": "internal/store"
+   },
+   "r": "internal/store/invoices.go:88:func (s *Store) ListInvoices(ctx context.Context, accountID string, after int64, limit int) ([]Invoice, error) {"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/ledgerline/internal/store/invoices.go"
+   },
+   "r": "88  func (s *Store) ListInvoices(ctx context.Context, accountID string, after int64, limit int) ([]Invoice, error) {\n89  \tconst q = `SELECT id, account_id, total_cents, issued_at FROM invoices\n90  \t\tWHERE account_id = $1 AND id >= $2 ORDER BY id LIMIT $3`\n91  \trows, err := s.db.QueryContext(ctx, q, accountID, after, limit)\n92  \tif err != nil {\n93  \t\treturn nil, fmt.Errorf(\"list invoices: %w\", err)\n94  \t}"
+  },
+  {
+   "a": "The keyset cursor is inclusive: `id >= $2` returns the cursor row again, and the handler sets `after` to the last id of the previous page. I'll make the comparison strict in the query rather than dropping the first row in the handler, because the handler trick silently skips a real row when the cursor invoice has been deleted."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/ledgerline/internal/store/invoices.go",
+    "old_string": "AND id >= $2 ORDER BY id",
+    "new_string": "AND id > $2 ORDER BY id"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/ledgerline/internal/store/invoices_test.go",
+    "old_string": "func TestListInvoicesEmpty(t *testing.T) {",
+    "new_string": "func TestListInvoicesCursorNoDuplicate(t *testing.T) {\n\ts := newTestStore(t)\n\tseedInvoices(t, s, \"acct_1\", 5)\n\tp1, _ := s.ListInvoices(ctx, \"acct_1\", 0, 3)\n\tp2, _ := s.ListInvoices(ctx, \"acct_1\", p1[len(p1)-1].ID, 3)\n\trequire.Len(t, p2, 2)\n\trequire.NotEqual(t, p1[2].ID, p2[0].ID)\n}\n\nfunc TestListInvoicesEmpty(t *testing.T) {"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "go test ./internal/store/... -run ListInvoices -v"
+   },
+   "r": "=== RUN   TestListInvoicesCursorNoDuplicate\n--- PASS: TestListInvoicesCursorNoDuplicate (0.04s)\n=== RUN   TestListInvoicesEmpty\n--- PASS: TestListInvoicesEmpty (0.01s)\nPASS\nok  \tgithub.com/ledgerline/api/internal/store\t0.412s"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "go test ./..."
+   },
+   "r": "ok  \tgithub.com/ledgerline/api/internal/api\t1.208s\nok  \tgithub.com/ledgerline/api/internal/store\t0.655s\nok  \tgithub.com/ledgerline/api/internal/billing\t0.301s"
+  },
+  {
+   "a": "Fixed: the cursor comparison in `ListInvoices` is now exclusive (`id > $2`), with a regression test `TestListInvoicesCursorNoDuplicate`. All packages pass."
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed duplicate rows across pages of the invoices list endpoint in a Go service. The keyset pagination cursor used an inclusive comparison, so each page repeated the last row of the previous one; it now uses an exclusive comparison. Added a regression test, and the full Go test suite passes.",
+  "facts": [
+   "Bug: page 2 repeated the last invoice of page 1",
+   "Root cause was an inclusive keyset cursor in the SQL query of Store.ListInvoices",
+   "Changed `id >= $2` to `id > $2`",
+   "Added regression test TestListInvoicesCursorNoDuplicate",
+   "go test ./... passed"
+  ],
+  "specific": [
+   "keyset (cursor) pagination off-by-one",
+   "inclusive vs exclusive cursor comparison"
+  ],
+  "decisions": [
+   {
+    "choice": "fix the comparison in the SQL query instead of dropping the first row in the handler",
+    "reason": "dropping a row in the handler would skip a real row when the cursor invoice had been deleted"
+   }
+  ],
+  "skills": [
+   "Go",
+   "SQL query debugging",
+   "regression testing"
+  ],
+  "not_skills": [
+   "database migration",
+   "performance tuning",
+   "React",
+   "load testing"
+  ]
+ }
+}

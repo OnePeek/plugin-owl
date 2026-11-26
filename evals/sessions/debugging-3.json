@@ -1,0 +1,72 @@
+{
+ "id": "debugging-3",
+ "type": "debugging",
+ "cwd": "/home/dev/src/meridian-api",
+ "steps": [
+  {
+   "u": "Support says the shipments page times out for Halvorsen Logistics (tenant 4412). Can you see why the query is slow? Use the read replica db-replica-01.meridian.internal."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "func ListShipments",
+    "path": "internal/shipments"
+   },
+   "r": "internal/shipments/repo.go:52:func (r *Repo) ListShipments(ctx context.Context, tenantID int64, status string, limit int) ([]Shipment, error) {"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/meridian-api/internal/shipments/repo.go"
+   },
+   "r": "53  \tq := `SELECT * FROM shipments WHERE tenant_id = $1 AND status = $2\n54  \t      ORDER BY created_at DESC LIMIT $3`"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "psql -h db-replica-01.meridian.internal -d meridian -c \"EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM shipments WHERE tenant_id = 4412 AND status = 'in_transit' ORDER BY created_at DESC LIMIT 50;\""
+   },
+   "r": " Limit  (actual time=18342.551..18342.590 rows=50 loops=1)\n   ->  Sort  (actual time=18342.549..18342.570 rows=50 loops=1)\n         Sort Key: created_at DESC\n         Sort Method: top-N heapsort  Memory: 52kB\n         ->  Index Scan using shipments_tenant_id_idx on shipments  (actual time=0.041..18101.337 rows=212904 loops=1)\n               Index Cond: (tenant_id = 4412)\n               Filter: ((status)::text = 'in_transit'::text)\n               Rows Removed by Filter: 3871220\n               Buffers: shared hit=91233 read=1402118\n Planning Time: 0.211 ms\n Execution Time: 18342.702 ms"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "psql -h db-replica-01.meridian.internal -d meridian -c \"SELECT indexdef FROM pg_indexes WHERE tablename='shipments';\""
+   },
+   "r": "                          indexdef\n-------------------------------------------------------------\n CREATE UNIQUE INDEX shipments_pkey ON shipments USING btree (id)\n CREATE INDEX shipments_tenant_id_idx ON shipments USING btree (tenant_id)\n CREATE INDEX shipments_created_at_idx ON shipments USING btree (created_at)"
+  },
+  {
+   "a": "This tenant has about 4.1M shipment rows. The only usable index is on `tenant_id`, so Postgres walks all of them, filters out 3.87M by status (1.4M buffer reads from disk), then top-N sorts. Smaller tenants don't notice. A composite index `(tenant_id, status, created_at DESC)` would let it read exactly 50 rows in order with no sort. It needs `CREATE INDEX CONCURRENTLY` on the primary through a migration, so I've stopped at the diagnosis; I haven't created anything."
+  },
+  {
+   "u": "OK, I'll raise it with the DB owners. Thanks."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Diagnosed a slow tenant-scoped Postgres list query in a Go API with EXPLAIN ANALYZE. With only a single-column tenant index, a large tenant's query scanned about 4.1M rows, filtered 3.87M by status and sorted, taking about 18 seconds. Recommended a composite index on tenant, status and creation time built concurrently; ended at diagnosis with no change made.",
+  "facts": [
+   "Query: SELECT ... WHERE tenant_id AND status ORDER BY created_at DESC LIMIT",
+   "EXPLAIN ANALYZE showed 18.3s execution, 3,871,220 rows removed by filter",
+   "Existing indexes: pkey, tenant_id, created_at only",
+   "Recommended composite index (tenant_id, status, created_at DESC) via CREATE INDEX CONCURRENTLY",
+   "No index created; the engineer will take it to the DB owners"
+  ],
+  "specific": [
+   "missing composite index causing filter plus sort on a large tenant",
+   "query plan analysis with EXPLAIN ANALYZE"
+  ],
+  "decisions": [],
+  "skills": [
+   "PostgreSQL query plans",
+   "index design",
+   "Go code reading"
+  ],
+  "not_skills": [
+   "writing a migration",
+   "caching",
+   "Go code changes",
+   "load testing"
+  ]
+ }
+}

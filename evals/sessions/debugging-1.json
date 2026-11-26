@@ -1,0 +1,84 @@
+{
+ "id": "debugging-1",
+ "type": "debugging",
+ "cwd": "/home/dev/src/parcelhub",
+ "steps": [
+  {
+   "u": "RouteRefreshJob throws ConcurrentModificationException a few times a day in staging. Figure out why. Don't merge a fix yet, I want to discuss the approach with the team."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -A12 'ConcurrentModificationException' logs/staging-worker.log | head -20"
+   },
+   "r": "2026-11-25T09:14:02.118Z ERROR [route-refresh-1] c.p.routing.RouteRefreshJob - refresh failed\njava.util.ConcurrentModificationException: null\n\tat java.base/java.util.HashMap$HashIterator.nextNode(HashMap.java:1605)\n\tat java.base/java.util.HashMap$ValueIterator.next(HashMap.java:1633)\n\tat com.parcelhub.routing.RouteCache.refreshAll(RouteCache.java:58)\n\tat com.parcelhub.routing.RouteRefreshJob.run(RouteRefreshJob.java:31)\n\tat java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:304)"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/parcelhub/src/main/java/com/parcelhub/routing/RouteCache.java"
+   },
+   "r": "22  private final Map<String, Route> routes = new HashMap<>();\n...\n55  public void refreshAll() {\n56    for (Route r : routes.values()) {\n57      Route fresh = planner.replan(r);\n58      listeners.forEach(l -> l.onRefreshed(fresh));\n59    }\n60  }\n...\n71  public void evict(String id) { routes.remove(id); }"
+  },
+  {
+   "a": "My first guess was two threads touching the map. Let me check whether wrapping it with Collections.synchronizedMap makes the test reproduction go away."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew test --tests 'com.parcelhub.routing.RouteCacheStressTest' -Dstress.sync=true"
+   },
+   "r": "RouteCacheStressTest > refreshWhileEvicting() FAILED\n    java.util.ConcurrentModificationException at RouteCache.java:56\n\n1 test completed, 1 failed\nBUILD FAILED in 14s",
+   "err": true
+  },
+  {
+   "a": "Synchronizing doesn't help, so it isn't only cross-thread. Looking at who calls `evict`."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "\\.evict\\(",
+    "path": "src/main/java"
+   },
+   "r": "src/main/java/com/parcelhub/routing/StaleRouteListener.java:19:      cache.evict(route.id());\nsrc/main/java/com/parcelhub/api/RouteAdminController.java:44:    routeCache.evict(id);"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/parcelhub/src/main/java/com/parcelhub/routing/StaleRouteListener.java"
+   },
+   "r": "15  @Override\n16  public void onRefreshed(Route route) {\n17    if (route.isExpired()) {\n18      // drop expired routes immediately\n19      cache.evict(route.id());\n20    }\n21  }"
+  },
+  {
+   "a": "Root cause: `StaleRouteListener.onRefreshed` is called synchronously from inside the `routes.values()` loop in `RouteCache.refreshAll`, and it calls `evict`, which removes from the same HashMap on the same thread. The iterator's modCount check then throws ConcurrentModificationException on the next `next()`. It only happens when a refreshed route is expired, which explains the few-per-day rate. A lock can't fix a same-thread modification, which is why synchronizedMap failed. Options for the team: (1) iterate over a snapshot `new ArrayList<>(routes.values())`; (2) collect expired ids and evict after the loop; (3) switch to ConcurrentHashMap, whose weakly consistent iterators tolerate removal, which also covers the admin endpoint's cross-thread `evict`. I haven't changed any code."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Investigated an intermittent ConcurrentModificationException in a scheduled Java job. A listener called during the route cache's map iteration evicts entries from the same map on the same thread; an experiment with a synchronized map still failed, confirming it is not a locking problem. Ended at diagnosis with fix options and no code changed, as requested.",
+  "facts": [
+   "Stack trace pointed at RouteCache.refreshAll iterating routes.values()",
+   "Trying Collections.synchronizedMap still failed the stress test",
+   "StaleRouteListener.onRefreshed calls cache.evict during the iteration",
+   "Same-thread modification during iteration triggers the modCount check",
+   "Proposed snapshot iteration, deferred eviction, or ConcurrentHashMap; no fix applied"
+  ],
+  "specific": [
+   "ConcurrentModificationException from modifying a HashMap during iteration (re-entrant listener callback)",
+   "fail-fast iterator / modCount"
+  ],
+  "decisions": [],
+  "skills": [
+   "Java",
+   "reading stack traces",
+   "concurrency debugging",
+   "hypothesis testing"
+  ],
+  "not_skills": [
+   "implementing the fix",
+   "writing new unit tests",
+   "Spring configuration",
+   "performance tuning"
+  ]
+ }
+}
