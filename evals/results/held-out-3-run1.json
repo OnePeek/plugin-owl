@@ -1,0 +1,846 @@
+{
+ "run": {
+  "date": "2026-11-26T13:33:04.753Z",
+  "set": "held-out-3 (evals/held-out-3, used for prompt work)",
+  "set_sha256": "a66335d717db17e35634ca506cbacf0c8178816095cb5108d597031964c394f1",
+  "prompt_sha256": "189c5cbbe18eb73bc733f4b6b206cb3c91b6cfe60b51ed2dfef80800336a64ca",
+  "judge_sha256": "0b21a4d39d87054a28ec1b7b96ebd3254f613904281263e6b4e1d9d20245ec03",
+  "claude_cli": "2.1.332 (Claude Code)",
+  "summariser_model": "claude-sonnet-5-5",
+  "summariser_model_ids": [
+   "claude-sonnet-5-5"
+  ],
+  "judge_model": "opus",
+  "judge_model_ids": [
+   "claude-opus-5-5"
+  ],
+  "partial": false
+ },
+ "prompt_sha256": "189c5cbbe18eb73bc733f4b6b206cb3c91b6cfe60b51ed2dfef80800336a64ca",
+ "model": "claude-sonnet-5-5",
+ "sessions": 30,
+ "passed": 26,
+ "leaks": 0,
+ "bar": 27,
+ "workflow_heavy": [],
+ "ok": false,
+ "verdicts": [
+  {
+   "id": "bugfix-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim is supported by the session: UTC conversion via toISOString shifted local midnight to the previous day, the fix formats in the API's offset, the test file edit adds a +11:00 regression case (an eastern Australian daylight-time offset), and vitest passed 6/6. The candidate names the precise problem class: UTC conversion shifting a local date. The decision states a real choice (format in the offset's zone vs converting to UTC) with a reason the session supports. Skills were all exercised, and the key ones from the reference are present (TypeScript, Vitest, time zones); omitting React is acceptable."
+   ],
+   "summary": "Traced delivery dates showing a day early for Australian users to UTC conversion shifting local midnight to the previous day, and changed date formatting to respect the offset supplied by the API. Updated a regression test for an eastern Australian offset, and the formatting tests passed.",
+   "task_type": "bugfix",
+   "decisions": [
+    "Chose to format the date in the zone named by its offset over converting to UTC, because UTC conversion moved a local midnight arrival time back to the previous calendar day."
+   ],
+   "skills": [
+    "TypeScript",
+    "time zone handling",
+    "date formatting",
+    "Vitest",
+    "regression testing"
+   ]
+  },
+  {
+   "id": "bugfix-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "All claims match the session: empty seats array caused the crash, standing sections were excluded from the row calculation, and both the unit test and the event 77 e2e check passed. The all-standing Infinity case was correctly reported as noted and left alone. The decision is a real choice between adding a guard and leaving the case as is, and the reason given (the renderer treats Infinity as no seats) is stated in the session. The skills (TypeScript, unit testing, e2e testing) were all actually used. It names the problem class precisely (first-element access on an empty list, the standing-section edge case)."
+   ],
+   "summary": "Fixed a seat map crash on events with standing-only sections, where reading the first seat of an empty seat list failed, by leaving those sections out of the row calculation. A layout test and the end-to-end check for the reproducing event both passed. The case of an event with only standing sections was noted and deliberately left unchanged.",
+   "task_type": "bugfix",
+   "decisions": [
+    "Left the all-standing event case unhandled rather than adding a guard, because the renderer already treats the resulting infinite value as having no seats."
+   ],
+   "skills": [
+    "TypeScript",
+    "unit testing",
+    "end-to-end testing"
+   ]
+  },
+  {
+   "id": "bugfix-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims are supported by the session. The double post came from the reaction handler firing once per reacting user. The fix posts only from the call that changed an open ticket. pytest showed 3 passed, and the double post was reproduced only in a unit test, not on a live server. Calling them 'existing' close tests is a minor unsupported nuance but not a material invention. It names the right problem class: idempotent close and duplicate event handling. The decision gives a real choice (post only from the call that changed the row) and a reason the session supports (the event fires per reacting user). It does not mention the atomic conditional-update aspect, but the omission is acceptable. The skills Python, pytest and Discord bot development were used. 'Idempotency' is more a concept than a skill, but it is not padding."
+   ],
+   "summary": "Fixed a Discord ticket bot posting its closure message twice when more than one user reacted, by making the close idempotent: only the call that actually changed an open ticket posts the message. Existing close tests passed, but the double post was not reproduced against a live server, only in a unit test with two reactions.",
+   "task_type": "bugfix",
+   "decisions": [
+    "Chose to make closing idempotent, posting only from the call that changed the ticket state, because the reaction event fires for every reacting user and could close a ticket twice."
+   ],
+   "skills": [
+    "Python",
+    "Discord bot development",
+    "idempotency",
+    "pytest"
+   ]
+  },
+  {
+   "id": "data-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Candidate matches the session: a Postgres weekly signup-cohort retention query for weeks 1, 2 and 4, run against the events table, with recent cohorts' later weeks left NULL and a SQL comment added. It names cohort retention analysis specifically. The decision (keep NULL rather than zero, documented because readers could mistake it for zero) is a real choice and the session supports the reason. Skills (PostgreSQL, SQL, cohort retention analysis) were all used and match the reference. It leaves out the left-join detail, which is acceptable since the condensed session never shows that SQL. No invented claims."
+   ],
+   "summary": "Built a Postgres weekly signup cohort retention query giving the share of users active 1, 2 and 4 weeks later, and ran it against the events table to get results. Later weeks that had not yet happened for recent cohorts were deliberately left empty, with a SQL comment added so readers would not mistake them for zero.",
+   "task_type": "data",
+   "decisions": [
+    "Kept NULL rather than zero for retention weeks that had not happened yet, and documented this in a SQL comment because a reader could mistake the empty values for zero."
+   ],
+   "skills": [
+    "PostgreSQL",
+    "SQL",
+    "cohort retention analysis"
+   ]
+  },
+  {
+   "id": "data-2",
+   "pass": false,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": false,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "task_type bugfix != data",
+    "All claims are backed by the session: quoted comma fields, naive splitting swapped for the csv module, a dry run with 0 rejected, and the real import not yet re-run. The decision gives a real alternative (csv module vs. comma splitting), and the session supports its reason (the exporter quotes fields, which is valid CSV). The skills match the reference."
+   ],
+   "summary": "Fixed a nightly CSV import of patient visits that broke on quoted fields containing commas, replacing naive comma splitting with a proper CSV parser. A dry run on the first failing file parsed every row with none rejected. Nothing was written to the warehouse, so the real import for the affected days still needs to be re-run.",
+   "task_type": "bugfix",
+   "decisions": [
+    "Chose the standard CSV module over splitting lines on commas because the exporter had started quoting fields that contain commas, which is valid CSV."
+   ],
+   "skills": [
+    "Python",
+    "CSV parsing",
+    "ETL"
+   ]
+  },
+  {
+   "id": "data-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim is supported: pandas on the Parquet exports, two fields flagged under 20% for more than 3 days, runs measured first to last low reading with outage gaps counted as dry, and the chart not yet made. Specific enough because it names dry-run detection over a time series with a threshold and duration. The empty decisions list is fine. 'time series analysis' fits the work done."
+   ],
+   "summary": "Used pandas to find fields whose soil moisture in Parquet exports stayed below 20% for more than 3 days, and flagged two. Runs were measured from first to last low reading, so sensor outage gaps inside a run counted as dry. The requested per-field chart had not been made.",
+   "task_type": "data",
+   "decisions": [],
+   "skills": [
+    "Python",
+    "pandas",
+    "Parquet",
+    "time series analysis"
+   ]
+  },
+  {
+   "id": "debugging-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim matches the session: the heap profile and code reading, the empty Put stub that is never called, frames kept referenced, the growth rate only partly reconciled and not verified with a longer profile, and a fix proposed with no code changed. Specific: names the unreleased pool buffer leak and heap profiling. The decisions list is empty, which is acceptable. Skills (Go, pprof, heap profiling, memory leak debugging) were all used and cover the reference."
+   ],
+   "summary": "Diagnosed an encoder service's out-of-memory growth from a heap profile and code reading: a frame pool kept every allocated buffer referenced because its release method was an empty stub that nothing called. The growth rate was only partly reconciled with the expected frame throughput and was not verified with a longer profile. A fix was proposed, but no code was changed, as requested.",
+   "task_type": "debugging",
+   "decisions": [],
+   "skills": [
+    "Go",
+    "pprof",
+    "heap profiling",
+    "memory leak debugging"
+   ]
+  },
+  {
+   "id": "debugging-2",
+   "pass": false,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": false
+   },
+   "notes": [
+    "Accurate: the summary matches the session. The callback cleared the cookie, the logs showed a token exchange failure from redirect_uri_mismatch, the TLS-terminating load balancer caused an http (insecure) URI, nothing was changed, and two options were proposed. Specific: it names the redirect URI rejection behind a TLS-terminating proxy, which matches the reference closely enough even without naming the forwarded header. Decisions: the empty list is acceptable. Skills: 'Reverse proxy configuration' is padding. The session only diagnosed the proxy-related cause and grepped for trust-proxy settings, and no proxy was configured. SSO, Kubernetes, HTTP debugging and log analysis were genuinely used."
+   ],
+   "summary": "Traced a staging-only SSO redirect loop to a failed token exchange: behind a TLS-terminating load balancer the app built an insecure redirect URI that the identity provider rejected, shown by response headers and callback logs. No change was made; two fixes were proposed for the engineer to choose between.",
+   "task_type": "debugging",
+   "decisions": [],
+   "skills": [
+    "SSO authentication",
+    "Kubernetes",
+    "HTTP debugging",
+    "Log analysis",
+    "Reverse proxy configuration"
+   ]
+  },
+  {
+   "id": "debugging-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim in the candidate is supported by the session: the 15-minute overrun bursts, the synchronous snapshot on EU's tick thread, US using the async path, and no change being made. Naming a synchronous snapshot blocking the tick thread identifies the problem precisely. Leaving sync mode unchanged rather than switching to async is a real choice, and the session gives the reason (it may be deliberate for the EU storage backend). The listed skills were all used: log analysis, shell grep/awk pipelines, reading Rust source, and performance debugging. The candidate leaves out the 148 vs 3 counts, which is allowed."
+   ],
+   "summary": "Investigated periodic rubber-banding on one game server region by counting tick overruns in server logs, which clustered in bursts every 15 minutes. Traced the timing to a synchronous world snapshot written on the tick thread in that region, while the other used the async path. The setting was left unchanged because it may have been intentional.",
+   "task_type": "debugging",
+   "decisions": [
+    "Chose to leave the synchronous snapshot setting unchanged rather than switch it to async, because it may have been set on purpose for that region's storage backend."
+   ],
+   "skills": [
+    "log analysis",
+    "performance debugging",
+    "shell scripting",
+    "Rust"
+   ]
+  },
+  {
+   "id": "docs-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "All claims are supported by the session: the move from setup.py to pyproject with uv, the Python version taken from pyproject, the poppler troubleshooting entry, and the commands not being run in a clean environment. It is specific enough because it names the README install instructions and the Poppler error, though it leaves out the 3.11 number and the pdf2image link. The empty decisions list is fine. The skills match the reference."
+   ],
+   "summary": "Updated an outdated README install section to match a move from a legacy setup script to a pyproject file with uv, taking the Python version requirement from the project configuration, and added a troubleshooting entry for a Poppler error. The install commands were not run in a clean environment.",
+   "task_type": "docs",
+   "decisions": [],
+   "skills": [
+    "Technical writing",
+    "uv",
+    "Python packaging"
+   ]
+  },
+  {
+   "id": "docs-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim is supported by the session. The ADR covers Redis idempotency keys with a 24 hour TTL versus a Postgres unique constraint, follows the existing section layout, and flags the unconfirmed fail-closed 503 for checking before merge. It names the right problem classes: architecture decision record and idempotency key design. The empty decisions list is acceptable. The skills listed match those used and include the reference's technical writing and Redis."
+   ],
+   "summary": "Wrote an architecture decision record on storing charge endpoint idempotency keys in Redis with a 24 hour expiry instead of using a Postgres unique constraint, following the section layout of existing records. The statement that requests fail closed during a Redis outage could not be confirmed from the middleware code read, and was flagged for checking before merge.",
+   "task_type": "docs",
+   "decisions": [],
+   "skills": [
+    "Architecture decision records",
+    "Technical writing",
+    "Redis",
+    "Idempotency"
+   ]
+  },
+  {
+   "id": "docs-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Accurate: JSDoc was added to the public functions in contrast.ts, typedoc ran with 0 errors and 1 warning about the unexported luminance, and blend and palette were left undocumented. Calling the work partial is supported because the request covered all of src/color/. 'Without intending any behaviour change' is a fair paraphrase. Specific: names JSDoc API documentation for a colour contrast module. It omits WCAG, but the documentation technique is named precisely enough. Decisions: leaving luminance undocumented because it is internal and not exported is a real choice with a reason stated in the session. Skills: TypeScript, JSDoc and TypeDoc were all used. WCAG is missing, but the important skills are present."
+   ],
+   "summary": "Added JSDoc comments to the public functions in a colour contrast module for generated API docs, without intending any behaviour change. A TypeDoc check passed with no errors and one warning about an unexported internal function. The blending and palette modules in the same area were left undocumented, so the request was only partly completed.",
+   "task_type": "docs",
+   "decisions": [
+    "Left the internal luminance function undocumented rather than commenting it, because it is not exported and so is not part of the public API."
+   ],
+   "skills": [
+    "TypeScript",
+    "JSDoc",
+    "TypeDoc",
+    "API documentation"
+   ]
+  },
+  {
+   "id": "feature-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Everything the candidate claims is supported by the session: the SvelteKit scaling control, the separate module (lib/scale.ts), the 2 passing vitest tests, rounding to quarters that zeroes a pinch, and leaving that case unhandled. It names the technique precisely (serving-size quantity scaling with quarter rounding). The decisions list is empty, which is allowed. The skills (SvelteKit, TypeScript, Vitest, unit testing) were all used and match the reference."
+   ],
+   "summary": "Added a serving-size scaling control to a SvelteKit recipe page, with the scaling logic in a separate module and a small test file whose two tests passed. Ingredient amounts updated, but rounding to quarters turns very small quantities such as a pinch into zero; this limitation was noted and not special-cased.",
+   "task_type": "feature",
+   "decisions": [],
+   "skills": [
+    "SvelteKit",
+    "TypeScript",
+    "Vitest",
+    "Unit testing"
+   ]
+  },
+  {
+   "id": "feature-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim in the candidate is supported by the session: a timestamp checked by the inbox scope, no background job, one model spec passing (1 example, 0 failures), and the UI button and controller action not yet built. It names the technique precisely (snoozing as a timestamp filter in the inbox scope). The decision is a real alternative (timestamp scope vs background job), and its reason comes straight from the assistant's explanation. The skills Rails, Ruby, RSpec and database migrations were all used (a migration file was written and the spec was run). Omitting the partial index, snooze! and PostgreSQL is acceptable as omission, and the key reference skills are present."
+   ],
+   "summary": "Added ticket snoozing to a Rails app by storing a wake-up timestamp that the inbox scope checks, so tickets reappear on their own without a background job. A single model spec passed. The UI button and controller action were still unbuilt.",
+   "task_type": "feature",
+   "decisions": [
+    "Chose a timestamp checked by the inbox scope over a background job, because a snoozed ticket simply starts matching again once the time passes."
+   ],
+   "skills": [
+    "Ruby on Rails",
+    "Ruby",
+    "RSpec",
+    "Database migrations"
+   ]
+  },
+  {
+   "id": "feature-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim in the candidate is backed by the session: a Room table for failed saves (the code catches IOException, and the candidate calls it a network error, which is a fair paraphrase), a WorkManager upload once connected, unit tests passing, no airplane-mode test on a device, and a duplicate-upload risk because the server has no idempotency key. It names the specific techniques: WorkManager offline queue and Room persistence. The decisions list is empty, which is allowed. The skills cover all the important ones in the reference. 'Offline sync' is a small addition but it does describe the work done."
+   ],
+   "summary": "Added offline note drafts to an Android app, storing notes that failed on a network error in a Room table and uploading them with a WorkManager job once connected. Unit tests passed, but airplane mode was not tested on a device. A partially failed upload could still create a duplicate because the server has no idempotency key.",
+   "task_type": "feature",
+   "decisions": [],
+   "skills": [
+    "Android",
+    "Kotlin",
+    "Room",
+    "WorkManager",
+    "Offline sync"
+   ]
+  },
+  {
+   "id": "infra-1",
+   "pass": false,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": false,
+    "skills": true
+   },
+   "notes": [
+    "Accurate: the session supports every claim. The NAT replacement traces to the EIP, the tags_all drift follows the default_tags and provider-bump commits, and after the edit the full plan reported no changes. Specific: names provider default tag drift on the EIP forcing replacement through allocation_id, which is close to the reference. It does not name lifecycle ignore_changes explicitly, but the technique is clear enough. Decisions: the listed decision names no alternative it was chosen over, such as removing default_tags. Its 'reason' is the causal diagnosis of the replacement, not a reason for choosing this fix over others. That makes it a diagnosis presented as a decision. Skills: Terraform, AWS, infrastructure as code and drift debugging were all used. The reference's key skills are present."
+   ],
+   "summary": "Traced a Terraform plan that kept replacing a staging NAT gateway to changes on its elastic IP, which showed default tag drift after a recent provider bump and tag configuration change. Configured Terraform to ignore that drift, and a full plan then reported no changes.",
+   "task_type": "infra",
+   "decisions": [
+    "Chose to ignore the tag drift on the elastic IP, reasoning that the IP being flagged as changing made the gateway's allocation reference unknown until apply and so forced its replacement."
+   ],
+   "skills": [
+    "Terraform",
+    "AWS",
+    "infrastructure as code",
+    "configuration drift debugging"
+   ]
+  },
+  {
+   "id": "infra-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Candidate matches the session: npm download caching, a buildx build using the GitHub Actions layer cache, and a Dockerfile reordered so the dependency layer only rebuilds when package files change. It correctly says the workflow was not run and the speed-up is unmeasured. It names concrete techniques (Docker layer caching, GHA cache). The empty decisions list is fine. Skills are all exercised in the session and cover the reference set; npm and build caching are reasonable additions, not padding."
+   ],
+   "summary": "Targeted a slow CI pipeline by caching npm downloads, moving the image build to buildx with the GitHub Actions layer cache, and reordering the Dockerfile so dependencies rebuild only when package files change. The workflow could not be run from the session, so the speedup is expected but unmeasured.",
+   "task_type": "infra",
+   "decisions": [],
+   "skills": [
+    "GitHub Actions",
+    "Docker",
+    "Docker Buildx",
+    "npm",
+    "build caching",
+    "CI pipeline optimization"
+   ]
+  },
+  {
+   "id": "infra-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims are all supported by the session: the alert is on the raw gauge with a 10-minute hold, a runbook link is wired in, the promtool check and rule unit tests pass, and the runbook page does not exist yet. It omits the 5000 threshold and the alert name, which is allowed. It names the technique precisely: a Prometheus alerting rule using a for-duration on the raw gauge. The single decision matches the reference, a real choice between the raw gauge and the max recording rule with the reason the session gives. The skills list is reasonable: PromQL and YAML were plausibly exercised in editing the rule file. It leaves out promtool, which was used, but Prometheus and alerting are present."
+   ],
+   "summary": "Added a Prometheus alert for a sustained email-sender queue backlog, firing on the raw gauge with a ten-minute hold, and wired a runbook link to it. Rule checks and rule unit tests passed. The runbook page did not exist yet, so the link was left pointing at a missing page.",
+   "task_type": "infra",
+   "decisions": [
+    "Chose to alert on the raw queue depth gauge rather than the existing five-minute max recording rule, because the max would keep the alert firing for five extra minutes after recovery."
+   ],
+   "skills": [
+    "Prometheus",
+    "PromQL",
+    "alerting rules",
+    "YAML"
+   ]
+  },
+  {
+   "id": "migration-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "All claims are supported by the session: five class components found, TagPicker converted as a template, its 7 tests pass, and the other four were left because of refs and an error boundary. It names the technique precisely (class to function component migration with hooks). It omits the useEffect cleanup detail, which is allowed. The decision to stop after one template rather than convert all five is a real choice, and the session states the reason. Skills match the reference."
+   ],
+   "summary": "Began migrating five React class components to function components with hooks, converting only the tag picker as a template, and its 7 tests passed. The other four were left unconverted because their refs and an error boundary needed care, so the migration is unfinished.",
+   "task_type": "migration",
+   "decisions": [
+    "Chose to convert one component as a template and stop, over converting all five at once, because the remaining ones involve refs and an error boundary that need care."
+   ],
+   "skills": [
+    "React",
+    "React Hooks",
+    "TypeScript",
+    "Jest"
+   ]
+  },
+  {
+   "id": "migration-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim in the candidate is backed by the session: a staged expand/contract approach instead of RENAME COLUMN, the new column, dual writes, a batched backfill, 4 migration tests passing, and reads and drop deferred. It is specific because it names expand and contract and zero-downtime rename. Both decisions state a real choice between alternatives, and the session supports each reason: rolling deploys run old and new versions side by side, and batches of 5000 avoid a long lock. All skills were actually used and cover the reference's core skills. 'zero-downtime deployment' and 'data backfill' are reasonable additions."
+   ],
+   "summary": "Planned a zero-downtime Postgres column rename for a Django app under rolling deploys as a staged expand and contract, and built the first release: new column, dual writes and a batched backfill. Migration tests passed. Switching reads and dropping the old column were left for later releases.",
+   "task_type": "migration",
+   "decisions": [
+    "Chose a staged add, dual-write, backfill, read switch and later drop over a direct column rename, because rolling deploys run old and new app versions side by side and a rename would break the older one.",
+    "Chose to backfill existing rows in batches rather than all at once, to avoid holding a long lock."
+   ],
+   "skills": [
+    "PostgreSQL",
+    "Django",
+    "Python",
+    "schema migration",
+    "zero-downtime deployment",
+    "data backfill"
+   ]
+  },
+  {
+   "id": "migration-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims match the session. Node 16 to 22, the OpenSSL 3 error, the md4 cause, replacing the shim with built-in HMAC, 58 tests passing, the engines/CI update and the equivalence caveat are all supported. It names the problem class precisely: OpenSSL 3 unsupported digest in a legacy package during a Node upgrade. The decision states a real choice, built-in HMAC over the shim, with a reason the session supports. The skills (Node.js, TypeScript, HMAC, CI configuration via the ci.yml edit) were all used. 'OpenSSL' is borderline as a skill but was central to the diagnosis."
+   ],
+   "summary": "Moved a project from Node 16 to Node 22 after tests failed on an OpenSSL 3 error from a legacy package using md4, replacing that package with the built-in crypto HMAC. All 58 tests passed on Node 22, and the engine requirement and CI matrix were updated. Equivalence of old and new HMAC output was checked only through the existing signature tests.",
+   "task_type": "migration",
+   "decisions": [
+    "Replaced a legacy hashing shim with the built-in crypto HMAC, because the shim relied on an md4 hash that newer Node versions no longer provide."
+   ],
+   "skills": [
+    "Node.js",
+    "TypeScript",
+    "OpenSSL",
+    "HMAC",
+    "dependency migration",
+    "CI configuration"
+   ]
+  },
+  {
+   "id": "refactor-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Candidate matches the session: the 300-line function was split into surcharge, zone and weight-band parts and composed by calculate_rate. The golden test passed before and after. The old function was kept as _old_calculate_rate. It names extract-function refactoring and golden-file testing. The one decision, keeping the old function for a later comparison and removal, is a real choice, and its reason is supported by the session. All listed skills were used."
+   ],
+   "summary": "Split an oversized, deeply nested shipping rate calculation into separate surcharge, zone lookup and weight banding functions composed by the original entry point. A golden-file test covering the parcel set passed before and after the change. The old function was left in place under a new name, to be compared and deleted in a follow-up.",
+   "task_type": "refactor",
+   "decisions": [
+    "Chose to keep the old rate function alongside the new composition rather than delete it now, so the two can be compared before removal in a follow-up."
+   ],
+   "skills": [
+    "Python",
+    "function extraction",
+    "golden-file testing",
+    "pytest"
+   ]
+  },
+  {
+   "id": "refactor-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim is supported by the session: a central error middleware and wrap helper, the deals handler converted with 12 passing tests, 10 other handlers unconverted, middleware not registered in app.ts, and the fallback to Express's default handler. It correctly presents the work as incomplete. It names the technique precisely (centralised error middleware replacing duplicated try/catch). The empty decisions list is fine. The skills were all exercised and cover the reference's TypeScript, Express and refactoring."
+   ],
+   "summary": "Began centralising duplicated HTTP error handling in an Express app by moving the mapping into one error middleware with a wrapper helper and converting a first handler, whose 12 tests passed. The work is unfinished: ten handlers still have their own try/catch, and the middleware is not yet registered, so errors from the converted handler would currently fall back to the Express default.",
+   "task_type": "refactor",
+   "decisions": [],
+   "skills": [
+    "TypeScript",
+    "Express",
+    "error handling middleware",
+    "refactoring"
+   ]
+  },
+  {
+   "id": "refactor-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Everything in the candidate is backed by the session: three components, a shared composable, original delays kept, all component tests passing (31), and the timer now cleared on unmount. It is specific because it names extracting a debounce composable in Vue. Decisions is empty, which matches the reference. All listed skills were used. Vitest is missing, but the important skills (Vue, TypeScript) are present, and 'Vue composables' and 'Debouncing' are real parts of the work."
+   ],
+   "summary": "Replaced hand-rolled debounce logic in three Vue components with a shared composable, keeping each original delay, and all component tests passed. The change also clears the pending timer on unmount, which the old code did not do, so a late update can no longer fire after a component is gone.",
+   "task_type": "refactor",
+   "decisions": [],
+   "skills": [
+    "Vue",
+    "TypeScript",
+    "Vue composables",
+    "Debouncing"
+   ]
+  },
+  {
+   "id": "review-1",
+   "pass": false,
+   "criteria": {
+    "schema": false,
+    "no_leak": true,
+    "task_type": false,
+    "not_padded": false,
+    "accurate": false,
+    "specific": false,
+    "decisions": false,
+    "skills": false
+   },
+   "notes": [
+    "held: leak taint :: {\"summary\": \"Reviewed a pull request adding a token refresh endpoint with a security focus, without changing code. Flagged two blocking issues, refresh tokens that never expire or rotate and plaintext token storage, plus missing rate limiting and a minor note on logging failed attempts. The short access token lifetime and server-side source of the subject were judged sound.\", \"task_type\": \"review\", \"decisions\": [], \"skills\": [\"security code review\", \"token authentication\", \"TypeScript\"]}"
+   ]
+  },
+  {
+   "id": "review-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim is supported by the session: the Mutex-to-RWMutex switch, the hits counter being incremented under only the read lock, the race detector confirming it with a FAIL, the change being judged unsafe to merge, no code changed, and an atomic counter suggested as the fix. It names the precise problem class (a data race from writing under a read lock, confirmed by the race detector). The empty decisions list is acceptable. All listed skills were actually used: 'race condition detection' and 'read-write locks' are accurate refinements of the work done, not padding."
+   ],
+   "summary": "Reviewed a branch that moved a Go tile cache from an exclusive lock to a read-write lock and found a data race: a hit counter was written while only the read lock was held. The race detector confirmed it and the test run failed, so the change was judged unsafe to merge. No code was changed; an atomic counter was suggested as the fix.",
+   "task_type": "review",
+   "decisions": [],
+   "skills": [
+    "Go",
+    "code review",
+    "concurrency",
+    "race condition detection",
+    "read-write locks"
+   ]
+  },
+  {
+   "id": "review-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Everything the candidate says matches the session: 40M rows, the Postgres version confirmed, metadata-only column add, the non-concurrent index blocking writes, the low-cardinality concern, and no edits. It names the specific technique (concurrent index build in a migration on a large table). The decision recommends concurrent plus disable_ddl_transaction over a standard build because the standard build blocks writes for possibly minutes. That is a real alternative with a reason the session supports. The skills (PostgreSQL, Rails, migration review, index design) were all exercised and cover the reference list."
+   ],
+   "summary": "Reviewed a schema migration adding a plan column and index to a 40-million-row users table, confirmed the Postgres version made the column add metadata only, and flagged that the non-concurrent index build would block writes. Requested a concurrent build and questioned the value of the low-cardinality index; the file was not edited.",
+   "task_type": "review",
+   "decisions": [
+    "Recommended building the index concurrently with the DDL transaction disabled over a standard index build, because the standard build would block writes to a very large table for possibly minutes."
+   ],
+   "skills": [
+    "PostgreSQL",
+    "Ruby on Rails",
+    "migration review",
+    "index design"
+   ]
+  },
+  {
+   "id": "tests-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Candidate matches the session. Three tests: exponential backoff on 4xx (sleeps of 1 then 2, base 2), no retry on 5xx, gives up after three failures, injected sleep, no jitter test because the code has no jitter, 3 passed. Names retry/backoff testing and sleep injection, so it is specific. Empty decisions list is acceptable. All listed skills were used; unit testing and dependency injection reflect the injected sleep."
+   ],
+   "summary": "Added three unit tests for the retry logic of an email sender, covering exponential backoff on SMTP 4xx errors, no retry on 5xx, and giving up after three transient failures. The sleep was injected so the tests ran instantly, and all three passed. No jitter test was written because the code has no jitter.",
+   "task_type": "tests",
+   "decisions": [],
+   "skills": [
+    "Python",
+    "pytest",
+    "unit testing",
+    "dependency injection",
+    "SMTP"
+   ]
+  },
+  {
+   "id": "tests-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Accurate: tests were written, the March 31 case returned a March date (2026-03-03) instead of Feb 28, the assistant attributed it to date overflow, and the component was left unfixed with the failing test kept as evidence. Naming the month-boundary date overflow bug is specific. The decision to keep the failing test and not fix the component is a real choice, and the session supports the stated reason ('since you only asked for tests'). Skills (React, TypeScript, Testing Library, Vitest) are all used. 'component testing' and 'date boundary testing' describe the actual work and are not padding."
+   ],
+   "summary": "Wrote Testing Library component tests for a React date range picker that had none and had broken on month boundaries. The run showed the last-month case from March 31 returning a March date instead of the end of February, reproducing the bug, which the assistant traced to date overflow. The component was left unfixed and the failing test kept as evidence, since only tests were requested.",
+   "task_type": "tests",
+   "decisions": [
+    "Kept the failing month-boundary test and left the component unchanged rather than fixing it, because the request was only for tests and the failure served as evidence of the bug."
+   ],
+   "skills": [
+    "React",
+    "TypeScript",
+    "Testing Library",
+    "Vitest",
+    "component testing",
+    "date boundary testing"
+   ]
+  },
+  {
+   "id": "tests-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim is supported by the session: the test was written against real Postgres, it failed, and the cause was a read-then-write in a read-committed transaction with no row lock. The endpoint was left unchanged and the test left red. It names the problem class precisely (lost update, no row lock). The single decision is a real choice, leaving the endpoint and test red instead of fixing it now. Its reason is supported, since the assistant said the test does what was asked and it would wait for 'go'. All listed skills were used, and testcontainers is the only omission. It also leaves out the specific 107-vs-120 figure and the suggested atomic UPDATE fix, which is acceptable."
+   ],
+   "summary": "Wrote an integration test against a real Postgres to check that two simultaneous stock adjustments don't lose an update. The test failed, showing the endpoint does lose updates because it reads then writes the quantity in a read-committed transaction without a row lock. The endpoint was left unchanged and the test red, pending the engineer's approval of a fix.",
+   "task_type": "tests",
+   "decisions": [
+    "Chose to leave the endpoint unchanged and the new test failing rather than fix the lost update right away, since the request was for a test and the fix awaited the engineer's approval."
+   ],
+   "skills": [
+    "Integration testing",
+    "Concurrency testing",
+    "PostgreSQL",
+    "TypeScript",
+    "Vitest"
+   ]
+  }
+ ]
+}
