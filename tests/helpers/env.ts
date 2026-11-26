@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connect } from "../../src/cli/commands.js";
@@ -57,8 +58,21 @@ export async function makeEnv(o: { summariser?: Summariser; connected?: boolean;
   return env;
 }
 
+/**
+ * A port that is free right now: the OS picks it (listen on 0), then it is released for the loopback listener. A random
+ * port in 20000-50000 sometimes collided with a service already listening on the laptop: the listener then failed, the
+ * connect returned false and the test that called makeEnv failed (the round-1 "flaky" test).
+ */
+export async function freePort(): Promise<number> {
+  const srv = createServer();
+  await new Promise<void>((resolve) => srv.listen(0, "127.0.0.1", resolve));
+  const port = (srv.address() as { port: number }).port;
+  await new Promise<void>((resolve) => srv.close(() => resolve()));
+  return port;
+}
+
 export async function connectViaLoopback(env: Env, summaries: boolean, reset = false): Promise<boolean> {
-  const port = 20000 + Math.floor(Math.random() * 30000);
+  const port = await freePort();
   return connect(env.ctx, { line: (s) => env.lines.push(s) }, {
     summaries,
     reset,

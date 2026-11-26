@@ -1,4 +1,10 @@
 {
+ "run": {
+  "date": "2026-11-26T01:12:39.068Z",
+  "prompt_sha256": "7a7163810642841042552894ec284bee233885d9b1d89f1a29b213a76bc6a32f",
+  "summariser_model": "sonnet",
+  "claude_cli": "2.1.332 (Claude Code)"
+ },
  "transcripts": 50,
  "leaks": 0,
  "outcomes": [
