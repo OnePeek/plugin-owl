@@ -1,0 +1,81 @@
+{
+ "id": "infra-3",
+ "type": "infra",
+ "cwd": "/work/ops-scripts",
+ "steps": [
+  {
+   "u": "Write a Prometheus alert for when the queue depth of our email-sender stays above 5000 for 10 minutes, and wire a runbook link to it."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -rn 'queue_depth' monitoring/ | head -4"
+   },
+   "r": "monitoring/rules/queues.yml:6:  - record: queue:depth:max5m"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/ops-scripts/monitoring/rules/queues.yml"
+   },
+   "r": "groups:\n- name: queues\n  rules:\n  - record: queue:depth:max5m\n    expr: max_over_time(queue_depth{service=\"email-sender\"}[5m])"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/ops-scripts/monitoring/rules/queues.yml",
+    "old_string": "    expr: max_over_time(queue_depth{service=\"email-sender\"}[5m])",
+    "new_string": "    expr: max_over_time(queue_depth{service=\"email-sender\"}[5m])\n  - alert: EmailQueueBacklog\n    expr: queue_depth{service=\"email-sender\"} > 5000\n    for: 10m\n    labels: { severity: page }\n    annotations:\n      summary: Email queue above 5000 for 10 minutes\n      runbook_url: https://wiki.example.test/runbooks/email-queue-backlog"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "promtool check rules monitoring/rules/queues.yml"
+   },
+   "r": "SUCCESS: 2 rules found"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "promtool test rules monitoring/tests/queues_test.yml"
+   },
+   "r": "Unit Testing: monitoring/tests/queues_test.yml\n  SUCCESS"
+  },
+  {
+   "a": "The alert fires on the raw gauge with for: 10m rather than the existing 5-minute max recording rule, because the max would hold the alert on for 5 extra minutes after recovery. The runbook page itself does not exist yet, so the link will 404."
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Added a Prometheus alert for the email-sender queue staying above 5000 for 10 minutes, with severity page and a runbook link; promtool validation and the existing rule tests pass. The runbook page it links to does not exist yet.",
+  "facts": [
+   "EmailQueueBacklog alert added",
+   "threshold 5000 for 10 minutes",
+   "uses the raw gauge, not the 5 minute max recording rule",
+   "promtool check and tests pass",
+   "runbook page missing"
+  ],
+  "specific": [
+   "Prometheus alerting rule",
+   "for-duration on a gauge"
+  ],
+  "decisions": [
+   {
+    "choice": "alert on the raw queue depth instead of the existing max over 5 minutes recording rule",
+    "reason": "the max would keep the alert firing for 5 extra minutes after the queue recovered"
+   }
+  ],
+  "skills": [
+   "Prometheus",
+   "promtool",
+   "alerting"
+  ],
+  "not_skills": [
+   "Grafana dashboards",
+   "Terraform",
+   "PagerDuty configuration"
+  ]
+ }
+}

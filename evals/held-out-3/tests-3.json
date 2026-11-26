@@ -1,0 +1,63 @@
+{
+ "id": "tests-3",
+ "type": "tests",
+ "cwd": "/work/inventory-api",
+ "steps": [
+  {
+   "u": "Add an integration test for the POST /stock/adjust endpoint against a real Postgres, we use testcontainers. It must prove two simultaneous adjustments don't lose an update."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/inventory-api/src/stock/adjust.ts"
+   },
+   "r": "export async function adjust(sku: string, delta: number) {\n  return db.tx(async t => {\n    const { qty } = await t.one('SELECT qty FROM stock WHERE sku=$1', [sku])\n    await t.none('UPDATE stock SET qty=$1 WHERE sku=$2', [qty + delta, sku])\n  })\n})"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/inventory-api/test/adjust.concurrent.test.ts",
+    "content": "it('does not lose updates', async () => {\n  await seed('A1', 100)\n  await Promise.all(Array.from({ length: 20 }, () => request(app).post('/stock/adjust').send({ sku: 'A1', delta: 1 })))\n  expect(await qtyOf('A1')).toBe(120)\n})"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx vitest run test/adjust.concurrent"
+   },
+   "r": "FAIL does not lose updates\n  expected 100+20 = 120 but got 107"
+  },
+  {
+   "a": "The test fails with 107, so the endpoint does lose updates: it reads qty then writes qty+delta in a read-committed transaction with no row lock. The test does what you asked. Fixing it needs either SELECT ... FOR UPDATE or an atomic UPDATE stock SET qty = qty + $1, which I'd prefer. I'm leaving the endpoint alone and the test red until you say go."
+  }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Added a testcontainers-based concurrency integration test for the stock adjust endpoint, firing 20 simultaneous +1 adjustments. It fails with 107 instead of 120, proving the endpoint loses updates because it reads then writes without a row lock. The endpoint was not changed; an atomic UPDATE is the suggested fix.",
+  "facts": [
+   "concurrent integration test added against real Postgres",
+   "20 parallel adjustments of +1",
+   "result was 107 instead of 120",
+   "endpoint reads then writes without a lock",
+   "suggested fix is an atomic update or FOR UPDATE",
+   "endpoint not changed, test left failing"
+  ],
+  "specific": [
+   "lost update race condition",
+   "concurrency integration test"
+  ],
+  "decisions": [],
+  "skills": [
+   "TypeScript",
+   "PostgreSQL",
+   "testcontainers",
+   "Vitest"
+  ],
+  "not_skills": [
+   "Kubernetes",
+   "Java",
+   "mutation testing"
+  ]
+ }
+}

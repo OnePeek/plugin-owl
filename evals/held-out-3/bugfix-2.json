@@ -1,0 +1,89 @@
+{
+ "id": "bugfix-2",
+ "type": "bugfix",
+ "cwd": "/work/seat-planner",
+ "steps": [
+  {
+   "u": "The seat map crashes with 'Cannot read properties of undefined (reading row)' when an event has a standing-only section. Repro: event 77."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -rn \"\\.row\" src/seatmap | head"
+   },
+   "r": "src/seatmap/layout.ts:33: const r = seat.row * ROW_HEIGHT\nsrc/seatmap/layout.ts:58: sections.map(s => s.seats[0].row)"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/seat-planner/src/seatmap/layout.ts",
+    "offset": 50,
+    "limit": 15
+   },
+   "r": "55 export function sectionTop(sections: Section[]) {\n58   return Math.min(...sections.map(s => s.seats[0].row))\n59 }"
+  },
+  {
+   "a": "Standing sections have an empty seats array, so seats[0] is undefined and .row throws. I'll skip sections with no numbered seats when computing the top."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/seat-planner/src/seatmap/layout.ts",
+    "old_string": "Math.min(...sections.map(s => s.seats[0].row))",
+    "new_string": "Math.min(...sections.filter(s => s.seats.length > 0).map(s => s.seats[0].row))"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/seat-planner/src/seatmap/layout.test.ts",
+    "content": "it('ignores standing sections', () => { expect(sectionTop([{seats: []}, {seats: [{row: 4}]}])).toBe(4) })"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm test -- layout"
+   },
+   "r": "PASS src/seatmap/layout.test.ts\nTests: 1 passed"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm run test:e2e -- --grep 'event 77'"
+   },
+   "r": "1 passing"
+  },
+  {
+   "a": "Event 77 now renders; standing sections are left out of the row calculation. Math.min of an all-standing event would still return Infinity, which the renderer treats as no seats, so I left that alone."
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed the seat map crash on events with standing-only sections: those sections have no seats, so reading the first seat's row threw. Empty sections are now skipped when computing the top row, with a unit test; the event 77 repro passes.",
+  "facts": [
+   "crash on standing-only sections",
+   "seats array is empty so seats[0] is undefined",
+   "sections without seats are now filtered out",
+   "unit test added",
+   "event 77 end-to-end check passes",
+   "an all-standing event would give Infinity which the renderer tolerates"
+  ],
+  "specific": [
+   "empty array access",
+   "standing section edge case"
+  ],
+  "decisions": [],
+  "skills": [
+   "TypeScript",
+   "JavaScript"
+  ],
+  "not_skills": [
+   "Python",
+   "Docker",
+   "CSS"
+  ]
+ }
+}

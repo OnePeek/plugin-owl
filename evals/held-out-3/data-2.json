@@ -1,0 +1,87 @@
+{
+ "id": "data-2",
+ "type": "data",
+ "cwd": "/work/clinic-etl",
+ "steps": [
+  {
+   "u": "The nightly patient-visits CSV import started failing on the 14th. Rows with a comma in the clinic name break the column count. Fix the import."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/clinic-etl/etl/load_visits.py"
+   },
+   "r": "for line in open(path):\n    parts = line.rstrip('\\n').split(',')\n    visits.append(Visit(*parts))"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -n 'Smith, ' /data/inbox/visits_2026-11-14.csv | head -2"
+   },
+   "r": "88:V1042,\"Smith, Jones & Partners\",2026-11-14,ROUTINE\n91:V1049,\"Smith, Jones & Partners\",2026-11-14,FOLLOWUP"
+  },
+  {
+   "a": "The exporter started quoting fields that contain commas, which is valid CSV, but we split on every comma. We should use the csv module rather than split."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/clinic-etl/etl/load_visits.py",
+    "old_string": "for line in open(path):\n    parts = line.rstrip('\\n').split(',')\n    visits.append(Visit(*parts))",
+    "new_string": "with open(path, newline='') as f:\n    for parts in csv.reader(f):\n        visits.append(Visit(*parts))"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/clinic-etl/etl/load_visits.py",
+    "old_string": "import sys",
+    "new_string": "import csv\nimport sys"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python -m etl.load_visits /data/inbox/visits_2026-11-14.csv --dry-run"
+   },
+   "r": "parsed 2114 rows, 0 rejected"
+  },
+  {
+   "a": "The 14th file now parses fully (2114 rows). I only did a dry run, so nothing has been written to the warehouse; you need to re-run the real import for the 14th and the days since."
+  }
+ ],
+ "reference": {
+  "task_type": "data",
+  "summary": "Fixed the visits CSV import that broke on quoted clinic names containing commas: the loader split lines on every comma, so it now uses Python's csv reader. A dry run of the 14th's file parsed all 2114 rows; the real import has not been re-run, so the backlog is still unloaded.",
+  "facts": [
+   "import failed from the 14th",
+   "clinic names with commas are quoted by the exporter",
+   "loader split on every comma",
+   "now uses the csv reader",
+   "dry run parsed 2114 rows with 0 rejected",
+   "real import not re-run"
+  ],
+  "specific": [
+   "quoted CSV fields",
+   "csv parsing instead of string splitting"
+  ],
+  "decisions": [
+   {
+    "choice": "parse with the csv module instead of patching the split",
+    "reason": "quoted fields are valid CSV, and a hand-written split would break again on other quoting cases"
+   }
+  ],
+  "skills": [
+   "Python",
+   "CSV",
+   "ETL"
+  ],
+  "not_skills": [
+   "Spark",
+   "Airflow",
+   "SQL"
+  ]
+ }
+}

@@ -1,0 +1,68 @@
+{
+ "id": "docs-2",
+ "type": "docs",
+ "cwd": "/work/payments-api",
+ "steps": [
+  {
+   "u": "Write an ADR for why we chose idempotency keys stored in Redis with a 24 hour TTL for the charge endpoint instead of a unique constraint in Postgres. Look at the docs/adr folder for our format."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "ls docs/adr && sed -n 1,25p docs/adr/0007-event-bus.md"
+   },
+   "r": "0001-monorepo.md ... 0007-event-bus.md\n# 0007. Event bus\nStatus: accepted\n## Context\n## Decision\n## Consequences"
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "Idempotency-Key",
+    "path": "/work/payments-api/src"
+   },
+   "r": "src/charges/middleware.ts:14: const key = req.header('Idempotency-Key')\nsrc/charges/middleware.ts:19: const hit = await redis.set(`idem:${key}`, 'pending', 'EX', 86400, 'NX')"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/payments-api/docs/adr/0008-idempotency-keys-in-redis.md",
+    "content": "# 0008. Idempotency keys in Redis\n\nStatus: accepted\n\n## Context\nClients retry charge requests on timeouts. A repeated request with the same Idempotency-Key must not charge twice.\n\n## Decision\nStore each key in Redis with SET NX and a 24 hour TTL. The first request wins; later requests with the same key return the stored response or 409 while it is pending.\n\n## Alternatives\nA unique constraint in Postgres would be durable but adds a write to the hot path and keeps keys forever, which needs a cleanup job.\n\n## Consequences\nKeys expire after 24 hours, so retries later than that are treated as new charges. A Redis outage disables the check; the endpoint then fails closed with 503.\n"
+   },
+   "r": "File created."
+  },
+  {
+   "a": "The ADR is written in the same section layout as 0007. One thing I could not confirm from the code is the fail-closed 503 on Redis outage: the middleware I read does not show that branch, so please check it before merging or tell me to drop the sentence."
+  }
+ ],
+ "reference": {
+  "task_type": "docs",
+  "summary": "Wrote ADR 0008 on storing idempotency keys in Redis with a 24 hour TTL rather than a Postgres unique constraint, following the format of the existing ADRs. It flags that the fail-closed 503 on Redis outage was not confirmed in the code and needs checking.",
+  "facts": [
+   "ADR 0008 added in docs/adr",
+   "uses the existing ADR section format",
+   "Redis SET NX with a 24 hour TTL",
+   "Postgres unique constraint considered as the alternative",
+   "retries after 24 hours count as new charges",
+   "fail-closed 503 behaviour unverified"
+  ],
+  "specific": [
+   "architecture decision record",
+   "idempotency key design"
+  ],
+  "decisions": [
+   {
+    "choice": "Redis keys with a 24 hour TTL instead of a Postgres unique constraint",
+    "reason": "it avoids an extra write on the hot path and the need for a cleanup job, at the cost of keys expiring"
+   }
+  ],
+  "skills": [
+   "technical writing",
+   "Redis",
+   "API design"
+  ],
+  "not_skills": [
+   "TypeScript refactoring",
+   "load testing",
+   "Terraform"
+  ]
+ }
+}

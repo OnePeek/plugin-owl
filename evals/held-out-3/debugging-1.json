@@ -1,0 +1,64 @@
+{
+ "id": "debugging-1",
+ "type": "debugging",
+ "cwd": "/work/media-encoder",
+ "steps": [
+  {
+   "u": "The encoder service's memory climbs until it is OOM-killed after about six hours. Find out why. Do not change production code yet, I just want the diagnosis."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "go tool pprof -top -inuse_space http://localhost:6060/debug/pprof/heap | head -8"
+   },
+   "r": "      flat  flat%   sum%        cum   cum%\n  612.4MB 71.2% 71.2%   612.4MB 71.2%  media-encoder/internal/frames.(*Pool).Get\n   88.1MB 10.2% 81.4%    90.3MB 10.5%  bytes.makeSlice"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/media-encoder/internal/frames/pool.go"
+   },
+   "r": "func (p *Pool) Get() *Frame {\n  f := &Frame{buf: make([]byte, p.size)}\n  p.live[f] = struct{}{}\n  return f\n}\nfunc (p *Pool) Put(f *Frame) { /* TODO */ }"
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "\\.Put\\("
+   },
+   "r": "no matches"
+  },
+  {
+   "a": "Pool.Get allocates a new frame and records it in the live map, but Put is an empty stub and nobody calls it. Every frame stays referenced by p.live forever, which explains the steady heap growth: about 600 MB of in-use frame buffers."
+  },
+  {
+   "a": "To confirm the rate: at 30 frames a second of 1080p, that is roughly 90 MB a minute if frames were never freed, which is more than we see, so some frames must be released when jobs end and the map is rebuilt. I could not verify that last part without running a longer profile. The fix would be to implement Put and call it after each encode, but I have not changed anything."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Diagnosed the encoder memory growth: the frame pool records every frame it hands out in a map, but its Put method is an empty stub that is never called, so frames stay referenced and the heap grows. A heap profile shows about 600 MB held by the pool. No code was changed, and the exact growth rate was not fully reconciled.",
+  "facts": [
+   "heap profile points at the frame pool",
+   "Put is a stub and never called",
+   "frames remain referenced through the live map",
+   "about 600 MB in use by Pool.Get",
+   "no code changed",
+   "growth rate not fully verified"
+  ],
+  "specific": [
+   "memory leak from an unreleased pool",
+   "heap profiling with pprof"
+  ],
+  "decisions": [],
+  "skills": [
+   "Go",
+   "pprof",
+   "memory profiling"
+  ],
+  "not_skills": [
+   "Kubernetes",
+   "Python",
+   "FFmpeg tuning"
+  ]
+ }
+}

@@ -1,0 +1,57 @@
+{
+ "id": "review-3",
+ "type": "review",
+ "cwd": "/work/onboarding-flow",
+ "steps": [
+  {
+   "u": "Review the migration file in this PR for the users table. We have 40 million rows."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/onboarding-flow/db/migrate/20261125_add_plan_to_users.rb"
+   },
+   "r": "class AddPlanToUsers < ActiveRecord::Migration[7.1]\n  def change\n    add_column :users, :plan, :string, null: false, default: 'free'\n    add_index :users, :plan\n  end\nend"
+  },
+  {
+   "a": "On Postgres 11 or later, adding a column with a constant default is metadata only, so the add_column itself is cheap. The index is the problem: add_index without algorithm: :concurrently takes a lock that blocks writes to users while it builds, which on 40 million rows could take minutes."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -n 'postgres' docker-compose.yml .tool-versions"
+   },
+   "r": "docker-compose.yml:4:    image: postgres:15"
+  },
+  {
+   "a": "Postgres 15 is confirmed, so the column add is fine. My requests: use add_index with algorithm: :concurrently and disable_ddl_transaction!, and consider whether an index on a three-value column is useful at all, since a low-cardinality index is rarely chosen by the planner. I did not edit the file."
+  }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed a migration adding a plan column and index to a 40 million row users table. The column with a constant default is cheap on Postgres 15, but the index is built without concurrency and would block writes, so the review asks for a concurrent build and questions whether an index on so few distinct values is useful. Nothing was edited.",
+  "facts": [
+   "40 million rows",
+   "add_column with constant default is metadata only on Postgres 11+",
+   "Postgres 15 confirmed in docker-compose",
+   "index created without algorithm concurrently would lock writes",
+   "low cardinality index questioned",
+   "no edits"
+  ],
+  "specific": [
+   "concurrent index creation",
+   "migration safety on a large table"
+  ],
+  "decisions": [],
+  "skills": [
+   "PostgreSQL",
+   "Rails migrations",
+   "code review"
+  ],
+  "not_skills": [
+   "Docker tuning",
+   "React",
+   "load testing"
+  ]
+ }
+}

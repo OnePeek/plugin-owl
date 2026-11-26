@@ -1,0 +1,87 @@
+{
+ "id": "bugfix-1",
+ "type": "bugfix",
+ "cwd": "/work/parcel-tracker",
+ "steps": [
+  {
+   "u": "Users in Australia see their delivery date one day early on the tracking page. Please find the cause and fix it."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "toISOString|toLocaleDateString"
+   },
+   "r": "web/src/format/date.ts:9: return new Date(d).toISOString().slice(0, 10)\nweb/src/pages/Tracking.tsx:41: {formatDay(order.eta)}"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/parcel-tracker/web/src/format/date.ts"
+   },
+   "r": "export function formatDay(d: string) {\n  return new Date(d).toISOString().slice(0, 10)\n}"
+  },
+  {
+   "a": "toISOString converts to UTC, so a local midnight ETA in a UTC+10 or +11 zone slips back to the previous calendar day. The API already sends a date with an offset, so we should format in the zone it names rather than UTC."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/parcel-tracker/web/src/format/date.ts",
+    "old_string": "return new Date(d).toISOString().slice(0, 10)",
+    "new_string": "return d.slice(0, 10) // the API sends local dates with an offset; the first ten characters are the delivery day there"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/parcel-tracker/web/src/format/date.test.ts",
+    "old_string": "// cases",
+    "new_string": "it('keeps the local day for +11:00', () => { expect(formatDay('2026-03-02T00:00:00+11:00')).toBe('2026-03-02') })"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pnpm vitest run src/format"
+   },
+   "r": "Test Files 1 passed (1)\nTests 6 passed (6)"
+  },
+  {
+   "a": "Fixed. The page now shows the date exactly as the carrier gave it, with a regression test for a +11:00 offset."
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed delivery dates showing one day early for users east of UTC: the formatter converted to UTC before taking the date. It now keeps the local day from the API value, with a regression test for a +11:00 offset.",
+  "facts": [
+   "delivery date was one day early in Australia",
+   "formatter used toISOString which converts to UTC",
+   "now takes the day from the API's local date",
+   "regression test for a +11:00 offset added",
+   "tests pass"
+  ],
+  "specific": [
+   "UTC conversion shifting a local date",
+   "time zone handling in date formatting"
+  ],
+  "decisions": [
+   {
+    "choice": "keep the day from the API's local date string instead of converting through UTC",
+    "reason": "the API already includes the offset, and UTC conversion is what moved the date back a day"
+   }
+  ],
+  "skills": [
+   "TypeScript",
+   "React",
+   "Vitest",
+   "time zones"
+  ],
+  "not_skills": [
+   "Docker",
+   "GraphQL",
+   "Kubernetes"
+  ]
+ }
+}
