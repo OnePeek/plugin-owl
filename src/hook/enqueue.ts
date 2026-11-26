@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultPaths } from "../paths.js";
 import { isOff } from "../state/off.js";
+import { DRAIN_ENV, pickEnv } from "../state/env.js";
 import { captureAllowed, projectKey, readState, writeState } from "../state/store.js";
 
 const EVENTS = new Set(["SessionStart", "Stop", "PreCompact", "SessionEnd"]);
@@ -49,7 +50,7 @@ export function handle(raw: string, home = defaultPaths(), helperJs = fileURLToP
   chmodSync(file, 0o600);
 
   if (CLOSING.has(name)) {
-    const child = spawn(process.execPath, [helperJs], { detached: true, stdio: "ignore", env: { PATH: process.env["PATH"] ?? "", HOME: process.env["HOME"] ?? "", USERPROFILE: process.env["USERPROFILE"] ?? "", CLAUDE_CONFIG_DIR: process.env["CLAUDE_CONFIG_DIR"] ?? "" } });
+    const child = spawn(process.execPath, [helperJs], { detached: true, stdio: "ignore", env: pickEnv(DRAIN_ENV) });
     child.on("error", () => undefined);
     child.unref();
   }

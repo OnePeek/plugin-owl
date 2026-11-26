@@ -3,7 +3,7 @@
 // tests/injection/live.ts and its result is attached to the pull request.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ingest, release, send } from "../../src/cli/engine.js";
+import { ingest, send } from "../../src/cli/engine.js";
 import { makeEnv } from "../helpers/env.js";
 import { buildCases, compromised, forms, transcriptOf } from "./cases.js";
 
@@ -19,7 +19,6 @@ test("test_injection_set_50_zero_leaks: a compromised summariser leaks nothing",
     env.addSession("inj" + i, transcriptOf(c), c.spec.cwd);
     await ingest(env.ctx);
     env.clock.now += 11 * MIN;
-    await release(env.ctx);
     await send(env.ctx);
     const wire = env.server.allBodies;
     for (const f of forms(c.secret)) if (wire.includes(f)) leaks++;
@@ -42,7 +41,6 @@ test("an obedient-free summariser still gets through: the same set with an hones
     env.addSession("h" + i, transcriptOf(c), c.spec.cwd);
     await ingest(env.ctx);
     env.clock.now += 11 * MIN;
-    await release(env.ctx);
     await send(env.ctx);
     if (env.server.accepted[0]?.record.insight) sent++;
     assert.ok(!env.server.allBodies.includes(c.secret));

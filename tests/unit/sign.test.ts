@@ -28,10 +28,10 @@ test("test_rfc8785_vectors", () => {
   assert.throws(() => canonicalize({ n: null }));
 });
 
-for (const alg of ["Ed25519", "P-256"] as const) {
-  test(`test_record_hash_sig (${alg})`, () => {
+test("test_record_hash_sig", () => {
+  for (const alg of ["Ed25519", "P-256"] as const) {
     const s = softwareSigner(generateSoftwareKey(alg));
-    const env = signRecord(buildGap(meta(1, GENESIS), "discarded"), s);
+    const env = signRecord(buildGap(meta(1, GENESIS), "discarded", "discarded_by_person"), s);
     assert.equal(env.record_hash, hashRecord(env.record).toString("hex"));
     assert.equal(env.sig.length, 86); // 64 raw bytes, base64url without padding
     assert.equal(env.sig_alg, alg);
@@ -39,12 +39,12 @@ for (const alg of ["Ed25519", "P-256"] as const) {
     const tampered = { ...env, record: { ...env.record, seq: 2 } };
     assert.ok(!verifyEnvelope(tampered, s.publicJwk));
     assert.ok(!verifySig(softwareSigner(generateSoftwareKey(alg)).publicJwk, hashRecord(env.record), Buffer.from(env.sig, "base64url")));
-  });
-}
+  }
+});
 
 test("chain: first bad seq is reported", () => {
   const s = softwareSigner(generateSoftwareKey("Ed25519"));
-  const a = signRecord(buildGap(meta(1, GENESIS), "discarded"), s);
+  const a = signRecord(buildGap(meta(1, GENESIS), "discarded", "discarded_by_person"), s);
   const b = signRecord(buildGap(meta(2, a.record_hash), "discarded"), s);
   const c = signRecord(buildGap(meta(3, b.record_hash), "discarded"), s);
   assert.equal(firstBadSeq([a, b, c], s.publicJwk), undefined);
@@ -95,11 +95,13 @@ test("dpop proof carries htm, htu without query, ath, nonce and verifies", () =>
 
 test("gap entries are content-free and validate; session fields on a gap are refused", () => {
   assert.deepEqual(validateRecord(buildGap(meta(1, GENESIS), "held", "content_held")), []);
-  assert.deepEqual(validateRecord(buildGap(meta(1, GENESIS), "discarded")), []);
+  assert.deepEqual(validateRecord(buildGap(meta(1, GENESIS), "discarded", "discarded_by_person")), []);
+  assert.ok(validateRecord(buildGap(meta(1, GENESIS), "discarded")).some((e) => e.path === "reason_code" && e.code === "required")); // contract: required on every gap kind
+  assert.ok(validateRecord(buildGap(meta(1, GENESIS), "expired")).some((e) => e.path === "reason_code"));
   assert.ok(validateRecord(buildGap(meta(1, GENESIS), "held")).some((e) => e.code === "required")); // a held entry needs its reason code
-  const bad = { ...buildGap(meta(1, GENESIS), "discarded"), insight: { summary: "x" } };
+  const bad = { ...buildGap(meta(1, GENESIS), "discarded", "discarded_by_person"), insight: { summary: "x" } };
   assert.ok(validateRecord(bad).some((e) => e.code === "forbidden_field"));
-  assert.ok(validateRecord({ ...buildGap(meta(1, GENESIS), "discarded"), surprise: 1 }).some((e) => e.code === "unknown_field"));
+  assert.ok(validateRecord({ ...buildGap(meta(1, GENESIS), "discarded", "discarded_by_person"), surprise: 1 }).some((e) => e.code === "unknown_field"));
 });
 
 test("AES-GCM sealing binds to its place", () => {
@@ -112,12 +114,13 @@ test("AES-GCM sealing binds to its place", () => {
 
 test("test_fallback_key_file_is_user_only", async () => {
   const root = mkdtempSync(join(tmpdir(), "owl-key-"));
-  const { store, key } = await openMasterKey(root, "win32");
+  const none = async () => ({ ok: false, out: "", err: "no bus", code: 127 });
+  const { store, key } = await openMasterKey(root, "linux", none); // no Secret Service at first use: the user-only file
   assert.equal(store.name, "user-file");
   const { statSync } = await import("node:fs");
   assert.equal(statSync(join(root, "master.key")).mode & 0o077, 0);
   assert.equal(key.length, 32);
-  assert.ok((await openMasterKey(root, "win32")).key.equals(key));
+  assert.ok((await openMasterKey(root, "linux", none)).key.equals(key));
 });
 
 test("OS key store is reached with argument lists, secret on stdin where supported", async () => {

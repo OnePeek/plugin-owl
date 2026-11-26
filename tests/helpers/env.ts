@@ -16,6 +16,9 @@ export interface Env {
   lines: string[];
 }
 
+/** No OS key store answers (a Linux box without a Secret Service): the user-only file store is chosen at first use. */
+export const NO_OS_STORE = { platform: "linux" as const, exec: async () => ({ ok: false, out: "", err: "secret-tool: not found", code: 127 }) };
+
 const T0 = Date.parse("2026-11-20T10:00:00.000Z");
 
 export async function makeEnv(o: { summariser?: Summariser; connected?: boolean; summaries?: boolean } = {}): Promise<Env> {
@@ -29,7 +32,7 @@ export async function makeEnv(o: { summariser?: Summariser; connected?: boolean;
     now: () => clock.now,
     fetchImpl: server.fetch,
     claudeConfigDir: cfg,
-    platform: "win32", // no OS key store in tests: the user-only file store is used
+    ...NO_OS_STORE,
     ...(o.summariser ? { summariser: o.summariser } : { summariser: async () => undefined }),
     info: { env: "prod", apiBase: server.base, pluginVersion: "0.1.0" },
   });

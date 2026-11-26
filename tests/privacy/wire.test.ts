@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { toTranscript, type SessionSpec } from "../../evals/builder.js";
-import { ingest, release, send } from "../../src/cli/engine.js";
+import { ingest, send } from "../../src/cli/engine.js";
 import { validateRecord } from "../../src/record/schema.js";
 import { canaries } from "../helpers/canary.js";
 import { makeEnv } from "../helpers/env.js";
@@ -35,7 +35,6 @@ test("test_privacy_fixtures_canaries_never_on_wire", async () => {
     env.addSession("h" + round, h.text, h.cwd);
     await ingest(env.ctx);
     env.clock.now += 11 * MIN;
-    await release(env.ctx);
     await send(env.ctx);
     assert.equal(env.server.accepted.length, 1);
     const wire = env.server.allBodies;
@@ -50,7 +49,6 @@ test("test_only_insight_carries_session_text: every string outside insight is a 
   env.addSession("h", h.text, h.cwd);
   await ingest(env.ctx);
   env.clock.now += 11 * MIN;
-  await release(env.ctx);
   await send(env.ctx);
   const rec = env.server.accepted[0]!.record;
   assert.deepEqual(validateRecord(rec), []);

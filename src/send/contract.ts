@@ -1,4 +1,4 @@
-// Every path and reason code of contracts/openapi/ai-plugin.yaml, in ONE place. The contract is provisional on two points
+// Every path and reason code of contracts/openapi/ai-plugin.yaml (ReasonCode enum, docs 791384e), in ONE place. The contract is provisional on two points
 // (coordinator, 2026-11-26): OAuth lives under /api/v1/oauth, and every error is an RFC 9457 problem with a lowercase
 // `reason_code`. Changing either is an edit to this file only.
 export const PATHS = {
@@ -18,10 +18,10 @@ export const CONSENT_QUESTION = "Share short summaries of my AI work with OnePee
 export const CONSENT_VERSION = "2026-11-26.1";
 
 export const REASONS = [
-  "oauth_bad_request", "token_invalid", "dpop_invalid", "dpop_nonce_required", "token_scope", "stepup_required", "refresh_reused",
-  "key_revoked", "install_expired", "install_paused", "key_mismatch", "not_found", "seq_gap", "seq_conflict", "prev_hash_mismatch",
+  "oauth_bad_request", "invalid_cursor", "invalid_token", "dpop_invalid", "dpop_nonce_required", "token_scope", "stepup_required", "not_signed_in",
+  "key_revoked", "install_expired", "install_paused", "key_mismatch", "csrf_rejected", "not_found", "seq_gap", "seq_conflict", "prev_hash_mismatch",
   "install_limit", "reset_limit", "body_too_large", "unsupported_media_type", "duplicate_key", "int_range", "schema_invalid",
-  "batch_too_large", "wrong_env", "hash_mismatch", "bad_signature", "unknown_build", "unknown_prompt", "clock_ahead",
+  "batch_too_large", "mixed_install", "wrong_env", "hash_mismatch", "bad_signature", "unknown_build", "unknown_prompt", "clock_ahead",
   "record_too_old", "no_text_consent", "content_held", "injection_screen", "scan_timeout", "rate_limited", "daily_cap", "gap_limit", "unavailable",
 ] as const;
 export type Reason = (typeof REASONS)[number];

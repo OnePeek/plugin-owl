@@ -10,7 +10,10 @@ export interface Insight {
   decisions: string[];
   skills: string[];
 }
-export type InsightResult = { ok: true; insight: Insight } | { ok: false; reason: "unparseable" | "schema" | "leak"; hits: Hit[] };
+export type InsightResult = { ok: true; insight: Insight } | { ok: false; reason: "unparseable" | "schema" | "caps" | "leak"; hits: Hit[] };
+
+/** AIP-E3 caps (P). Over a cap the record is not sent (the device holds it); nothing is ever cut to fit. */
+export const CAPS = { summaryChars: 600, summarySentences: 3, decisions: 8, decisionChars: 300, skills: 12, skillChars: 40 } as const;
 
 const SKILL = /^[A-Za-z0-9][A-Za-z0-9 .+#/-]{0,39}$/;
 
@@ -36,13 +39,15 @@ export function finalizeInsight(raw: string, names: Names): InsightResult {
   if (!(TASK_TYPES as readonly string[]).includes(o["task_type"])) return { ok: false, reason: "schema", hits: [] };
   if (!o["decisions"].every((d) => typeof d === "string") || !o["skills"].every((s) => typeof s === "string")) return { ok: false, reason: "schema", hits: [] };
 
+  if (o["decisions"].length > CAPS.decisions || o["skills"].length > CAPS.skills) return { ok: false, reason: "caps", hits: [] };
   const summary = cleanText(o["summary"], names);
-  const decisions = (o["decisions"] as string[]).slice(0, 8).map((d) => cleanText(d, names));
-  // duplicates are dropped; skills beyond the 12th are cut
-  const skills = [...new Set((o["skills"] as string[]).slice(0, 12).map((s) => cleanText(s, names)))];
+  const decisions = (o["decisions"] as string[]).map((d) => cleanText(d, names));
+  const skills = [...new Set((o["skills"] as string[]).map((s) => cleanText(s, names)))]; // exact duplicates are dropped
 
-  if (summary.length < 20 || summary.length > 600 || sentenceCount(summary) > 3) return { ok: false, reason: "schema", hits: [] };
-  if (decisions.some((d) => d.length < 10 || d.length > 300)) return { ok: false, reason: "schema", hits: [] };
+  if (summary.length > CAPS.summaryChars || sentenceCount(summary) > CAPS.summarySentences) return { ok: false, reason: "caps", hits: [] };
+  if (decisions.some((d) => d.length > CAPS.decisionChars) || skills.some((s) => s.length > CAPS.skillChars)) return { ok: false, reason: "caps", hits: [] };
+  if (summary.length < 20) return { ok: false, reason: "schema", hits: [] };
+  if (decisions.some((d) => d.length < 10)) return { ok: false, reason: "schema", hits: [] };
   if (skills.some((s) => !SKILL.test(s))) return { ok: false, reason: "schema", hits: [] };
 
   const hits = new Set<Hit>();

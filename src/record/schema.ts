@@ -80,8 +80,10 @@ export function validateRecord(r: unknown): FieldCode[] {
   if (r["kind"] !== "session") {
     // a content-free gap entry (discarded, held, expired) keeps the chain unbroken at the seq it stands in for
     for (const k of ["usage", "insight", "commits", "session_ref"]) if (r[k] !== undefined) bad(k, "forbidden_field");
-    if (r["reason_code"] !== undefined) str(r["reason_code"], "reason_code", /^[a-z][a-z_]{1,39}$/, 40);
-    else if (r["kind"] !== "discarded") bad("reason_code", "required");
+    // the contract: reason_code is required on every gap kind (`discarded_by_person` for discarded)
+    if (r["reason_code"] !== undefined) str(r["reason_code"], "reason_code", /^[a-z][a-z_]{0,39}$/, 40);
+    else bad("reason_code", "required");
+    if (r["kind"] === "discarded" && r["reason_code"] !== undefined && r["reason_code"] !== "discarded_by_person") bad("reason_code", "enum");
     return errs;
   }
   if (r["reason_code"] !== undefined) bad("reason_code", "forbidden_field");

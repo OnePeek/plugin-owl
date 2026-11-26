@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { SYSTEM_PROMPT, WRAPPER } from "./prompt.js";
+import { pickEnv, SUMMARISER_ENV } from "../state/env.js";
 
 export const SUMMARY_TIMEOUT_MS = 60_000;
 export const SUMMARY_MODEL = "sonnet";
@@ -28,10 +29,8 @@ export function claudeArgs(): string[] {
 }
 
 /** Only what the child needs to find `claude` and its sign-in. Nothing else from the parent environment is passed. */
-export function childEnv(src: NodeJS.ProcessEnv = process.env): Record<string, string> {
-  const keep = ["PATH", "HOME", "USER", "LOGNAME", "USERPROFILE", "LANG", "LC_ALL", "TMPDIR", "TEMP", "SYSTEMROOT", "CLAUDE_CONFIG_DIR", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "AWS_PROFILE", "AWS_REGION"];
-  const env: Record<string, string> = {};
-  for (const k of keep) if (typeof src[k] === "string") env[k] = src[k] as string;
+export function childEnv(src?: NodeJS.ProcessEnv): Record<string, string> {
+  const env = pickEnv(SUMMARISER_ENV, src);
   env["ONEPEEK_WORKLOG_INTERNAL"] = "1"; // E2: every hook of this run exits at once
   return env;
 }

@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { buildInfo, type BuildInfo } from "../config.js";
-import { openMasterKey, type MasterKeyStore } from "../keystore/os.js";
+import { openMasterKey, type Exec, type MasterKeyStore } from "../keystore/os.js";
 import { readVault, writeVault, type Vault } from "../keystore/vault.js";
 import { defaultPaths, type Paths } from "../paths.js";
 import { generateSoftwareKey, softwareSigner, type Signer } from "../sign/keys.js";
@@ -17,7 +17,7 @@ export interface Controls {
   server_state?: "active" | "paused";
   summaries_consent?: boolean;
   build_status?: string;
-  blocked?: "revoked" | "expired" | "reconnect" | "needs_reset" | "scope";
+  blocked?: "revoked" | "expired" | "reconnect" | "needs_reset" | "scope" | "bug";
   blocked_until?: number;
   next_attempt_at?: number;
   failures?: number;
@@ -52,9 +52,9 @@ export interface Ctx {
   buildSha256(): string;
 }
 
-export async function openCtx(over: Partial<Pick<Ctx, "paths" | "now" | "fetchImpl" | "summariser" | "claudeConfigDir" | "info">> & { platform?: NodeJS.Platform } = {}): Promise<Ctx> {
+export async function openCtx(over: Partial<Pick<Ctx, "paths" | "now" | "fetchImpl" | "summariser" | "claudeConfigDir" | "info">> & { platform?: NodeJS.Platform; exec?: Exec } = {}): Promise<Ctx> {
   const paths = over.paths ?? defaultPaths();
-  const { store, key } = await openMasterKey(paths.root, over.platform);
+  const { store, key } = await openMasterKey(paths.root, over.platform, over.exec);
   let sha: string | undefined;
   const c: Ctx = {
     paths,

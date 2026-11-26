@@ -16,6 +16,9 @@ export interface Vault {
     limits: { hold_seconds: number; max_record_age_days: number; max_records_per_request: number; max_body_bytes: number };
   };
   refresh_token?: string;
+  /** The current DPoP-bound access token (10 min), reused by later helpers instead of refreshing again (AIP-H2.2). */
+  access_token?: string;
+  access_expires_at?: number;
   dpop_nonce?: string;
   account_email?: string;
 }
