@@ -48,7 +48,12 @@ test("R3: the engineer's own words and an edit of an instruction file stay (edit
 
 test("R3 helpers: context blocks, instruction files and refusals", () => {
   assert.equal(stripContextBlocks("a <system-reminder>x\ny</system-reminder> b").replace(/\s+/g, " "), "a b");
-  assert.equal(stripContextBlocks("a <system-reminder>never closed").trim(), "a");
+  assert.equal(stripContextBlocks("a <system-reminder>never closed").trim(), "a <system-reminder>never closed");
+  for (const t of ["Fix the bug in <Context.Provider value={x}> component; add tests for the login flow.", 'Spring config: <context:component-scan base-package="app"/> then wire it.', "real start <memory> rest of the real work", "a <context>b</context> c", "a <System-Reminder>b</System-Reminder> c"]) assert.equal(stripContextBlocks(t), t);
+  assert.equal(stripContextBlocks("a <system-reminder foo=1>x</system-reminder> b").replace(/\s+/g, " "), "a b");
+  for (const t of ["Moved the tile into shared memory instead of global memory to cut latency.", "The AVX instructions require 32-byte alignment, so I padded the buffer.", "The user memory grew after each request.", "Fixed the leak in the memory file mapping."]) assert.equal(dropInstructionText(t), t);
+  assert.equal(dropInstructionText("Done. The project's instructions require a branch first."), "Done.");
+  assert.equal(dropInstructionText("Done. Claude's memory file says to branch first."), "Done.");
   for (const f of ["/r/CLAUDE.md", "/r/AGENTS.md", "/h/.claude/settings.json", "/h/x/memory/note.md", "C:\\r\\CLAUDE.local.md"]) assert.ok(isInstructionFile(f), f);
   for (const f of ["/r/README.md", "/r/docs/agents.ts", "/r/src/memory.ts"]) assert.ok(!isInstructionFile(f), f);
   assert.ok(refusedBeforeRun("This command requires approval"));

@@ -4,17 +4,17 @@
 // system reminders, and the assistant reads instruction files. That text describes how a team works, not the work
 // done, so it is taken out of the summariser's input. The same patterns measure an answer in the eval run, see `workflowShare`.
 
-/** Tags Claude Code wraps around text that is context, not conversation. A block and its content are removed. */
-const CONTEXT_BLOCK = /<(system-reminder|user-memory-input|memory|context|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)\b[^>]*>[\s\S]*?(?:<\/\1>|$)/gi;
+/** Tags Claude Code wraps around text that is context, not conversation. Exact lowercase names only, and only a CLOSED block and its content are removed (a bare <context> or <memory> in code or prose is the person's own text). */
+const CONTEXT_BLOCK = /<(system-reminder|user-memory-input|command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)(?=[>\s])[^>]*>[\s\S]*?<\/\1>/g;
 
 /** A sentence that talks about an instruction file, memory, reminders or the assistant's own process rules. */
 const INSTRUCTION_REF = new RegExp(
   [
     String.raw`\b(?:CLAUDE|AGENTS|GEMINI|MEMORY|CONVENTIONS)\.md\b`,
     String.raw`\.cursorrules\b|\bcopilot-instructions\b|\.claude\/`,
-    String.raw`\b(?:project|projects|workspace|repo|repository|user|global|team|custom)(?:'s)?\s+(?:own\s+)?(?:instructions?|rules\s+file|memory|guidance|workflow\s+rules|process\s+rules)\b`,
-    String.raw`\binstructions?\s+(?:say|says|said|require|requires|required|ask|asks|asked|tell|tells|told|forbid|forbids)\b`,
-    String.raw`\b(?:auto[- ]?memory|memory\s+(?:file|note|index|entry))\b`,
+    String.raw`\b(?:project|projects|workspace|repo|repository|user|global|team|custom)(?:'s)?\s+(?:own\s+)?(?:instructions?|rules\s+file|guidance|workflow\s+rules|process\s+rules)\b|\bclaude(?:'s)?\s+memory\b`,
+    String.raw`\b(?:claude|agent|agents|project|repo|workspace|team|custom)(?:'s)?\s+(?:\.md\s+)?instructions?\s+(?:say|says|said|require|requires|required|ask|asks|asked|tell|tells|told|forbid|forbids)\b`,
+    String.raw`\bauto[- ]?memory\b|\b(?:claude|project|user|assistant)(?:'s)?\s+memory\s+(?:file|note|index|entry)\b|\bmemory\s+(?:note|index)\b`,
     String.raw`\bsystem[- ]reminders?\b|\bhook\s+(?:additional\s+)?context\b`,
     String.raw`\b(?:attribution|co-authored-by)\s+(?:note|line|instruction|trailer|rule)s?\b`,
     String.raw`\bprocess\s+deviation\b|\b(?:role|agent)\s+card\b`,

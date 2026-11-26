@@ -34,11 +34,11 @@ const TICKET_OK = new Set(["SHA", "UTF", "ISO", "RFC", "ES", "IPV", "TLS", "SSL"
 // Every lookbehind is fixed-width, so Python's re can run the same pattern.
 const INJECTION = new RegExp(
   [
-    String.raw`\b(?:ignore|disregard|forget|override)\s+(?:(?:all|any|the|of|these|those|my|every|everything)\s+){0,3}(?:previous|prior|above|earlier|preceding|your|system)\s+(?:instructions?|rules?|prompts?|directions?|guidelines?)\b`,
+    String.raw`\b(?:ignore|disregard|forget|override)\s+(?:(?:all|any|the|of|these|those|my|your|every|everything)\s+){0,3}(?:previous|prior|above|earlier|preceding|your|system)\s+(?:instructions?|rules?|prompts?|directions?|guidelines?)\b`,
     String.raw`\b(?:ignore|disregard|forget)\s+(?:all|everything|anything)\s+(?:above|before|previously\s+said)\b`,
     String.raw`(?<!not )(?<!never )(?<!n't )\b(?:reveal|print|show|repeat|output|disclose|leak|dump|display)\s+(?:me\s+)?(?:your|the)\s+(?:(?:full|entire|original|hidden|exact|initial)\s+)?system\s+prompt\b`,
     String.raw`\bsystem\s+prompt\s*:`,
-    String.raw`\byou\s+are\s+now\s+(?:an?|my|no\s+longer|free|unrestricted|jailbroken|DAN|acting|in\s+(?:developer|god|admin|debug|jailbreak|unrestricted)\s+mode)\b`,
+    String.raw`\byou\s+are\s+now\s+(?:an?|my|no\s+longer|free|unrestricted|jailbroken|DAN|acting|the\s+(?:system|admin|administrator|root|super\s?user)|going\s+to\s+(?:reveal|print|leak|dump|disclose|output|ignore|disregard)|in\s+(?:developer|god|admin|debug|jailbreak|unrestricted)\s+mode)\b`,
     String.raw`\bact\s+as\s+(?:an?\s+)?(?:admin|administrator|system)\b`,
   ].join("|"),
   "i",
@@ -284,7 +284,9 @@ const tokensOf = (m: string): string[] => {
   const longest = all.reduce((a, b) => (b.length > a.length ? b : a), "");
   // a value with no random look (a plain password) still taints its longest piece, but a variable reference such as
   // { token: refreshToken } (letters only, lowerCamelCase) is code, not a value: tainting it would hold plain words like "refresh tokens"
-  if (/^[a-z]+(?:[A-Z][a-z]+)+$/.test(longest)) return [];
+  // only an UNQUOTED value is exempt: a quoted value is a literal, so a quoted camelCase passphrase still taints
+  const quoted = new RegExp(`["'\`]${escapeRe(longest)}`).test(m);
+  if (!quoted && /^[a-z]+(?:[A-Z][a-z]+)+$/.test(longest)) return [];
   return longest.length >= 8 ? [longest] : [];
 };
 
