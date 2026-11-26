@@ -1,0 +1,92 @@
+{
+ "id": "migration-3",
+ "type": "migration",
+ "cwd": "/work/frontend-app",
+ "steps": [
+  {
+   "u": "Upgrade React from 17 to 18 and fix whatever breaks."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm install react@18 react-dom@18"
+   },
+   "r": "added 3 packages"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm run build"
+   },
+   "r": "error: ReactDOM.render is no longer supported in React 18",
+   "err": true
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/frontend-app/src/index.tsx",
+    "old_string": "ReactDOM.render(<App />, root)",
+    "new_string": "createRoot(root).render(<App />)"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm test"
+   },
+   "r": "3 failed: act warnings, state updates not wrapped; Test 'autosave' fails because effects now run twice in strict mode",
+   "err": true
+  },
+  {
+   "a": "Strict mode in React 18 mounts, unmounts and remounts components in development, exposing an effect without cleanup: the autosave subscribes twice. The effect needs a cleanup rather than disabling strict mode."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/frontend-app/src/hooks/useAutosave.ts",
+    "old_string": "useEffect(() => { bus.on('change', save) }, [])",
+    "new_string": "useEffect(() => { bus.on('change', save); return () => bus.off('change', save) }, [])"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm test"
+   },
+   "r": "58 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Upgraded the app from React 17 to 18: switched to the createRoot API and fixed an autosave effect that subscribed twice under strict mode by adding cleanup, rather than disabling strict mode; all 58 tests pass.",
+  "facts": [
+   "React 17 to 18",
+   "render replaced by createRoot",
+   "strict mode runs effects twice in development",
+   "autosave effect lacked cleanup",
+   "58 tests pass"
+  ],
+  "specific": [
+   "createRoot migration",
+   "effect cleanup under strict mode"
+  ],
+  "decisions": [
+   {
+    "choice": "add effect cleanup instead of disabling strict mode",
+    "reason": "strict mode exposed a real missing cleanup that would leak subscriptions"
+   }
+  ],
+  "skills": [
+   "React",
+   "TypeScript",
+   "dependency upgrades"
+  ],
+  "not_skills": [
+   "SQL",
+   "Docker",
+   "Terraform"
+  ]
+ }
+}

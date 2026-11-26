@@ -1,0 +1,100 @@
+{
+ "id": "refactor-1",
+ "type": "refactor",
+ "cwd": "/work/billing",
+ "steps": [
+  {
+   "u": "The PaymentService class is 1,200 lines and does everything. Split it up without changing behaviour."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/billing/src/PaymentService.ts"
+   },
+   "r": "class PaymentService { charge(){...} refund(){...} sendReceipt(){...} calcTax(){...} syncLedger(){...} ... }"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm test"
+   },
+   "r": "148 passed"
+  },
+  {
+   "a": "Tests are green before I start, so I can use them as the safety net. Tax calculation and receipts have no shared state with charging, so they extract cleanly; ledger sync shares the transaction object, so I will pass it in rather than reach for a global."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/billing/src/tax/TaxCalculator.ts",
+    "content": "export class TaxCalculator { calc(order){} }\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/billing/src/receipts/ReceiptSender.ts",
+    "content": "export class ReceiptSender { send(payment){} }\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/billing/src/ledger/LedgerSync.ts",
+    "content": "export class LedgerSync { sync(tx, payment){} }\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/billing/src/PaymentService.ts",
+    "old_string": "calcTax(){...} sendReceipt(){...} syncLedger(){...}",
+    "new_string": "constructor(private tax: TaxCalculator, private receipts: ReceiptSender, private ledger: LedgerSync){}"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm test"
+   },
+   "r": "148 passed"
+  },
+  {
+   "a": "Same 148 tests pass; PaymentService is now about 400 lines and delegates to three collaborators injected through the constructor."
+  }
+ ],
+ "reference": {
+  "task_type": "refactor",
+  "summary": "Split a 1,200 line payment service into tax, receipt and ledger collaborators injected through the constructor, keeping behaviour identical as shown by the same 148 passing tests before and after.",
+  "facts": [
+   "payment service split",
+   "tax receipts and ledger extracted",
+   "constructor injection",
+   "148 tests passed before and after"
+  ],
+  "specific": [
+   "extract class",
+   "dependency injection"
+  ],
+  "decisions": [
+   {
+    "choice": "pass the transaction into the ledger collaborator instead of using shared global state",
+    "reason": "ledger sync shares the transaction object with charging"
+   }
+  ],
+  "skills": [
+   "TypeScript",
+   "refactoring",
+   "dependency injection"
+  ],
+  "not_skills": [
+   "Redis",
+   "Docker",
+   "GraphQL"
+  ]
+ }
+}

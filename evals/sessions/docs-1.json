@@ -1,0 +1,82 @@
+{
+ "id": "docs-1",
+ "type": "docs",
+ "cwd": "/work/sdk-js",
+ "steps": [
+  {
+   "u": "Write a getting started guide for our JavaScript SDK. Someone should go from install to first successful API call in five minutes."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/sdk-js/README.md"
+   },
+   "r": "# sdk-js\nSee the API reference."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/sdk-js/src/client.ts"
+   },
+   "r": "export class Client { constructor(opts:{apiKey:string, baseUrl?:string}){...} async projects.list(){...} }"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "node -e \"const {Client}=require('./dist');new Client({apiKey:process.env.KEY}).projects.list().then(console.log)\""
+   },
+   "r": "[ { id: 'p_1', name: 'demo' } ]"
+  },
+  {
+   "a": "I ran the example against the sandbox first so every snippet in the guide is known to work. The guide covers install, creating a client, listing projects and the common 401 error when the key is missing."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/sdk-js/docs/getting-started.md",
+    "content": "# Getting started\n1. npm install sdk-js\n2. Create a client with your API key\n3. List projects\nTroubleshooting: 401 means the key is missing or wrong.\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/sdk-js/README.md",
+    "old_string": "See the API reference.",
+    "new_string": "See docs/getting-started.md to make your first call in five minutes."
+   },
+   "r": "edited"
+  }
+ ],
+ "reference": {
+  "task_type": "docs",
+  "summary": "Wrote a getting started guide for the JavaScript SDK covering install, client creation, a first call and the missing-key 401 error, after running the snippet against the sandbox to confirm it works, and linked it from the readme.",
+  "facts": [
+   "getting started guide",
+   "install, client, list projects",
+   "snippet verified against the sandbox",
+   "401 troubleshooting",
+   "readme links to the guide"
+  ],
+  "specific": [
+   "verified code samples",
+   "task-oriented onboarding documentation"
+  ],
+  "decisions": [
+   {
+    "choice": "run the example against the sandbox before documenting it",
+    "reason": "every snippet in the guide should be known to work"
+   }
+  ],
+  "skills": [
+   "technical writing",
+   "JavaScript",
+   "documentation"
+  ],
+  "not_skills": [
+   "Docker",
+   "SQL",
+   "Terraform"
+  ]
+ }
+}

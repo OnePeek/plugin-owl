@@ -1,0 +1,96 @@
+{
+ "id": "tests-2",
+ "type": "tests",
+ "cwd": "/work/pricing-lib",
+ "steps": [
+  {
+   "u": "The discount calculator keeps breaking in edge cases. Can you add property-based tests?"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/pricing-lib/src/discount.py"
+   },
+   "r": "def apply(price, rules): ... # percent rules first, then fixed amounts, floor at 0"
+  },
+  {
+   "a": "Properties that should always hold: the result is never negative, never higher than the input, and applying rules in a stable order gives the same result. I will use hypothesis with generated prices and rule lists."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/pricing-lib/tests/test_discount_props.py",
+    "content": "@given(prices, rule_lists)\ndef test_never_negative(p, r): assert apply(p, r) >= 0\n@given(prices, rule_lists)\ndef test_never_exceeds_input(p, r): assert apply(p, r) <= p\n@given(prices, rule_lists)\ndef test_deterministic(p, r): assert apply(p, r) == apply(p, list(r))\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest tests/test_discount_props.py -q"
+   },
+   "r": "FAILED test_never_exceeds_input - Falsifying example: p=Decimal('0.00'), r=[Fixed(-5)]",
+   "err": true
+  },
+  {
+   "a": "Hypothesis found a negative fixed discount that increases the price, something no example test covered. Negative amounts should be rejected at rule construction."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/pricing-lib/src/rules.py",
+    "old_string": "class Fixed:\n    def __init__(self, amount): self.amount = amount",
+    "new_string": "class Fixed:\n    def __init__(self, amount):\n        if amount < 0: raise ValueError('discount must not be negative')\n        self.amount = amount"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/pricing-lib/tests/test_discount_props.py",
+    "old_string": "rule_lists",
+    "new_string": "rule_lists_valid"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest tests/test_discount_props.py -q"
+   },
+   "r": "3 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Added property-based tests with hypothesis for the discount calculator (never negative, never above the input, deterministic); they found a negative fixed discount that raised prices, now rejected when the rule is created.",
+  "facts": [
+   "property-based tests with hypothesis",
+   "three properties",
+   "found a negative fixed discount increasing the price",
+   "validation added to the rule constructor",
+   "tests pass"
+  ],
+  "specific": [
+   "property-based testing",
+   "falsifying example"
+  ],
+  "decisions": [
+   {
+    "choice": "reject negative amounts when a rule is constructed",
+    "reason": "a negative fixed discount raised the price and no example test had covered it"
+   }
+  ],
+  "skills": [
+   "Python",
+   "pytest",
+   "Hypothesis",
+   "property-based testing"
+  ],
+  "not_skills": [
+   "React",
+   "Docker",
+   "Redis"
+  ]
+ }
+}

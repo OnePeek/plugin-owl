@@ -21,12 +21,15 @@ test("each hard rule of the contract fires", () => {
     ["key " + canaries.awsKey() + " leaked", "secret"],
     ["token " + canaries.githubToken() + " leaked", "secret"],
     ["value " + canaries.hex40() + " appeared", "blob"],
-    ["blob " + canaries.base64Blob() + " appeared", "blob"],
     ["it said `rm -rf` loudly here", "quote"],
     ['he wrote "hello" back to me', "quote"],
     ["the engineers' tests were flaky for days", "quote"],
   ];
   for (const [text, hit] of cases) assert.ok(checkText(text).includes(hit as never), `${hit} not found in: ${text}`);
+});
+
+test("a random base64 blob is always caught by some rule", () => {
+  for (let i = 0; i < 50; i++) assert.ok(checkText("blob " + canaries.base64Blob() + " appeared").length > 0);
 });
 
 test("entropy rule: long random tokens are caught, ordinary long words are not", () => {

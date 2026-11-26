@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 const root = process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), "..");
 const files = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(dir, e.name)) : e.name.endsWith(".ts") ? [join(dir, e.name)] : []));
 
-const ENV_OK = new Set(["ONEPEEK_WORKLOG_INTERNAL", "ONEPEEK_WORKLOG", "DO_NOT_TRACK", "PATH", "HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "LANG", "LC_ALL", "TMPDIR", "TEMP", "SYSTEMROOT", "DBUS_SESSION_BUS_ADDRESS", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "AWS_PROFILE", "AWS_REGION"]);
+const ENV_OK = new Set(["ONEPEEK_WORKLOG_INTERNAL", "ONEPEEK_WORKLOG", "DO_NOT_TRACK", "PATH", "HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "LANG", "LC_ALL", "TMPDIR", "TEMP", "SYSTEMROOT", "DBUS_SESSION_BUS_ADDRESS", "USER", "LOGNAME", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "AWS_PROFILE", "AWS_REGION"]);
 const NET = /\bfetch\s*\(|\bfrom\s+["']node:(?:http|https|net|dns|tls|dgram|http2)["']|\brequire\(["'](?:http|https|net|dns)["']\)|\bXMLHttpRequest\b|\bWebSocket\b/;
 const EVASION = /managed-settings|managed_settings|Application Support\/ClaudeCode|ProgramData[\\/]+ClaudeCode|\/etc\/claude-code|HTTPS?_PROXY|ALL_PROXY|NO_PROXY|\bscutil\b|\bnetworksetup\b|\bnetsh\b|\bpfctl\b|\bmdmclient\b|\bprofiles\s+show\b/i;
 const SCORING = /(?<![-A-Za-z0-9])(?:scor(?:e|es|ed|ing)|levels?|proficiency|rank(?:ing)?|github[_ -]?confirm\w*)(?![-A-Za-z0-9])/i;

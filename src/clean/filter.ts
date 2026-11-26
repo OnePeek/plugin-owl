@@ -20,7 +20,7 @@ const BARE_DOMAIN = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|io|dev|app|ai
 const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/;
 const IPV6 = /\b[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){3,7}\b/i;
 const HEX_RUN = /[0-9a-fA-F]{20,}/;
-const B64_RUN = /[A-Za-z0-9+/_=-]{20,}/g;
+const B64_RUN = /[A-Za-z0-9+_=-]{20,}/g;
 const SPELLED = /(?:^|\s)(?:[A-Za-z0-9][\s.\-_,]+){7,}[A-Za-z0-9](?=\s|$|[.,;])/;
 const TRIM = /^[\s.,;:!?()[\]{}<>*_-]+|[\s.,;:!?()[\]{}<>*_-]+$/g;
 
@@ -48,11 +48,15 @@ export function shannon(s: string): number {
   return h;
 }
 
-/** A base64-looking run: 20+ characters of the alphabet that mixes in a digit, a symbol or both letter cases. Plain long words and hyphenated words stay allowed. */
+/**
+ * A base64-looking run: 20+ characters of the alphabet (letters, digits, plus, equals, underscore, hyphen) that contains a digit
+ * and is not a plain kebab or snake case identifier. Slash splits runs, so path pieces and plain words stay allowed.
+ */
 function isBlobRun(run: string): boolean {
-  if (/^[A-Za-z]+$/.test(run)) return /[a-z]/.test(run) && /[A-Z]/.test(run.slice(1)) && !/^[A-Z][a-z]+$/.test(run);
-  if (/^[a-z]+(?:-[a-z]+)+$/.test(run)) return false;
-  return /[0-9+/=_]/.test(run) || (/[a-z]/.test(run) && /[A-Z]/.test(run));
+  if (/[a-z]{7,}/.test(run)) return false; // a long lowercase word means words, not key material
+  if (!/\d/.test(run)) return /^[A-Za-z]+$/.test(run) ? false : /[+=]/.test(run) && /[a-z]/.test(run) && /[A-Z]/.test(run);
+  if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/.test(run) && run.split(/[_-]/).every((seg) => seg.length <= 12)) return false;
+  return true;
 }
 
 function escapeRe(s: string): string {
@@ -87,8 +91,9 @@ export function checkText(text: string, names: Names = NO_NAMES): Hit[] {
   for (const raw of text.split(/\s+/)) {
     const tok = raw.replace(TRIM, "");
     if (isPathLike(tok)) hits.add("path");
-    if (tok.length >= 16 && shannon(tok) > 3.5) hits.add("entropy");
-    if (tok.length >= 10 && /^[A-Za-z0-9]+$/.test(tok) && (tok.match(/\d/g) ?? []).length >= 3 && (tok.match(/[A-Za-z]/g) ?? []).length >= 3) hits.add("blob"); // fragments of split secrets
+    // entropy is judged per alphanumeric piece, so a hyphenated phrase such as retry-with-backoff is not mistaken for key material
+    for (const piece of tok.split(/[-_.]+/)) if (piece.length >= 16 && shannon(piece) > 3.5) hits.add("entropy");
+    if (tok.length >= 10 && /^[A-Za-z0-9]+$/.test(tok) && (tok.match(/\d/g) ?? []).length >= 3 && (tok.match(/[A-Za-z]/g) ?? []).length >= 3 && (tok.length >= 14 || (/[a-z]/.test(tok) && /[A-Z]/.test(tok)))) hits.add("blob"); // fragments of split secrets
   }
   if (SPELLED.test(text)) hits.add("blob"); // a secret spelled out one character at a time
   if (taintHit(text, names.taint ?? [])) hits.add("taint");
@@ -137,16 +142,33 @@ export interface Redacted {
 }
 
 const MIXED_ID = /(?<![A-Za-z0-9])[A-Za-z0-9]{10,19}(?![A-Za-z0-9])/g;
+const WEAK_RULES = new Set(["generic-assignment", "dotenv-line", "bearer", "basic-auth", "db-url-credentials", "aws-secret", "heroku-uuid-key", "cloudflare"]);
+
+/** A token that looks like random key material: long, with a digit, and mixed case or pure hex. Plain words and identifiers are not. */
+function secretish(tok: string): boolean {
+  if (tok.length < 12 || !/\d/.test(tok) || /^[A-Za-z]+$/.test(tok)) return false;
+  return /^[0-9a-fA-F]{20,}$/.test(tok) || (/[a-z]/.test(tok) && /[A-Z]/.test(tok)) || shannon(tok) > 3.8;
+}
+
+const tokensOf = (m: string): string[] => {
+  const all = m.split(/[\s=:"',;@/]+/);
+  const hit = all.filter(secretish);
+  if (hit.length > 0) return hit;
+  const longest = all.reduce((a, b) => (b.length > a.length ? b : a), "");
+  return longest.length >= 8 ? [longest] : []; // a value with no random look (a plain password) still taints its longest piece
+};
 
 /** Redact the model's INPUT: secrets, emails, URLs and addresses never reach the summariser. Secrets and blobs also become `taint`. */
 export function redactInput(text: string): Redacted {
   const taint: string[] = [];
   const global = (re: RegExp): RegExp => new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
   let t = text.replace(/-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|$)/g, (m) => (taint.push(m), "[SECRET]"));
-  for (const r of SECRET_RULES) t = t.replace(global(r.re), (m) => (taint.push(m), "[SECRET]"));
+  for (const r of SECRET_RULES) t = t.replace(global(r.re), (m) => (WEAK_RULES.has(r.id) ? taint.push(...tokensOf(m)) : taint.push(m), "[SECRET]"));
   t = t.replace(global(EMAIL), "[EMAIL]").replace(global(URL_SCHEME), "[URL]").replace(global(IPV4), "[IP]");
-  t = t.replace(/[A-Za-z0-9+/_=-]{20,}/g, (m) => (isBlobRun(m) || HEX_RUN.test(m) ? (taint.push(m), "[BLOB]") : m));
-  t = t.replace(MIXED_ID, (m) => ((m.match(/\d/g) ?? []).length >= 3 && (m.match(/[A-Za-z]/g) ?? []).length >= 3 ? (taint.push(m), "[BLOB]") : m));
+  t = t.replace(/[A-Za-z0-9+_=-]{20,}/g, (m) => (isBlobRun(m) || HEX_RUN.test(m) ? (taint.push(m), "[BLOB]") : m));
+  t = t.replace(MIXED_ID, (m) => (secretish(m) ? (taint.push(m), "[BLOB]") : m));
+  // any other long, random-looking token (base64 with slashes, for example)
+  t = t.replace(/\S{24,}/g, (m) => (shannon(m) > 3.6 && /\d/.test(m) && /[a-z]/.test(m) && /[A-Z]/.test(m) && !/[a-z]{7,}/.test(m) ? (taint.push(m), "[BLOB]") : m));
   return { text: t, taint };
 }
 

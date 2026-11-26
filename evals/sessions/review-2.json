@@ -1,0 +1,66 @@
+{
+ "id": "review-2",
+ "type": "review",
+ "cwd": "/work/data-platform",
+ "steps": [
+  {
+   "u": "Look over this SQL migration before we run it on the 80 million row events table. Anything dangerous?"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/data-platform/migrations/0042_add_source.sql"
+   },
+   "r": "ALTER TABLE events ADD COLUMN source text NOT NULL DEFAULT 'web';\nCREATE INDEX idx_events_source ON events(source);"
+  },
+  {
+   "a": "On the Postgres version we run, adding a column with a constant default is a metadata change, so that part is cheap. The plain CREATE INDEX takes a lock that blocks writes for the whole build on 80 million rows; it should be CREATE INDEX CONCURRENTLY, outside a transaction."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "psql -c \"select version()\""
+   },
+   "r": "PostgreSQL 15.4"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/data-platform/migrations/0042_add_source.review.md",
+    "content": "Keep the ADD COLUMN. Change the index to CREATE INDEX CONCURRENTLY and move it to its own migration without a transaction wrapper.\n"
+   },
+   "r": "created"
+  }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed a migration for an 80 million row table: the column add with a constant default is cheap on Postgres 15, but the plain index build would block writes, so it should be created concurrently in its own non-transactional migration.",
+  "facts": [
+   "migration on an 80 million row table",
+   "Postgres 15",
+   "column with constant default is a metadata change",
+   "plain index creation blocks writes",
+   "recommend concurrent index in its own migration"
+  ],
+  "specific": [
+   "blocking lock during index build",
+   "concurrent index creation"
+  ],
+  "decisions": [
+   {
+    "choice": "recommend CREATE INDEX CONCURRENTLY in a separate migration",
+    "reason": "a plain index build blocks writes on a very large table"
+   }
+  ],
+  "skills": [
+   "PostgreSQL",
+   "SQL",
+   "database migrations"
+  ],
+  "not_skills": [
+   "React",
+   "Docker",
+   "Terraform"
+  ]
+ }
+}

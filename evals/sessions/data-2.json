@@ -1,0 +1,82 @@
+{
+ "id": "data-2",
+ "type": "data",
+ "cwd": "/work/ml-churn",
+ "steps": [
+  {
+   "u": "Train a churn model on the last 12 months of data and tell me how good it is. Be careful about leakage."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/ml-churn/features.py"
+   },
+   "r": "features = [... 'days_since_last_login', 'cancellation_reason', 'support_tickets_30d' ...]"
+  },
+  {
+   "a": "cancellation_reason only exists after someone has churned, so it leaks the label. I will drop it and split by time (train on the first 9 months, test on the last 3) instead of a random split, because random splits leak the future into training for time dependent behaviour."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/ml-churn/features.py",
+    "old_string": "'cancellation_reason', ",
+    "new_string": ""
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python train.py --split time --model xgboost"
+   },
+   "r": "AUC 0.81, precision@10% 0.46"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python train.py --split random --model xgboost"
+   },
+   "r": "AUC 0.88 (optimistic)"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python calibrate.py"
+   },
+   "r": "Brier 0.14 before, 0.11 after isotonic calibration"
+  }
+ ],
+ "reference": {
+  "task_type": "data",
+  "summary": "Trained a gradient boosted churn model after removing a label-leaking feature and using a time based split; time split AUC was 0.81 versus an optimistic 0.88 for a random split, and isotonic calibration improved the Brier score from 0.14 to 0.11.",
+  "facts": [
+   "cancellation reason leaked the label and was dropped",
+   "time based split",
+   "AUC 0.81 on time split, 0.88 random",
+   "isotonic calibration improved Brier from 0.14 to 0.11"
+  ],
+  "specific": [
+   "target leakage",
+   "temporal train test split",
+   "probability calibration"
+  ],
+  "decisions": [
+   {
+    "choice": "split by time instead of randomly",
+    "reason": "random splits leak future behaviour into training and overstate performance"
+   }
+  ],
+  "skills": [
+   "Python",
+   "XGBoost",
+   "machine learning",
+   "model evaluation"
+  ],
+  "not_skills": [
+   "Docker",
+   "React",
+   "Terraform"
+  ]
+ }
+}

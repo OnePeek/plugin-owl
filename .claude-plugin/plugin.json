@@ -1,7 +1,10 @@
 {
-  "name": "plugin-owl",
-  "version": "0.0.0",
-  "description": "Captures work for OnePeek: closed-vocabulary tags only, redacted on the device.",
-  "author": { "name": "OnePeek" },
-  "license": "Apache-2.0"
+  "name": "onepeek-worklog",
+  "version": "0.1.0",
+  "description": "OnePeek AI work log: sends exact usage numbers and, only if you say yes, short cleaned summaries of your AI-assisted sessions. A collector only; hooks just enqueue.",
+  "author": {
+    "name": "OnePeek"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/OnePeek/plugin-owl"
 }

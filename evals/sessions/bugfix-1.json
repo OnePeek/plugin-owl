@@ -1,0 +1,107 @@
+{
+ "id": "bugfix-1",
+ "type": "bugfix",
+ "cwd": "/work/storefront",
+ "steps": [
+  {
+   "u": "Prices on the product page are sometimes stale right after our nightly bulk price update. Find out why and fix it."
+  },
+  {
+   "a": "I'll look at how the price cache is filled and when it is invalidated."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/storefront/src/pricing/cache.ts"
+   },
+   "r": "export async function getPrice(id){ const hit=await redis.get('price:'+id); if(hit) return hit; const p=await db.price(id); await redis.set('price:'+id,p,'EX',3600); return p }\nexport async function invalidate(ids){ await redis.del(ids.map(i=>'price:'+i)) }"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/storefront/src/jobs/bulkPriceUpdate.ts"
+   },
+   "r": "await db.tx(async t=>{ for (const u of updates) await t.setPrice(u.id,u.price) }); await invalidate(updates.map(u=>u.id))"
+  },
+  {
+   "a": "Found it: invalidate runs right after the transaction, but a reader that missed the cache just before the commit can refill the key with the old price after the delete. That is a classic race between invalidation and refill."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/storefront/src/pricing/cache.ts",
+    "old_string": "const hit=await redis.get('price:'+id);",
+    "new_string": "const ver=await redis.get('pricever:'+id)||'0';\n  const hit=await redis.get('price:'+id+':'+ver);"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/storefront/src/pricing/cache.ts",
+    "old_string": "export async function invalidate(ids){ await redis.del(ids.map(i=>'price:'+i)) }",
+    "new_string": "export async function invalidate(ids){ await Promise.all(ids.map(i=>redis.incr('pricever:'+i))) }"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm test -- pricing"
+   },
+   "r": "FAIL cache.test.ts expected version key",
+   "err": true
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/storefront/src/pricing/cache.test.ts",
+    "old_string": "expect(await redis.get('price:1')).toBe('10')",
+    "new_string": "expect(await redis.get('price:1:0')).toBe('10')"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm test -- pricing"
+   },
+   "r": "12 passed"
+  },
+  {
+   "a": "Fixed: entries are now keyed by a version counter that invalidation increments, so a late refill writes under the old version and is never read."
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed stale prices after bulk updates, caused by a race where a reader refilled the cache with the old price after invalidation; cache entries are now versioned so invalidation bumps a counter instead of deleting keys.",
+  "facts": [
+   "stale prices after a nightly bulk update",
+   "race between cache invalidation and refill",
+   "cache keys now carry a version that invalidation increments",
+   "pricing tests pass at the end",
+   "a test expectation was updated for the versioned key"
+  ],
+  "specific": [
+   "race condition between invalidation and refill",
+   "cache versioning"
+  ],
+  "decisions": [
+   {
+    "choice": "version the cache key instead of deleting it on invalidation",
+    "reason": "a late refill with the old value can no longer overwrite fresh data because it lands under the old version"
+   }
+  ],
+  "skills": [
+   "Redis",
+   "TypeScript",
+   "cache invalidation",
+   "race condition debugging"
+  ],
+  "not_skills": [
+   "Docker",
+   "Kubernetes",
+   "GraphQL"
+  ]
+ }
+}

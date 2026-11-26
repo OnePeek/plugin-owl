@@ -1,0 +1,86 @@
+{
+ "id": "infra-3",
+ "type": "infra",
+ "cwd": "/work/monorepo",
+ "steps": [
+  {
+   "u": "Our GitHub Actions pipeline takes 22 minutes. Most of it is install and tests that did not change. Speed it up."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/monorepo/.github/workflows/ci.yml"
+   },
+   "r": "jobs: test: steps: - uses: actions/checkout - run: npm ci - run: npm test -- --all"
+  },
+  {
+   "a": "Three things: cache the npm store keyed on the lockfile, run tests only for packages affected by the change, and split lint, test and build into parallel jobs."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/monorepo/.github/workflows/ci.yml",
+    "old_string": "- run: npm ci",
+    "new_string": "- uses: actions/setup-node\n        with: { node-version: 22, cache: npm }\n      - run: npm ci"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/monorepo/.github/workflows/ci.yml",
+    "old_string": "npm test -- --all",
+    "new_string": "npx nx affected -t test --base=origin/main"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/monorepo/.github/workflows/ci.yml",
+    "old_string": "jobs: test:",
+    "new_string": "jobs: lint: {...}\n  build: {...}\n  test:"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "gh run list --limit 3"
+   },
+   "r": "completed success 7m41s\ncompleted success 8m02s\ncompleted success 7m55s"
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Reduced CI time from 22 minutes to about 8 by caching the npm store on the lockfile, running only affected package tests with Nx, and splitting lint, build and test into parallel jobs.",
+  "facts": [
+   "pipeline took 22 minutes",
+   "npm cache keyed on lockfile",
+   "only affected tests run",
+   "lint build test run in parallel jobs",
+   "recent runs about 8 minutes"
+  ],
+  "specific": [
+   "dependency caching",
+   "affected-only test runs"
+  ],
+  "decisions": [
+   {
+    "choice": "run tests only for packages affected by the change",
+    "reason": "most packages are unchanged in a typical pull request"
+   }
+  ],
+  "skills": [
+   "GitHub Actions",
+   "Nx",
+   "Node.js",
+   "CI/CD"
+  ],
+  "not_skills": [
+   "Terraform",
+   "Docker",
+   "Python"
+  ]
+ }
+}
