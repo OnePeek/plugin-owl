@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { repoRoot } from "../helpers/paths.js";
 
-const lint = (root: string) => spawnSync(process.execPath, [join(repoRoot(), "scripts", "lint.mjs"), root], { encoding: "utf8" });
+const lint = (root: string) => spawnSync(process.execPath, [join(repoRoot(), "scripts", "lint.mjs"), root], { encoding: "utf8", timeout: 60_000 });
 
 function fixture(files: Record<string, string>): string {
   const root = mkdtempSync(join(tmpdir(), "owl-lint-"));

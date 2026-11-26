@@ -69,10 +69,10 @@ export function shannon(s: string): number {
  * A base64-looking run: 20+ characters of the alphabet (letters, digits, plus, equals, underscore, hyphen) that contains a digit
  * and is not a plain kebab or snake case identifier. Slash splits runs, so path pieces and plain words stay allowed.
  */
-function isBlobRun(run: string): boolean {
+function isBlobRun(run: string, strict = true): boolean {
   // a long lowercase word means words, not key material; unless the run is long and as random as key material (a base64
   // key can hold a run such as nkgxlztws by chance)
-  if (/[a-z]{7,}/.test(run) && !(run.length >= 32 && /[A-Z]/.test(run) && /\d/.test(run) && shannon(run) > 4.3)) return false;
+  if (/[a-z]{7,}/.test(run) && !(strict && run.length >= 32 && /[A-Z]/.test(run) && /\d/.test(run) && shannon(run) > 4.3)) return false;
   if (!/\d/.test(run)) return /^[A-Za-z]+$/.test(run) ? false : /[+=]/.test(run) && /[a-z]/.test(run) && /[A-Z]/.test(run);
   if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/.test(run) && run.split(/[_-]/).every((seg) => seg.length <= 12)) return false;
   return true;
@@ -115,6 +115,30 @@ export function joinSplit(text: string): string {
   });
 }
 
+const SPLIT = /(?<=[A-Za-z0-9]{4})[ _-]+(?=[A-Za-z0-9]{4})/g;
+
+/** The normalised copy exactly as the server builds it: invisible characters removed, a separator run between 4 letters or digits on each side dropped. */
+export function normalised(text: string): string {
+  return text.replace(FORMAT_CHARS, "").replace(SPLIT, "");
+}
+
+/**
+ * The key-material rules a joined copy is read with (as the server): a hex run, a base64-looking run that is key material, or a
+ * high-entropy token with no run of 7 or more lower-case letters (joined ordinary words always have one). Paths, quotes and
+ * sentence rules read the original only.
+ */
+export function keyMaterial(copy: string): boolean {
+  if (HEX_RUN.test(copy)) return true;
+  // the server's blob shape (no long-random exception): a joined copy of ordinary words with a number is long and mixed-case
+  for (const m of copy.matchAll(B64_RUN)) if (isBlobRun(m[0], false)) return true;
+  for (const raw of copy.split(/\s+/)) {
+    const tok = raw.replace(TRIM, "");
+    if (/[a-z]{7,}/.test(tok)) continue;
+    for (const piece of tok.split(/[-_.]+/)) if (piece.length >= 16 && shannon(piece) > 3.5 && !isWordIdentifier(piece)) return true;
+  }
+  return false;
+}
+
 /** Detect every rule the text breaks. Empty list = clean. */
 export function checkText(input: string, names: Names = NO_NAMES): Hit[] {
   const hits = new Set<Hit>();
@@ -134,6 +158,9 @@ export function checkText(input: string, names: Names = NO_NAMES): Hit[] {
     }
   }
   if (matchSecret(text) !== undefined || matchSecret(joinSplit(text)) !== undefined) hits.add("secret");
+  // the server's normalised copy (backend leak_screen.normalised): read only with the secret and key-material rules
+  const copy = normalised(text);
+  if (copy !== text && (matchSecret(copy) !== undefined || keyMaterial(copy))) hits.add("secret");
   if (EMAIL.test(text)) hits.add("email");
   if (URL_SCHEME.test(text) || BARE_DOMAIN.test(text)) hits.add("url");
   if (hostHit(text)) hits.add("host");

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -51,17 +51,23 @@ test("test_internal_run_never_logs_itself and test_do_not_track_off (real proces
   const dir = mkdtempSync(join(tmpdir(), "owl-hookproc-"));
   const script = join(repoRoot(), "dist", "src", "hook", "enqueue.js");
   for (const extra of [{ ONEPEEK_WORKLOG_INTERNAL: "1" }, { DO_NOT_TRACK: "1" }, { ONEPEEK_WORKLOG: "off" }]) {
-    const r = spawnSync(process.execPath, [script], { input: ev("Stop"), env: { PATH: process.env["PATH"] ?? "", HOME: dir, ...extra } });
+    const r = spawnSync(process.execPath, [script], { input: ev("Stop"), env: { PATH: process.env["PATH"] ?? "", HOME: dir, ...extra }, timeout: 10_000 });
     assert.equal(r.status, 0);
     assert.equal(existsSync(join(dir, ".onepeek", "worklog", "queue")), false, JSON.stringify(extra));
   }
-  const ok = spawnSync(process.execPath, [script], { input: ev("Stop"), env: { PATH: process.env["PATH"] ?? "", HOME: dir } });
+  const ok = spawnSync(process.execPath, [script], { input: ev("Stop"), env: { PATH: process.env["PATH"] ?? "", HOME: dir }, timeout: 10_000 });
   assert.equal(ok.status, 0);
   assert.equal(readdirSync(join(dir, ".onepeek", "worklog", "queue")).length, 1);
 });
 
 test("the hook always exits 0 even when the home is unwritable", () => {
-  const r = spawnSync(process.execPath, [join(repoRoot(), "dist", "src", "hook", "enqueue.js")], { input: ev("SessionEnd"), env: { PATH: process.env["PATH"] ?? "", HOME: "/proc/none/denied" } });
+  // HOME under a regular file: every mkdir fails with ENOTDIR on every OS. (HOME under /proc made Linux's recursive mkdir
+  // loop forever, which hung CI run 45737752643; a path under a file fails the same way everywhere.)
+  const dir = mkdtempSync(join(tmpdir(), "owl-hookro-"));
+  const file = join(dir, "not-a-dir");
+  writeFileSync(file, "x");
+  const r = spawnSync(process.execPath, [join(repoRoot(), "dist", "src", "hook", "enqueue.js")], { input: ev("SessionEnd"), env: { PATH: process.env["PATH"] ?? "", HOME: join(file, "home") }, timeout: 10_000 });
+  assert.equal(r.error, undefined, "the hook must exit on its own");
   assert.equal(r.status, 0);
 });
 

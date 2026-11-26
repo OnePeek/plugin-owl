@@ -133,7 +133,7 @@ test("shared text vectors: the cleaner gives the answer the server must give (te
   const file = JSON.parse(readFileSync(join(repoRoot(), "tests", "fixtures", "ai_plugin_text_vectors.json"), "utf8")) as { vectors: { text: string; held: boolean }[] };
   const wrong = file.vectors.filter((v) => checkText(v.text).length > 0 !== v.held).map((v) => v.text);
   assert.deepEqual(wrong, []);
-  assert.ok(file.vectors.length >= 31);
+  assert.ok(file.vectors.length >= 45);
 });
 
 test("split secrets: spaced, hyphenated, underscored or zero-width split keys are read whole and held; prose is not joined into a hit", () => {

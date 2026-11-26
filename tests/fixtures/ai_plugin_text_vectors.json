@@ -1,5 +1,5 @@
 {
-  "source": "Shared Insight text vectors (contract `Insight`; ruling 11-26: the plug-in's cleaner, plugin-owl src/clean/filter.ts checkText, and the server leak screen give the same answer). held = any hit. Copied from backend-service tests/fixtures/ai_plugin_text_vectors.json; the word-identifier vectors (round 3 of aip-plugin) are new here and need the server mirror. Split-secret vectors (ruling 11-26): the secret rules also run on a joined copy (zero-width characters removed, separators between chunks of 4+ dropped).",
+  "source": "Shared Insight text vectors (contract `Insight`; ruling 11-26: the plug-in's cleaner, plugin-owl src/clean/filter.ts checkText, and the server leak screen give the same answer). held = any hit. Split secrets (ruling 11-26): a hit on the normalised copy (U+200B-U+200F, U+2060, U+FEFF removed; space, hyphen or underscore runs between alphanumeric chunks of 4+ characters joined) also holds. Copied from backend-service 540c9724; the vectors after the backend set are added by the plug-in (word-identifier pass, word-shaped random fails, more split-secret cases) and need the server mirror (plugin-owl#66, Server mirror needed).",
   "vectors": [
     {"text": "Added retry-with-backoff to the upload client.", "held": false},
     {"text": "Moved the API to Node.js and kept the old worker.", "held": false},
@@ -20,6 +20,15 @@
     {"text": "Server 10.0.0.12 was slow.", "held": true},
     {"text": "Rotated key AKIAQWERTYUIOPASDFGHJ for the deploy role.", "held": true},
     {"text": "Used `make test` to check.", "held": true},
+    {"text": "Rotated key AKIAQWERTY UIOPASDFGHJ for the deploy role.", "held": true},
+    {"text": "Digest a3f9c2e8b1d4 f7a09c2e8b1d 4f7a03e5c2b8 matched.", "held": true},
+    {"text": "Key AKIA-QWER-TYUI-OPAS-DFGH was used for the deploy.", "held": true},
+    {"text": "Key AKIAQW\u200bERTYUI\u200bOPASDF\u200bGH was used for the deploy.", "held": true},
+    {"text": "Token AKIAQW\u200bERTYUI-OPASDF\u200bGH was used for the deploy.", "held": true},
+    {"text": "Token ghp_aB\u200b3dE6gH-9jK2mN\u200b5pQ8sT-1vW4yZ\u200b7bC0eF-3hJ6 was pasted.", "held": true},
+    {"text": "Refactored the payment service into smaller handlers with clearer error paths.", "held": false},
+    {"text": "Cleaned up unused feature flags and dead code across three frontend modules.", "held": false},
+    {"text": "Added pagination support to the search endpoint with stable cursor ordering.", "held": false},
     {"text": "Fixed the IllegalStateException thrown on shutdown.", "held": false},
     {"text": "Moved the lock to java.util.concurrent primitives.", "held": false},
     {"text": "Wrapped the fetch in useEffect with a cleanup.", "held": false},
