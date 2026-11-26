@@ -282,7 +282,10 @@ const tokensOf = (m: string): string[] => {
   const hit = all.filter(secretish);
   if (hit.length > 0) return hit;
   const longest = all.reduce((a, b) => (b.length > a.length ? b : a), "");
-  return longest.length >= 8 ? [longest] : []; // a value with no random look (a plain password) still taints its longest piece
+  // a value with no random look (a plain password) still taints its longest piece, but a variable reference such as
+  // { token: refreshToken } (letters only, lowerCamelCase) is code, not a value: tainting it would hold plain words like "refresh tokens"
+  if (/^[a-z]+(?:[A-Z][a-z]+)+$/.test(longest)) return [];
+  return longest.length >= 8 ? [longest] : [];
 };
 
 /** Redact the model's INPUT: secrets, emails, URLs and addresses never reach the summariser. Secrets and blobs also become `taint`. */

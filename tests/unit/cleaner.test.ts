@@ -212,3 +212,13 @@ test("round 3 secret shapes: the gitleaks SendGrid and Slack forms the cleaner m
     assert.ok(!red.text.includes(k), "redacted: " + k);
   }
 });
+
+test("round 4 false holds: a variable reference does not taint plain words, a real plain-word secret still does, setup.py stays a held file name", () => {
+  const code = redactInput("const row = await db.tokens.findOne({ token: refreshToken })");
+  assert.deepEqual(code.taint, []);
+  const words = "Flagged refresh tokens that never expire and plaintext token storage, and a Poppler error.";
+  assert.deepEqual(checkText(words, { learned: [], blocklist: [], taint: code.taint }), []);
+  assert.deepEqual(redactInput("token: correcthorsebattery").taint, ["correcthorsebattery"]);
+  assert.deepEqual(redactInput("password = hunter2hunter").taint, ["hunter2hunter"]);
+  assert.ok(checkText("a move from setup.py to pyproject", { learned: [], blocklist: [], taint: [] }).includes("path"));
+});
