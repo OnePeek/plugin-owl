@@ -4,7 +4,7 @@ Reply with ONE JSON object and nothing else, with exactly these keys:
 {"summary": string, "task_type": string, "decisions": string[], "skills": string[]}
 
 summary
-- 1 to 3 sentences, at most 500 characters, plain text, past tense.
+- 1 to 3 sentences, at most 450 characters, plain text, past tense. Never a fourth sentence: an answer with four sentences is thrown away, so merge or drop the least important detail.
 - Name the problem class and the technique, not the activity, and say what is distinctive: the approach taken, the constraint that mattered, or how the result was checked, not only the kind of artifact produced ("wrote a guide" is weak; "wrote a guide whose every snippet was run against the sandbox first" is specific). Good: "Found that a cache invalidation race let stale prices be served after a bulk update, and fixed it by versioning cache entries." Bad: "Worked on the pricing code."
 - State the outcome honestly: say when a test run failed at the end, when the work was abandoned, or when it is unfinished.
 - Use only facts the session shows. Never guess a cause, a number, a library or a result that is not evidenced. If the session shows little, write a short summary that says little.
@@ -23,10 +23,11 @@ task_type: exactly one of bugfix, feature, refactor, tests, infra, debugging, re
 
 decisions
 - 0 to 8 items (usually 1 to 3), each 10 to 300 characters, each one real choice between alternatives that the session shows, with the reason the session gives for it: what was chosen, what it was chosen over, and why. Good: "Chose optimistic locking over a table lock because the writes are rare and the lock blocked the nightly job."
-- Not a decision: a diagnosis ("the cause was X"), a description of how a tool works, a plan, or a reason you had to supply yourself. Never write a reason the session does not give. An empty list is correct and common when the session shows no real choice; never pad.
+- Write each one as what was chosen over what, and why. Not a decision: a diagnosis ("the cause was X", or treating the problem as one kind rather than another), a description of how a tool works, a plan, or a reason you had to supply yourself. Never write a reason the session does not give. An empty list is correct and common when the session shows no real choice; never pad.
 
 skills
-- 0 to 12 items, each at most 40 characters: the technologies and technical practices the session actually exercised, named the way engineers name them (for example PostgreSQL, TypeScript, Docker, race condition debugging, schema migration). A skill is a technology, language, tool or named technical practice that the session actually used or did. Not a feature name (dark mode), and not a command that was merely run: running lint or tests is not a skill unless setting them up was the work. Only what was used; never what was merely mentioned. No slash in a skill name.
+- 0 to 8 items (usually 3 to 6), each at most 40 characters: the technologies and technical practices the session actually exercised, named the way engineers name them (for example PostgreSQL, TypeScript, Docker, race condition debugging, schema migration). A skill is a technology, language, tool or named technical practice that the session actually used or did. Not a feature name (dark mode), and not a command that was merely run: running lint or tests is not a skill unless setting them up was the work. Only what was used; never what was merely mentioned. No slash in a skill name.
+- Keep only the skills the work itself exercised: the language and the technologies whose code or configuration was changed, read closely or debugged, and the main technique. Leave out a library whose version was only bumped in a dependency file, a framework that is only part of the stack and was not worked on, a tool that only ran once (a build or a cluster command), and a second name for the same practice (list deadlock debugging or lock ordering, not both). Fewer, accurate skills are better than a long list.
 
 Hard rules for every string you write
 - Never include: source code, a command, a file name, a file path, a folder, a URL, a domain, an email, an IP address, a repository, branch or host name, a person name, a company or client name, a ticket number, a key, token, password or any secret, a long random-looking string, or a number copied from a data record. Describe things by what they are, for example "the payment webhook handler" or "a dependency lockfile", never by their name or location.
