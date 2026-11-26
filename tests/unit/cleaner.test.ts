@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkText, cleanText, redactInput, sentenceCount, shannon } from "../../src/clean/filter.js";
+import { checkText, cleanText, joinSplit, redactInput, sentenceCount, shannon, taintHit } from "../../src/clean/filter.js";
 import { finalizeInsight } from "../../src/record/insight.js";
 import { canaries } from "../helpers/canary.js";
 import { isWordDotted, isWordIdentifier } from "../../src/clean/words.js";
@@ -134,4 +134,23 @@ test("shared text vectors: the cleaner gives the answer the server must give (te
   const wrong = file.vectors.filter((v) => checkText(v.text).length > 0 !== v.held).map((v) => v.text);
   assert.deepEqual(wrong, []);
   assert.ok(file.vectors.length >= 31);
+});
+
+test("split secrets: spaced, hyphenated, underscored or zero-width split keys are read whole and held; prose is not joined into a hit", () => {
+  const split = (s: string, sep: string, at = 4): string => s.match(new RegExp(`.{1,${at}}`, "g"))!.join(sep);
+  for (let i = 0; i < 200; i++) {
+    const aws = canaries.awsKey();
+    const gh = canaries.githubToken();
+    const ghBody = gh.slice(4);
+    for (const text of [split(aws, " "), split(aws, "-"), split(aws, "_"), split(aws, "​", 1), "ghp_" + split(ghBody, "-"), "ghp_" + split(ghBody, " ", 6), "gh" + "p_​" + ghBody, split(gh, "⁠", 3)]) {
+      assert.ok(checkText("Rotated " + text + " for the deploy role.").includes("secret"), text);
+    }
+  }
+  assert.equal(joinSplit("Rotated AKIA QWER"), "Rotated AKIA QWER RotatedAKIA RotatedAKIAQWER AKIAQWER");
+  assert.ok(joinSplit("a\u200bb c").startsWith("ab c") && !joinSplit("one\u200b two").includes("\u200b"));
+  for (const ok of ["Added a retry loop with jitter to the sync worker and kept the queue size small.", "Rotated the deploy role credentials and documented the steps.", "Moved the long-running import into small batches."]) assert.deepEqual(checkText(ok), [], ok);
+  // input side: the joined key becomes taint, so a whole copy in the answer is caught even though the input held it split
+  const key = canaries.awsKey();
+  const red = redactInput("the key is " + split(key, " ") + " here");
+  assert.ok(taintHit("Used " + key + " today", red.taint));
 });
