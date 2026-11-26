@@ -16,7 +16,7 @@ export function randomPort(): number {
   return 1024 + Math.floor(Math.random() * (65535 - 1024));
 }
 
-export function authorizeUrl(base: string, path: string, o: { clientId: string; scope: string; port: number; pkce: Pkce; jkt: string }): string {
+export function authorizeUrl(base: string, path: string, o: { clientId: string; scope: string; port: number; pkce: Pkce; jkt: string; deviceLabel?: string }): string {
   const q = new URLSearchParams({
     response_type: "code",
     client_id: o.clientId,
@@ -27,5 +27,7 @@ export function authorizeUrl(base: string, path: string, o: { clientId: string; 
     code_challenge_method: "S256",
     dpop_jkt: o.jkt,
   });
+  // docs#364: the name the "Connect this device?" page shows; a generic OS and tool label, never the host name (rule E1)
+  if (o.deviceLabel !== undefined) q.set("device_label", o.deviceLabel);
   return `${base}${path}?${q.toString()}`;
 }
