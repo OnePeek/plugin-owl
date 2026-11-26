@@ -69,10 +69,10 @@ export function shannon(s: string): number {
  * A base64-looking run: 20+ characters of the alphabet (letters, digits, plus, equals, underscore, hyphen) that contains a digit
  * and is not a plain kebab or snake case identifier. Slash splits runs, so path pieces and plain words stay allowed.
  */
-function isBlobRun(run: string): boolean {
+function isBlobRun(run: string, strict = true): boolean {
   // a long lowercase word means words, not key material; unless the run is long and as random as key material (a base64
   // key can hold a run such as nkgxlztws by chance)
-  if (/[a-z]{7,}/.test(run) && !(run.length >= 32 && /[A-Z]/.test(run) && /\d/.test(run) && shannon(run) > 4.3)) return false;
+  if (/[a-z]{7,}/.test(run) && !(strict && run.length >= 32 && /[A-Z]/.test(run) && /\d/.test(run) && shannon(run) > 4.3)) return false;
   if (!/\d/.test(run)) return /^[A-Za-z]+$/.test(run) ? false : /[+=]/.test(run) && /[a-z]/.test(run) && /[A-Z]/.test(run);
   if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/.test(run) && run.split(/[_-]/).every((seg) => seg.length <= 12)) return false;
   return true;
@@ -87,6 +87,7 @@ function containsName(text: string, name: string): boolean {
   return new RegExp(`(?<![A-Za-z0-9])${escapeRe(name)}(?![A-Za-z0-9])`, "i").test(text);
 }
 
+const JOIN_MARK = "\u0001";
 const FORMAT_CHARS = /[\u200B-\u200F\u2060\uFEFF]/g;
 const CHUNKED = /[A-Za-z0-9]+(?:[ _-]+[A-Za-z0-9]+)+/g;
 
@@ -98,7 +99,7 @@ const CHUNKED = /[A-Za-z0-9]+(?:[ _-]+[A-Za-z0-9]+)+/g;
  * gives RotatedAKIA ... AKIAQWER ...), so a word joined in front of or behind the key cannot hide its edges from a rule that
  * needs a word boundary. A stretch is at most 24 chunks, so the copy stays small.
  */
-export function joinSplit(text: string): string {
+export function joinSplit(text: string, mark = ""): string {
   return text.replace(FORMAT_CHARS, "").replace(CHUNKED, (run) => {
     const parts = run.split(/([ _-]+)/);
     const variants: string[] = [run];
@@ -107,12 +108,40 @@ export function joinSplit(text: string): string {
       for (let i = start + 1; i + 1 < parts.length && i - start < 48; i += 2) {
         const prev = parts[i - 1] as string;
         const next = parts[i + 1] as string;
-        out += (prev.length >= 4 && next.length >= 4 ? "" : (parts[i] as string)) + next;
+        out += (prev.length >= 4 && next.length >= 4 ? mark : (parts[i] as string)) + next;
         variants.push(out);
       }
     }
     return variants.join(" ");
   });
+}
+
+const SPLIT = /(?<=[A-Za-z0-9]{4})[ _-]+(?=[A-Za-z0-9]{4})/g;
+
+/** The normalised copy exactly as the server builds it: invisible characters removed, a separator run between 4 letters or digits on each side dropped. */
+export function normalised(text: string): string {
+  return text.replace(FORMAT_CHARS, "").replace(SPLIT, "");
+}
+
+/**
+ * The key-material rules a joined copy is read with (as the server): a hex run, a base64-looking run that is key material, or a
+ * high-entropy token with no run of 7 or more lower-case letters (joined ordinary words always have one). Paths, quotes and
+ * sentence rules read the original only.
+ */
+export function keyMaterial(marked: string): boolean {
+  const copy = marked.split(JOIN_MARK).join("");
+  if (HEX_RUN.test(copy)) return true;
+  // the server's blob shape (no long-random exception): a joined copy of ordinary words with a number is long and mixed-case
+  for (const m of copy.matchAll(B64_RUN)) if (isBlobRun(m[0], false)) return true;
+  for (const raw of marked.split(/\s+/)) {
+    const chunks = raw.replace(TRIM, "").split(JOIN_MARK);
+    const tok = chunks.join("");
+    if (/[a-z]{7,}/.test(tok)) continue; // as the server: joined ordinary words hold a run of 7+ lower-case letters
+    // device only (server mirror needed): words joined by the copy, each a word shape (Python SQLAlchemy, with EXPLAIN ANALYZE, Android GitHub)
+    if (chunks.length > 1 && chunks.every((c) => /^[A-Za-z]+$/.test(c) && (/[a-z]{4,}/.test(c) || /^[A-Z]{2,8}$/.test(c) || /^(?:[A-Z][a-z]{2,}){2,3}$/.test(c)))) continue;
+    for (const piece of tok.split(/[-_.]+/)) if (piece.length >= 16 && shannon(piece) > 3.5 && !isWordIdentifier(piece)) return true;
+  }
+  return false;
 }
 
 /** Detect every rule the text breaks. Empty list = clean. */
@@ -134,6 +163,11 @@ export function checkText(input: string, names: Names = NO_NAMES): Hit[] {
     }
   }
   if (matchSecret(text) !== undefined || matchSecret(joinSplit(text)) !== undefined) hits.add("secret");
+  // the server's normalised copy (backend leak_screen.normalised): read only with the secret and key-material rules
+  const copy = normalised(text);
+  if (copy !== text && (matchSecret(copy) !== undefined || keyMaterial(text.replace(FORMAT_CHARS, "").replace(SPLIT, JOIN_MARK)))) hits.add("secret");
+  // device only: the same key-material rules on every joined stretch, so a word joined in front (Used nxej...) cannot hide a key
+  if (copy !== text && keyMaterial(joinSplit(text, JOIN_MARK))) hits.add("secret");
   if (EMAIL.test(text)) hits.add("email");
   if (URL_SCHEME.test(text) || BARE_DOMAIN.test(text)) hits.add("url");
   if (hostHit(text)) hits.add("host");

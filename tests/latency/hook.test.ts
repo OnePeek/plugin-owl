@@ -11,7 +11,7 @@ const p95 = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.ceil(xs
 
 function time(args: string[], input: string, env: Record<string, string>): number {
   const t = process.hrtime.bigint();
-  spawnSync(process.execPath, args, { input, env, stdio: ["pipe", "ignore", "ignore"] });
+  spawnSync(process.execPath, args, { input, env, stdio: ["pipe", "ignore", "ignore"], timeout: 10_000 });
   return Number(process.hrtime.bigint() - t) / 1e6;
 }
 

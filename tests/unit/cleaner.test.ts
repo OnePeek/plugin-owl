@@ -133,7 +133,7 @@ test("shared text vectors: the cleaner gives the answer the server must give (te
   const file = JSON.parse(readFileSync(join(repoRoot(), "tests", "fixtures", "ai_plugin_text_vectors.json"), "utf8")) as { vectors: { text: string; held: boolean }[] };
   const wrong = file.vectors.filter((v) => checkText(v.text).length > 0 !== v.held).map((v) => v.text);
   assert.deepEqual(wrong, []);
-  assert.ok(file.vectors.length >= 31);
+  assert.ok(file.vectors.length >= 45);
 });
 
 test("split secrets: spaced, hyphenated, underscored or zero-width split keys are read whole and held; prose is not joined into a hit", () => {
@@ -145,6 +145,16 @@ test("split secrets: spaced, hyphenated, underscored or zero-width split keys ar
     for (const text of [split(aws, " "), split(aws, "-"), split(aws, "_"), split(aws, "​", 1), "ghp_" + split(ghBody, "-"), "ghp_" + split(ghBody, " ", 6), "gh" + "p_​" + ghBody, split(gh, "⁠", 3)]) {
       assert.ok(checkText("Rotated " + text + " for the deploy role.").includes("secret"), text);
     }
+  }
+  // a random key split into chunks (no known prefix) is held by the key-material rules on the joined copy
+  const ALNUM = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  for (let i = 0; i < 300; i++) {
+    const b = randomBytes(24);
+    let key = "";
+    for (let j = 0; j < 24; j++) key += ALNUM[(b[j] as number) % ALNUM.length];
+    // limit shared with the server rule: a joined key that holds 7+ lower-case letters in a row reads as words and is not caught
+    if (!/\d/.test(key) || /[a-z]{7,}/.test(key)) continue;
+    for (const sep of [" ", "-", "_", "\u200b"]) assert.ok(checkText("Used " + split(key, sep, 6) + " for the job.").length > 0, split(key, sep, 6));
   }
   assert.equal(joinSplit("Rotated AKIA QWER"), "Rotated AKIA QWER RotatedAKIA RotatedAKIAQWER AKIAQWER");
   assert.ok(joinSplit("a\u200bb c").startsWith("ab c") && !joinSplit("one\u200b two").includes("\u200b"));
