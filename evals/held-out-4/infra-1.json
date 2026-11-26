@@ -1,0 +1,68 @@
+{
+ "id": "infra-1",
+ "type": "infra",
+ "cwd": "/work/edge-gateway",
+ "steps": [
+  {
+   "u": "Our Dockerfile produces a 1.4 GB image for a small Go service. Shrink it."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/edge-gateway/Dockerfile"
+   },
+   "r": "FROM golang:1.23\nWORKDIR /src\nCOPY . .\nRUN go build -o /gw ./cmd/gw\nCMD [\"/gw\"]"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/edge-gateway/Dockerfile",
+    "content": "FROM golang:1.23 AS build\nWORKDIR /src\nCOPY go.mod go.sum ./\nRUN go mod download\nCOPY . .\nRUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /gw ./cmd/gw\n\nFROM gcr.io/distroless/static-debian12:nonroot\nCOPY --from=build /gw /gw\nENTRYPOINT [\"/gw\"]\n"
+   },
+   "r": "File written."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "docker build -t gw:test . && docker images gw:test --format '{{.Size}}'"
+   },
+   "r": "23.6MB"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "docker run --rm gw:test --version"
+   },
+   "r": "gw 2.8.1"
+  },
+  {
+   "a": "The image went from 1.4 GB to about 24 MB with a multi-stage build and a distroless static base. It has no shell, so debugging in the container needs an ephemeral debug container."
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Shrank a Go service's Docker image from 1.4 GB to about 24 MB using a multi-stage build with a static binary and a distroless base, and confirmed the image runs. The image has no shell, so debugging in it needs a separate debug container.",
+  "facts": [
+   "image went from 1.4 GB to about 24 MB",
+   "multi-stage Dockerfile",
+   "static build with CGO disabled",
+   "distroless base",
+   "image runs and prints its version",
+   "no shell in the image"
+  ],
+  "specific": [
+   "multi-stage Docker build",
+   "distroless base image"
+  ],
+  "decisions": [],
+  "skills": [
+   "Docker",
+   "Go build flags"
+  ],
+  "not_skills": [
+   "Kubernetes",
+   "Terraform",
+   "GitHub Actions"
+  ]
+ }
+}

@@ -1,0 +1,54 @@
+{
+ "id": "tests-1",
+ "type": "tests",
+ "cwd": "/work/slug-utils",
+ "steps": [
+  {
+   "u": "Write unit tests for slugify() in src/slug.ts. It should handle accents, spaces, emoji, and an empty string."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/slug-utils/src/slug.ts"
+   },
+   "r": "export function slugify(s: string): string {\n  return s.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')\n}"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/slug-utils/src/slug.test.ts",
+    "content": "describe('slugify', () => {\n  it('strips accents', () => expect(slugify('Cr\u00e8me Br\u00fbl\u00e9e')).toBe('creme-brulee'))\n  it('collapses spaces', () => expect(slugify('a   b')).toBe('a-b'))\n  it('drops emoji', () => expect(slugify('go \ud83d\ude80 now')).toBe('go-now'))\n  it('returns empty for empty', () => expect(slugify('')).toBe(''))\n  it('trims dashes', () => expect(slugify('--x--')).toBe('x'))\n})"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx vitest run src/slug"
+   },
+   "r": "5 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Wrote five unit tests for a slugify function covering accents, repeated spaces, emoji, the empty string and leading or trailing dashes; all pass.",
+  "facts": [
+   "five tests",
+   "accents, spaces, emoji, empty string, trimmed dashes",
+   "all pass"
+  ],
+  "specific": [
+   "edge-case unit tests"
+  ],
+  "decisions": [],
+  "skills": [
+   "TypeScript",
+   "Vitest"
+  ],
+  "not_skills": [
+   "Jest",
+   "React",
+   "end-to-end testing"
+  ]
+ }
+}

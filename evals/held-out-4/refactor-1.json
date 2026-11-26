@@ -1,0 +1,76 @@
+{
+ "id": "refactor-1",
+ "type": "refactor",
+ "cwd": "/work/checkout-core",
+ "steps": [
+  {
+   "u": "The Order class has grown to 900 lines. Pull the discount logic out into its own module. No behaviour change; tests are in test/order_test.rb."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bundle exec rspec test/order_test.rb | tail -2"
+   },
+   "r": "86 examples, 0 failures"
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "discount",
+    "path": "/work/checkout-core/lib/order.rb"
+   },
+   "r": "lib/order.rb:212: def apply_discounts\nlib/order.rb:240: def stackable?(d)\nlib/order.rb:261: def best_coupon"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/checkout-core/lib/order/discounts.rb",
+    "content": "module Order::Discounts\n  def apply_discounts; ...; end\n  private\n  def stackable?(d); ...; end\n  def best_coupon; ...; end\nend"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/checkout-core/lib/order.rb",
+    "old_string": "class Order\n",
+    "new_string": "class Order\n  include Order::Discounts\n"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bundle exec rspec test/order_test.rb | tail -2"
+   },
+   "r": "86 examples, 0 failures"
+  },
+  {
+   "a": "The three discount methods now live in a module that Order includes; the 86 examples pass before and after. It's still a mixin on the same object, so the coupling is unchanged, only the file is split."
+  }
+ ],
+ "reference": {
+  "task_type": "refactor",
+  "summary": "Moved the discount methods out of a 900-line Ruby Order class into an included module, with the 86 existing examples passing before and after. It is a file-level split of a mixin, so coupling to the order itself is unchanged.",
+  "facts": [
+   "three discount methods moved to a module",
+   "Order includes the module",
+   "86 examples pass before and after",
+   "coupling unchanged"
+  ],
+  "specific": [
+   "extract module refactor"
+  ],
+  "decisions": [],
+  "skills": [
+   "Ruby",
+   "RSpec",
+   "refactoring"
+  ],
+  "not_skills": [
+   "Rails migrations",
+   "SQL",
+   "JavaScript"
+  ]
+ }
+}

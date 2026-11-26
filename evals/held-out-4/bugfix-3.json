@@ -1,0 +1,85 @@
+{
+ "id": "bugfix-3",
+ "type": "bugfix",
+ "cwd": "/work/mail-templates",
+ "steps": [
+  {
+   "u": "Emails with an apostrophe in the customer's name show &#39; in the greeting, e.g. Hi O&#39;Brien. Fix the template rendering."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/mail-templates/render.rb"
+   },
+   "r": "def greeting(user)\n  ERB::Util.html_escape(user.name)\nend\ndef build(user)\n  body = ERB::Util.html_escape(greeting(user)) + ..."
+  },
+  {
+   "a": "The name is HTML-escaped twice, once in greeting and again in build, so the entity written by the first pass is escaped into visible text by the second. It should be escaped once, at the point it is placed into the HTML."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/mail-templates/render.rb",
+    "old_string": "def greeting(user)\n  ERB::Util.html_escape(user.name)\nend",
+    "new_string": "def greeting(user)\n  user.name\nend"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bundle exec rspec spec/render_spec.rb"
+   },
+   "r": "FAIL greeting escapes script tags: expected &lt;script&gt;, got <script>"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/mail-templates/spec/render_spec.rb",
+    "old_string": "expect(greeting(user)).to include('&lt;script&gt;')",
+    "new_string": "expect(build(user)).to include('&lt;script&gt;')"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bundle exec rspec spec/render_spec.rb"
+   },
+   "r": "4 examples, 0 failures"
+  },
+  {
+   "a": "Escaping now happens once in build. I moved the spec's assertion from greeting to the final HTML, since greeting is no longer where escaping lives."
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed apostrophes in customer names showing as an HTML entity in emails: the name was escaped twice. Escaping now happens once where the name is placed into the HTML, and the spec that checks script tags is escaped asserts on the built email; all specs pass.",
+  "facts": [
+   "apostrophe shown as an entity",
+   "name escaped twice",
+   "escaping kept only in build",
+   "spec moved to assert on the built email",
+   "specs pass"
+  ],
+  "specific": [
+   "double HTML escaping"
+  ],
+  "decisions": [
+   {
+    "choice": "escape once when building the HTML, not in the greeting helper",
+    "reason": "escaping in the helper and again in build is what produced the visible entity"
+   }
+  ],
+  "skills": [
+   "Ruby",
+   "RSpec",
+   "HTML escaping"
+  ],
+  "not_skills": [
+   "Rails controllers",
+   "JavaScript",
+   "SMTP configuration"
+  ]
+ }
+}

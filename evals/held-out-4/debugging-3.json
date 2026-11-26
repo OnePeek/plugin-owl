@@ -1,0 +1,58 @@
+{
+ "id": "debugging-3",
+ "type": "debugging",
+ "cwd": "/work/search-indexer",
+ "steps": [
+  {
+   "u": "Indexing jobs are getting slower every night and the box runs out of disk by Friday. Why?"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "du -sh /var/lib/indexer/* | sort -h | tail -3"
+   },
+   "r": "2.1G /var/lib/indexer/cache\n38G /var/lib/indexer/segments\n61G /var/lib/indexer/tmp"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "ls /var/lib/indexer/tmp | head -3; ls /var/lib/indexer/tmp | wc -l"
+   },
+   "r": "merge-20261119-0412.tmp\nmerge-20261119-0412.lock\nmerge-20261119-0511.tmp\n1894"
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "\\.tmp|unlink|remove",
+    "path": "/work/search-indexer/src/merge.rs"
+   },
+   "r": "src/merge.rs:77: let tmp = dir.join(format!(\"merge-{}.tmp\", stamp));\n(no removal of tmp anywhere in the file)"
+  },
+  {
+   "a": "The tmp folder holds 1894 merge files and 61 GB, and the merge code creates a temp file per merge but never deletes it. That fills the disk and, as the folder grows, directory scans in each job get slower. I did not delete anything on the box or change the code."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Diagnosed the disk exhaustion and slowing nightly indexing: the merge step creates a temporary file per merge and never removes it, leaving about 1900 files and 61 GB in the temp folder. Nothing was deleted or changed.",
+  "facts": [
+   "61 GB in the tmp folder",
+   "1894 merge temp files",
+   "merge code never removes its temp file",
+   "nothing deleted or changed"
+  ],
+  "specific": [
+   "leaked temporary files"
+  ],
+  "decisions": [],
+  "skills": [
+   "Rust",
+   "Linux disk analysis"
+  ],
+  "not_skills": [
+   "Elasticsearch",
+   "Kubernetes",
+   "Python"
+  ]
+ }
+}

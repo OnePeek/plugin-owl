@@ -1,0 +1,47 @@
+{
+ "id": "review-3",
+ "type": "review",
+ "cwd": "/work/notif-center",
+ "steps": [
+  {
+   "u": "Look at the retry code in this PR for the push notification sender and tell me if there's anything wrong."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "gh pr diff 301 --patch | head -60"
+   },
+   "r": "+ for (let i = 0; i < 5; i++) {\n+   try { return await push(token, msg) } catch (e) { await sleep(1000) }\n+ }\n+ throw new Error('push failed')"
+  },
+  {
+   "a": "Issues. The loop retries on every error, including 400s for an invalid or expired device token, which will never succeed and will hammer the push service five times per dead token. It should retry only on 429 and 5xx. The fixed 1 second sleep gives no backoff, so a service outage is hit with synchronized retries from every sender; use exponential backoff with jitter. The final error drops the last underlying error, which will make failures hard to debug. No edits."
+  }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed a push notification retry loop: it retries on all errors including permanent bad-token responses, uses a fixed one second sleep with no backoff or jitter, and discards the underlying error when giving up. Suggested retrying only on rate limit and server errors. No edits were made.",
+  "facts": [
+   "retries on every error",
+   "invalid tokens will never succeed",
+   "fixed 1 second sleep",
+   "suggest exponential backoff with jitter",
+   "final error loses the cause",
+   "no edits"
+  ],
+  "specific": [
+   "retry policy review",
+   "backoff with jitter"
+  ],
+  "decisions": [],
+  "skills": [
+   "code review",
+   "JavaScript",
+   "retry design"
+  ],
+  "not_skills": [
+   "Firebase configuration",
+   "Kubernetes",
+   "Python"
+  ]
+ }
+}

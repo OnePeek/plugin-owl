@@ -1,0 +1,54 @@
+{
+ "id": "debugging-1",
+ "type": "debugging",
+ "cwd": "/work/photo-resizer",
+ "steps": [
+  {
+   "u": "Our resize worker hangs forever on certain uploads, no crash, no log. Don't fix anything yet, I want to know why."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "py-spy dump --pid $(pgrep -f resize_worker)"
+   },
+   "r": "Thread 0 (idle): MainThread\n  decode (PIL/ImageFile.py:262)\n  load_exif (resize/meta.py:41)\n  while True: reader.read(1024)"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/photo-resizer/resize/meta.py",
+    "offset": 35,
+    "limit": 14
+   },
+   "r": "def load_exif(f):\n    while True:\n        chunk = f.read(1024)\n        if chunk[:2] == b'\\xff\\xe1':\n            return parse(chunk)"
+  },
+  {
+   "a": "The loop only ends when it finds an EXIF marker in a chunk. On images without EXIF, read returns empty bytes at end of file, the check never matches, and the loop spins forever. The stack dump shows the worker sitting in exactly that loop. I haven't changed it."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Diagnosed a resize worker hang: a stack dump showed it stuck in the metadata reader, whose loop only exits on finding an EXIF marker, so images without EXIF spin forever at end of file. No code was changed.",
+  "facts": [
+   "worker hung with no crash or log",
+   "py-spy dump shows it in the EXIF loading loop",
+   "loop exits only on an EXIF marker",
+   "images without EXIF never end the loop",
+   "nothing changed"
+  ],
+  "specific": [
+   "infinite loop at end of file",
+   "live stack dump with py-spy"
+  ],
+  "decisions": [],
+  "skills": [
+   "Python",
+   "py-spy"
+  ],
+  "not_skills": [
+   "Docker",
+   "Go",
+   "image processing algorithms"
+  ]
+ }
+}

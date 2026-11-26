@@ -1,0 +1,53 @@
+{
+ "id": "data-3",
+ "type": "data",
+ "cwd": "/work/ad-reports",
+ "steps": [
+  {
+   "u": "The conversion rate on the dashboard dropped from 4.1% to 2.9% on Nov 12. Is it real or a data problem? Query the events in Snowflake."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "snowsql -q \"select date(ts) d, count_if(event='purchase')/count_if(event='session_start') r from events where ts >= '2026-11-08' group by 1 order by 1\""
+   },
+   "r": "11-10 0.041\n11-11 0.040\n11-12 0.029\n11-13 0.029"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "snowsql -q \"select app_version, date(ts) d, count_if(event='purchase') p, count_if(event='session_start') s from events where date(ts) in ('2026-11-11','2026-11-12') group by 1,2\""
+   },
+   "r": "5.3.0 11-11 410 9800\n5.3.0 11-12 395 9400\n5.4.0 11-12 12 3100"
+  },
+  {
+   "a": "The drop comes entirely from the new app version 5.4.0 released that day: it has 3100 session starts but only 12 purchases, while 5.3.0 is unchanged at about 4.2%. A purchase rate of 0.4% in one version suggests the purchase event is not firing in 5.4.0 rather than customers buying less. I haven't confirmed that in the app code."
+  }
+ ],
+ "reference": {
+  "task_type": "data",
+  "summary": "Traced a dashboard conversion rate drop to one app version: the new release has thousands of session starts but almost no purchase events while the previous version is unchanged, which points to a tracking regression rather than a real change. This was not confirmed in the app code.",
+  "facts": [
+   "rate fell from about 4.1% to 2.9% on Nov 12",
+   "version 5.3.0 unchanged around 4.2%",
+   "version 5.4.0 had 3100 sessions and 12 purchases",
+   "suggests purchase event not firing",
+   "not confirmed in app code"
+  ],
+  "specific": [
+   "segmenting a metric by app version",
+   "tracking regression"
+  ],
+  "decisions": [],
+  "skills": [
+   "SQL",
+   "Snowflake",
+   "metric analysis"
+  ],
+  "not_skills": [
+   "Python",
+   "Tableau",
+   "A/B testing"
+  ]
+ }
+}

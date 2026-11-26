@@ -1,0 +1,74 @@
+{
+ "id": "infra-3",
+ "type": "infra",
+ "cwd": "/work/shop-deploy",
+ "steps": [
+  {
+   "u": "Deploys to Kubernetes cause a few seconds of 503s. Make rollouts zero downtime."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/shop-deploy/k8s/deployment.yaml"
+   },
+   "r": "spec:\n  replicas: 3\n  template:\n    spec:\n      containers:\n      - name: web\n        image: shop/web:latest"
+  },
+  {
+   "a": "There is no readiness probe, so new pods receive traffic as soon as they start, and no preStop delay, so terminating pods drop in-flight requests while the load balancer is still sending to them. I'll add a readiness probe, a preStop sleep and a rolling update that never removes a pod before its replacement is ready."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/shop-deploy/k8s/deployment.yaml",
+    "old_string": "spec:\n  replicas: 3",
+    "new_string": "spec:\n  replicas: 3\n  strategy:\n    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/shop-deploy/k8s/deployment.yaml",
+    "old_string": "        image: shop/web:latest",
+    "new_string": "        image: shop/web:latest\n        readinessProbe:\n          httpGet: { path: /healthz, port: 8080 }\n          periodSeconds: 3\n        lifecycle:\n          preStop:\n            exec: { command: [\"sleep\", \"10\"] }"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "kubectl apply --dry-run=server -f k8s/deployment.yaml"
+   },
+   "r": "deployment.apps/web configured (server dry run)"
+  },
+  {
+   "a": "Only a server-side dry run so far; I haven't done a live rollout under load to see the 503s disappear."
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Changed the Kubernetes deployment toward zero-downtime rollouts: a readiness probe, a preStop delay so terminating pods keep serving while the load balancer drains, and a rolling update with no unavailable pods. Only a server dry run was done, so the effect under load is unverified.",
+  "facts": [
+   "no readiness probe before",
+   "readiness probe added",
+   "preStop sleep of 10 seconds",
+   "maxUnavailable 0 and maxSurge 1",
+   "server dry run only",
+   "not verified under load"
+  ],
+  "specific": [
+   "readiness probes and graceful termination",
+   "rolling update settings"
+  ],
+  "decisions": [],
+  "skills": [
+   "Kubernetes",
+   "YAML"
+  ],
+  "not_skills": [
+   "Helm",
+   "Terraform",
+   "Istio"
+  ]
+ }
+}

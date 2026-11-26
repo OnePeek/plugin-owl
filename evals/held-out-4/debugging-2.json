@@ -1,0 +1,52 @@
+{
+ "id": "debugging-2",
+ "type": "debugging",
+ "cwd": "/work/api-edge",
+ "steps": [
+  {
+   "u": "About 1 in 500 requests to the API return a 502 from nginx. Dev can't reproduce. Find the cause, tell me before changing config."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -c ' 502 ' /var/log/nginx/access.log; grep 'upstream prematurely closed' /var/log/nginx/error.log | tail -2"
+   },
+   "r": "311\n2026/11/25 10:02:11 [error] upstream prematurely closed connection while reading response header from upstream\n2026/11/25 10:07:40 [error] upstream prematurely closed connection while reading response header"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -E 'keepalive' /etc/nginx/conf.d/upstream.conf; grep -E 'keepalive_timeout|timeout_keep_alive' app/gunicorn.conf.py"
+   },
+   "r": "keepalive 32;\nkeepalive_timeout = 5"
+  },
+  {
+   "a": "nginx keeps idle upstream connections open for reuse, but gunicorn closes idle keep-alive connections after 5 seconds. When nginx reuses one right as gunicorn closes it, the request fails with prematurely closed, which fits a rare, timing-dependent 502 that dev traffic would not hit. I haven't changed either side."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Found the likely cause of rare 502s: nginx reuses idle upstream connections while the application server closes idle ones after 5 seconds, so occasionally a reused connection is closed under the request. Evidence is the premature close errors and the two timeout settings; nothing was changed.",
+  "facts": [
+   "about 1 in 500 requests got 502",
+   "error log shows upstream prematurely closed connection",
+   "nginx upstream keepalive enabled",
+   "gunicorn keepalive timeout is 5 seconds",
+   "no config changed"
+  ],
+  "specific": [
+   "keep-alive timeout mismatch between proxy and upstream"
+  ],
+  "decisions": [],
+  "skills": [
+   "nginx",
+   "gunicorn",
+   "log analysis"
+  ],
+  "not_skills": [
+   "Kubernetes",
+   "TLS",
+   "load balancer provisioning"
+  ]
+ }
+}

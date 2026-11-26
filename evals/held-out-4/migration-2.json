@@ -1,0 +1,89 @@
+{
+ "id": "migration-2",
+ "type": "migration",
+ "cwd": "/work/telemetry-svc",
+ "steps": [
+  {
+   "u": "Move our job queue from Celery with Redis to SQS. Start with the producer side only."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "\\.delay\\(|apply_async",
+    "path": "/work/telemetry-svc/app"
+   },
+   "r": "app/ingest.py:31: process_batch.delay(batch_id)\napp/alerts.py:12: send_alert.apply_async(args=[a.id], countdown=30)"
+  },
+  {
+   "a": "SQS has no per-message countdown beyond 15 minutes of delay, but 30 seconds is within that, so the alert delay maps to DelaySeconds. I'll hide the queue behind a small publish function so the call sites don't know which broker they use, and the consumer side can move later."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/telemetry-svc/app/queue.py",
+    "content": "def publish(task: str, payload: dict, delay: int = 0):\n    sqs.send_message(QueueUrl=QUEUES[task], MessageBody=json.dumps(payload), DelaySeconds=delay)"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/telemetry-svc/app/ingest.py",
+    "old_string": "process_batch.delay(batch_id)",
+    "new_string": "publish('process_batch', {'batch_id': batch_id})"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/telemetry-svc/app/alerts.py",
+    "old_string": "send_alert.apply_async(args=[a.id], countdown=30)",
+    "new_string": "publish('send_alert', {'alert_id': a.id}, delay=30)"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest tests/test_queue.py -q"
+   },
+   "r": "3 passed"
+  },
+  {
+   "a": "Both producers now publish to SQS through one function, tests pass with a stubbed client. The Celery workers still consume from Redis, so nothing will process these messages until the consumer side is written."
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Started moving a job queue from Celery and Redis to SQS: the two producers now publish through one small function that maps the Celery countdown to SQS delay, with tests on a stubbed client. The consumer side is not migrated, so the new messages are not processed yet.",
+  "facts": [
+   "producer side only",
+   "publish function wraps SQS send_message",
+   "countdown 30 maps to DelaySeconds",
+   "tests pass with a stub",
+   "Celery workers still consume Redis",
+   "consumer not written"
+  ],
+  "specific": [
+   "queue broker migration",
+   "abstracting the producer"
+  ],
+  "decisions": [
+   {
+    "choice": "hide the queue behind a publish function instead of calling SQS at each call site",
+    "reason": "the call sites stay unaware of the broker so the consumer side can move later"
+   }
+  ],
+  "skills": [
+   "Python",
+   "AWS SQS",
+   "Celery"
+  ],
+  "not_skills": [
+   "Kafka",
+   "Terraform",
+   "Kubernetes"
+  ]
+ }
+}

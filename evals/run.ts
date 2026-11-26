@@ -91,7 +91,7 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const si = argv.indexOf("--set");
   const set = si >= 0 ? (argv[si + 1] as string) : "sessions";
-  if (set !== "sessions" && set !== "dev" && set !== "dev-2" && set !== "held-out-3") throw new Error("--set is sessions (held-out 2), dev, dev-2 or held-out-3");
+  if (set !== "sessions" && set !== "dev" && set !== "dev-2" && set !== "held-out-3" && set !== "held-out-4") throw new Error("--set is sessions (held-out 2), dev, dev-2, held-out-3 or held-out-4");
   const ri = argv.indexOf("--run"); // held-out-3 is run three times; --run N writes results/held-out-3-runN.json
   const runNo = ri >= 0 ? (argv[ri + 1] as string) : "";
   const only = argv.filter((a, i) => a !== "--set" && i !== si + 1 && a !== "--run" && i !== ri + 1);

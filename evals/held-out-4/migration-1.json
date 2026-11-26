@@ -1,0 +1,69 @@
+{
+ "id": "migration-1",
+ "type": "migration",
+ "cwd": "/work/legacy-portal",
+ "steps": [
+  {
+   "u": "Port the Python 2 script scripts/export_members.py to Python 3. It's about 200 lines."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "2to3 scripts/export_members.py | head -40"
+   },
+   "r": "-print 'exporting', n\n+print('exporting', n)\n-for k, v in d.iteritems():\n+for k, v in d.items():\n-except Exception, e:\n+except Exception as e:"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "2to3 -w scripts/export_members.py && python3 scripts/export_members.py --dry-run"
+   },
+   "r": "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe9 in position 11"
+  },
+  {
+   "a": "The script reads a latin-1 file. Python 2 read it as bytes silently, but Python 3 decodes as UTF-8 by default and fails on accented names. The file needs an explicit encoding."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/legacy-portal/scripts/export_members.py",
+    "old_string": "open(src)",
+    "new_string": "open(src, encoding='latin-1')"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python3 scripts/export_members.py --dry-run | tail -2"
+   },
+   "r": "exported 1432 members (dry run)"
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Ported a Python 2 export script to Python 3 using the automatic converter, then fixed the one thing it missed: a latin-1 input file that Python 3 tried to read as UTF-8. The dry run now exports all 1432 members.",
+  "facts": [
+   "2to3 conversion applied",
+   "print, iteritems and except syntax converted",
+   "UnicodeDecodeError on accented names",
+   "file opened with latin-1 encoding",
+   "dry run exports 1432 members"
+  ],
+  "specific": [
+   "Python 2 to 3 port",
+   "text encoding differences"
+  ],
+  "decisions": [],
+  "skills": [
+   "Python",
+   "2to3",
+   "text encoding"
+  ],
+  "not_skills": [
+   "Django",
+   "SQL",
+   "Docker"
+  ]
+ }
+}

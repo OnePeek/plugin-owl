@@ -1,0 +1,51 @@
+{
+ "id": "docs-3",
+ "type": "docs",
+ "cwd": "/work/lab-notebooks",
+ "steps": [
+  {
+   "u": "Turn my messy notes in notes/ph-calibration.txt into a clean runbook for calibrating the pH probe. Keep every step, fix the order."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/lab-notebooks/notes/ph-calibration.txt"
+   },
+   "r": "rinse w/ DI water\nbuffer 7 first!! then 4\nwait til stable (~30s)\nstore in KCl never water\nif slope < 95% replace probe\nbuffer 10 only if sample > 8"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/lab-notebooks/runbooks/ph-probe-calibration.md",
+    "content": "# pH probe calibration\n1. Rinse the probe with deionised water.\n2. Calibrate in pH 7 buffer first, then pH 4. Wait about 30 seconds for the reading to stabilise each time.\n3. Add pH 10 buffer only when samples will be above pH 8.\n4. Check the slope. Below 95%, replace the probe.\n5. Store in KCl storage solution, never in water.\n"
+   },
+   "r": "File created."
+  },
+  {
+   "a": "All six notes are kept and ordered as a procedure. I read the note about KCl as storage solution; if it means something else, that step is wrong."
+  }
+ ],
+ "reference": {
+  "task_type": "docs",
+  "summary": "Turned rough lab notes into a numbered runbook for calibrating a pH probe, keeping every step and putting them in the order they would be done. One interpretation, that KCl means the storage solution, was flagged for confirmation.",
+  "facts": [
+   "runbook created from notes",
+   "all notes kept",
+   "buffers pH 7 then 4, 10 only for samples above 8",
+   "replace the probe if slope is under 95%",
+   "KCl interpretation flagged"
+  ],
+  "specific": [
+   "runbook from informal notes"
+  ],
+  "decisions": [],
+  "skills": [
+   "technical writing"
+  ],
+  "not_skills": [
+   "Python",
+   "laboratory automation",
+   "data analysis"
+  ]
+ }
+}

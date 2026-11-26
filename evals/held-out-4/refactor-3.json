@@ -1,0 +1,70 @@
+{
+ "id": "refactor-3",
+ "type": "refactor",
+ "cwd": "/work/ride-app",
+ "steps": [
+  {
+   "u": "The ViewModel in our Android app does networking, caching and formatting in one class. Split the networking out behind a repository. Keep behaviour."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/ride-app/app/src/main/kotlin/app/ride/TripViewModel.kt",
+    "limit": 40
+   },
+   "r": "class TripViewModel(private val api: RideApi) : ViewModel() {\n  fun load(id: String) = viewModelScope.launch { val t = api.trip(id); _state.value = format(t) }"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/ride-app/app/src/main/kotlin/app/ride/TripRepository.kt",
+    "content": "interface TripRepository { suspend fun trip(id: String): Trip }\nclass NetworkTripRepository(private val api: RideApi) : TripRepository { override suspend fun trip(id: String) = api.trip(id) }"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/ride-app/app/src/main/kotlin/app/ride/TripViewModel.kt",
+    "old_string": "class TripViewModel(private val api: RideApi) : ViewModel() {\n  fun load(id: String) = viewModelScope.launch { val t = api.trip(id)",
+    "new_string": "class TripViewModel(private val repo: TripRepository) : ViewModel() {\n  fun load(id: String) = viewModelScope.launch { val t = repo.trip(id)"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew testDebugUnitTest"
+   },
+   "r": "BUILD SUCCESSFUL, 27 tests"
+  },
+  {
+   "a": "Networking now sits behind a TripRepository interface and the ViewModel only depends on that, so it can be tested with a fake. Caching and formatting are still in the ViewModel; I left those for a second step."
+  }
+ ],
+ "reference": {
+  "task_type": "refactor",
+  "summary": "Moved an Android ViewModel's network calls behind a repository interface so the ViewModel depends on the interface; the 27 unit tests pass. Caching and formatting remain in the ViewModel for a later step.",
+  "facts": [
+   "TripRepository interface and network implementation added",
+   "ViewModel depends on the repository",
+   "27 unit tests pass",
+   "caching and formatting not yet moved"
+  ],
+  "specific": [
+   "repository pattern",
+   "dependency inversion for testability"
+  ],
+  "decisions": [],
+  "skills": [
+   "Kotlin",
+   "Android",
+   "Gradle"
+  ],
+  "not_skills": [
+   "Jetpack Compose",
+   "Room",
+   "Retrofit configuration"
+  ]
+ }
+}

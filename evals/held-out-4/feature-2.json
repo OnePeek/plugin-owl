@@ -1,0 +1,79 @@
+{
+ "id": "feature-2",
+ "type": "feature",
+ "cwd": "/work/kiosk-ui",
+ "steps": [
+  {
+   "u": "Add a high-contrast mode toggle to the kiosk app, persisted across restarts. It's a Qt/QML app."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/kiosk-ui/qml/Theme.qml"
+   },
+   "r": "pragma Singleton\nQtObject { property color bg: '#ffffff'; property color fg: '#1a1a1a'; property color accent: '#2a6fdb' }"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/kiosk-ui/qml/Theme.qml",
+    "old_string": "QtObject { property color bg: '#ffffff'; property color fg: '#1a1a1a'; property color accent: '#2a6fdb' }",
+    "new_string": "QtObject {\n  property bool highContrast: settings.highContrast\n  property color bg: highContrast ? '#000000' : '#ffffff'\n  property color fg: highContrast ? '#ffffff' : '#1a1a1a'\n  property color accent: highContrast ? '#ffd400' : '#2a6fdb'\n}"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/kiosk-ui/qml/Settings.qml",
+    "content": "Settings { id: settings; property bool highContrast: false }"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/kiosk-ui/qml/SettingsPage.qml",
+    "old_string": "// toggles",
+    "new_string": "Switch { text: qsTr('High contrast'); checked: Theme.highContrast; onToggled: settings.highContrast = checked }"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "ctest --output-on-failure -R ui_smoke"
+   },
+   "r": "1/1 Test #1: ui_smoke ... Passed"
+  },
+  {
+   "a": "The toggle changes the three theme colours through one property and QML Settings stores it between runs. I haven't run it on the kiosk hardware, only the smoke test."
+  }
+ ],
+ "reference": {
+  "task_type": "feature",
+  "summary": "Added a persisted high-contrast mode to the Qt QML kiosk app: the theme singleton switches its colours from one setting, a switch on the settings page toggles it, and QML Settings keeps it across restarts. Only the UI smoke test was run, not the kiosk hardware.",
+  "facts": [
+   "theme colours switch on a highContrast property",
+   "toggle on settings page",
+   "persisted with QML Settings",
+   "ui smoke test passes",
+   "not tested on the hardware"
+  ],
+  "specific": [
+   "theme switching in QML",
+   "persisted settings"
+  ],
+  "decisions": [],
+  "skills": [
+   "Qt",
+   "QML",
+   "CMake"
+  ],
+  "not_skills": [
+   "C++ memory management",
+   "React",
+   "Android"
+  ]
+ }
+}

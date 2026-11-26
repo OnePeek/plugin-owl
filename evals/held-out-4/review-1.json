@@ -1,0 +1,52 @@
+{
+ "id": "review-1",
+ "type": "review",
+ "cwd": "/work/upload-svc",
+ "steps": [
+  {
+   "u": "Review this PR that adds image uploads. Security and robustness. Don't edit."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "gh pr diff 88 --patch | head -80"
+   },
+   "r": "+ app.post('/upload', upload.single('file'), (req, res) => {\n+   const dest = path.join(UPLOAD_DIR, req.file.originalname)\n+   fs.renameSync(req.file.path, dest)\n+   res.json({ url: '/files/' + req.file.originalname })\n+ })"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "gh pr diff 88 --patch | grep -n 'limits\\|mimetype\\|fileFilter'"
+   },
+   "r": "no matches"
+  },
+  {
+   "a": "Findings. Blocking: the destination uses the client-supplied file name, so a name like ../../x can write outside the upload folder (path traversal), and two users uploading the same name overwrite each other. Blocking: no size limit and no type check, so anyone can fill the disk or upload scripts. Should fix: renameSync blocks the event loop. A generated random name stored alongside the original would fix the first two. I have not edited anything."
+  }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed an image upload PR without editing: the destination path uses the client-supplied file name, allowing path traversal and overwrites, and there is no size limit or type check. It also noted a blocking synchronous rename, and suggested generated names.",
+  "facts": [
+   "client file name used in the destination",
+   "path traversal and overwrite risk",
+   "no size limit or type check",
+   "synchronous rename blocks the event loop",
+   "no edits made"
+  ],
+  "specific": [
+   "path traversal in file upload"
+  ],
+  "decisions": [],
+  "skills": [
+   "security review",
+   "Node.js",
+   "code review"
+  ],
+  "not_skills": [
+   "Terraform",
+   "React",
+   "S3 configuration"
+  ]
+ }
+}
