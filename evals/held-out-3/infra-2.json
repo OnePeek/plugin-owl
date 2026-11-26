@@ -1,0 +1,80 @@
+{
+ "id": "infra-2",
+ "type": "infra",
+ "cwd": "/work/web-shop",
+ "steps": [
+  {
+   "u": "Speed up our GitHub Actions pipeline, it takes 14 minutes. Most of it is npm install and the Docker build."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/web-shop/.github/workflows/ci.yml"
+   },
+   "r": "steps:\n  - uses: actions/checkout@v4\n  - uses: actions/setup-node@v4\n    with: { node-version: 20 }\n  - run: npm ci\n  - run: npm test\n  - run: docker build -t shop:${{ github.sha }} ."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/web-shop/.github/workflows/ci.yml",
+    "old_string": "    with: { node-version: 20 }",
+    "new_string": "    with: { node-version: 20, cache: npm }"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/web-shop/.github/workflows/ci.yml",
+    "old_string": "  - run: docker build -t shop:${{ github.sha }} .",
+    "new_string": "  - uses: docker/setup-buildx-action@v3\n  - uses: docker/build-push-action@v6\n    with:\n      context: .\n      tags: shop:${{ github.sha }}\n      cache-from: type=gha\n      cache-to: type=gha,mode=max"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/web-shop/Dockerfile"
+   },
+   "r": "FROM node:20\nWORKDIR /app\nCOPY . .\nRUN npm ci\nRUN npm run build"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/web-shop/Dockerfile",
+    "content": "FROM node:20 AS build\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci\nCOPY . .\nRUN npm run build\n"
+   },
+   "r": "File written."
+  },
+  {
+   "a": "I cached the npm download, switched the image build to buildx with the GitHub Actions layer cache, and reordered the Dockerfile so the dependency layer is only rebuilt when package files change. I can't run the workflow from here, so the timing improvement is expected but unmeasured."
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Reworked the CI pipeline for speed: npm caching in setup-node, a buildx Docker build with the GitHub Actions layer cache, and a Dockerfile reordered so dependencies install in their own cached layer. The workflow could not be run here, so the speed-up is unmeasured.",
+  "facts": [
+   "npm cache enabled in setup-node",
+   "docker build moved to buildx with gha cache",
+   "Dockerfile copies package files before the source",
+   "workflow not run",
+   "speed-up not measured"
+  ],
+  "specific": [
+   "Docker layer caching",
+   "GitHub Actions caching"
+  ],
+  "decisions": [],
+  "skills": [
+   "GitHub Actions",
+   "Docker",
+   "buildx",
+   "CI"
+  ],
+  "not_skills": [
+   "Kubernetes",
+   "Terraform",
+   "Jenkins"
+  ]
+ }
+}

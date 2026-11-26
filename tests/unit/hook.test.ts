@@ -89,6 +89,7 @@ test("test_summariser_flags_locked_down: no tools, no MCP, no settings, no slash
   assert.ok(a.includes("--no-session-persistence"));
   assert.ok(!a.includes("--allowedTools") && !a.includes("--dangerously-skip-permissions") && !a.includes("--add-dir") && !a.includes("--continue") && !a.includes("--resume"));
   assert.equal(at("--output-format"), "json");
+  assert.equal(at("--model"), "claude-sonnet-5-5");
 });
 
 test("summariser child environment passes nothing but what it needs, and marks itself internal", () => {

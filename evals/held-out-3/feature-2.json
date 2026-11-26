@@ -1,0 +1,85 @@
+{
+ "id": "feature-2",
+ "type": "feature",
+ "cwd": "/work/helpdesk",
+ "steps": [
+  {
+   "u": "Support agents want to snooze a ticket until a time of their choosing, and have it reappear in their inbox then. Rails app. Keep it simple."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/helpdesk/app/models/ticket.rb"
+   },
+   "r": "class Ticket < ApplicationRecord\n  enum status: { open: 0, pending: 1, solved: 2 }\n  scope :inbox, -> { where(status: :open) }\nend"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/helpdesk/db/migrate/20261126_add_snoozed_until_to_tickets.rb",
+    "content": "class AddSnoozedUntilToTickets < ActiveRecord::Migration[7.1]\n  def change\n    add_column :tickets, :snoozed_until, :datetime\n    add_index :tickets, :snoozed_until, where: 'snoozed_until IS NOT NULL'\n  end\nend\n"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/helpdesk/app/models/ticket.rb",
+    "old_string": "scope :inbox, -> { where(status: :open) }",
+    "new_string": "scope :inbox, -> { where(status: :open).where('snoozed_until IS NULL OR snoozed_until <= ?', Time.current) }\n  def snooze!(until_time) = update!(snoozed_until: until_time)"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/helpdesk/spec/models/ticket_snooze_spec.rb",
+    "content": "RSpec.describe Ticket do\n  it 'hides a snoozed ticket until its time' do\n    t = create(:ticket, status: :open); t.snooze!(1.hour.from_now)\n    expect(Ticket.inbox).not_to include(t)\n    travel_to(2.hours.from_now) { expect(Ticket.inbox).to include(t) }\n  end\nend"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bundle exec rspec spec/models/ticket_snooze_spec.rb"
+   },
+   "r": "1 example, 0 failures"
+  },
+  {
+   "a": "Snoozing is implemented as a timestamp that the inbox scope checks, so no background job is needed: the ticket simply starts matching again when the time passes. The UI button and the controller action are not built yet."
+  }
+ ],
+ "reference": {
+  "task_type": "feature",
+  "summary": "Added ticket snoozing to the Rails helpdesk: a snoozed_until column with a partial index, a snooze! method, and an inbox scope that hides tickets until their time, covered by a model spec that passes. It avoids a background job; the controller action and the button are not built yet.",
+  "facts": [
+   "migration adds snoozed_until with a partial index",
+   "snooze! method added",
+   "inbox scope excludes snoozed tickets until the time passes",
+   "no background job",
+   "model spec passes",
+   "controller and UI not built"
+  ],
+  "specific": [
+   "snooze via timestamp filter",
+   "Rails model scope"
+  ],
+  "decisions": [
+   {
+    "choice": "filter on a snoozed_until timestamp in the inbox scope instead of a scheduled job that wakes tickets",
+    "reason": "no job to fail or schedule, the ticket reappears by itself when the time passes"
+   }
+  ],
+  "skills": [
+   "Ruby on Rails",
+   "ActiveRecord",
+   "RSpec",
+   "PostgreSQL"
+  ],
+  "not_skills": [
+   "Sidekiq",
+   "React",
+   "Docker"
+  ]
+ }
+}

@@ -91,8 +91,10 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const si = argv.indexOf("--set");
   const set = si >= 0 ? (argv[si + 1] as string) : "sessions";
-  if (set !== "sessions" && set !== "dev" && set !== "dev-2") throw new Error("--set is sessions (held-out), dev or dev-2");
-  const only = argv.filter((a, i) => a !== "--set" && i !== si + 1);
+  if (set !== "sessions" && set !== "dev" && set !== "dev-2" && set !== "held-out-3") throw new Error("--set is sessions (held-out 2), dev, dev-2 or held-out-3");
+  const ri = argv.indexOf("--run"); // held-out-3 is run three times; --run N writes results/held-out-3-runN.json
+  const runNo = ri >= 0 ? (argv[ri + 1] as string) : "";
+  const only = argv.filter((a, i) => a !== "--set" && i !== si + 1 && a !== "--run" && i !== ri + 1);
   const dir = join(ROOT, "evals", set);
   const sessions = loadSessions(dir).filter((x) => only.length === 0 || only.includes(x.id));
   const summarise = realSummariser(join(tmpdir(), "owl-eval-work"));
@@ -133,7 +135,7 @@ async function main(): Promise<void> {
   };
   const result = { run, prompt_sha256: run.prompt_sha256, model: SUMMARY_MODEL, sessions: verdicts.length, passed, leaks, bar: PASS_BAR, workflow_heavy: workflowHeavy, ok: passed >= PASS_BAR && leaks === 0 && workflowHeavy.length === 0 && only.length === 0, verdicts: verdicts.map((v) => ({ id: v.id, pass: v.pass, criteria: v.criteria, notes: v.notes, summary: v.insight?.summary, task_type: v.insight?.task_type, decisions: v.insight?.decisions, skills: v.insight?.skills })) };
   mkdirSync(join(ROOT, "evals", "results"), { recursive: true });
-  writeFileSync(join(ROOT, "evals", "results", set === "sessions" ? "latest.json" : `${set}.json`), JSON.stringify(result, null, 1) + "\n");
+  writeFileSync(join(ROOT, "evals", "results", set === "sessions" ? "latest.json" : runNo ? `${set}-run${runNo}.json` : `${set}.json`), JSON.stringify(result, null, 1) + "\n");
   console.log(`\nEVAL ${passed}/${verdicts.length} passed, ${leaks} leaks, ${workflowHeavy.length} mostly-workflow, bar ${PASS_BAR}/30 -> ${result.ok ? "OK" : "BELOW BAR"}`);
   process.exitCode = result.ok ? 0 : 1;
 }

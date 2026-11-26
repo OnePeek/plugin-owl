@@ -1,0 +1,77 @@
+{
+ "id": "data-1",
+ "type": "data",
+ "cwd": "/work/retail-analytics",
+ "steps": [
+  {
+   "u": "Build a weekly retention table from the events table: for each signup week, the share of users active 1, 2, 4 weeks later. Postgres."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "psql $DB -c '\\d events'"
+   },
+   "r": "user_id bigint, event_type text, occurred_at timestamptz\nIndexes: events_user_time (user_id, occurred_at)"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/retail-analytics/sql/weekly_retention.sql",
+    "content": "WITH signup AS (\n  SELECT user_id, date_trunc('week', MIN(occurred_at)) AS cohort FROM events WHERE event_type='signup' GROUP BY 1\n), active AS (\n  SELECT DISTINCT user_id, date_trunc('week', occurred_at) AS wk FROM events WHERE event_type <> 'signup'\n)\nSELECT s.cohort, COUNT(DISTINCT s.user_id) AS users,\n  ROUND(100.0*COUNT(DISTINCT a1.user_id)/COUNT(DISTINCT s.user_id),1) AS w1,\n  ROUND(100.0*COUNT(DISTINCT a2.user_id)/COUNT(DISTINCT s.user_id),1) AS w2,\n  ROUND(100.0*COUNT(DISTINCT a4.user_id)/COUNT(DISTINCT s.user_id),1) AS w4\nFROM signup s\nLEFT JOIN active a1 ON a1.user_id=s.user_id AND a1.wk=s.cohort+interval '1 week'\nLEFT JOIN active a2 ON a2.user_id=s.user_id AND a2.wk=s.cohort+interval '2 weeks'\nLEFT JOIN active a4 ON a4.user_id=s.user_id AND a4.wk=s.cohort+interval '4 weeks'\nGROUP BY 1 ORDER BY 1;"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "psql $DB -f sql/weekly_retention.sql | head -8"
+   },
+   "r": " cohort | users | w1 | w2 | w4\n 2026-09-07 | 412 | 38.1 | 29.4 | 21.8\n 2026-09-14 | 390 | 36.7 | 27.9 | 20.0\n 2026-10-19 | 455 | 40.2 | 31.0 | (null)"
+  },
+  {
+   "a": "The most recent cohorts have NULL for later weeks because those weeks have not happened yet, which is correct, but a reader could mistake NULL for zero. I'll leave them NULL and note it in a SQL comment."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/retail-analytics/sql/weekly_retention.sql",
+    "old_string": "WITH signup AS (",
+    "new_string": "-- NULL in w1/w2/w4 means that week has not happened yet for the cohort; it is not zero retention.\nWITH signup AS ("
+   },
+   "r": "ok"
+  }
+ ],
+ "reference": {
+  "task_type": "data",
+  "summary": "Wrote a Postgres weekly retention query: users grouped by signup week with the percentage active 1, 2 and 4 weeks later, using left joins on distinct weekly activity. Ran it on the events table; recent cohorts show NULL for weeks that have not happened yet, and a comment says so.",
+  "facts": [
+   "cohorts by signup week",
+   "retention at 1, 2 and 4 weeks",
+   "Postgres SQL file added",
+   "query ran and returned rows",
+   "NULL means the week has not happened yet",
+   "recent cohorts have NULL later weeks"
+  ],
+  "specific": [
+   "cohort retention analysis",
+   "SQL left joins on weekly activity"
+  ],
+  "decisions": [
+   {
+    "choice": "keep NULL for weeks that have not happened yet instead of showing zero",
+    "reason": "zero would read as no retention when the data simply does not exist yet"
+   }
+  ],
+  "skills": [
+   "SQL",
+   "PostgreSQL",
+   "cohort analysis"
+  ],
+  "not_skills": [
+   "Python",
+   "pandas",
+   "dbt",
+   "Airflow"
+  ]
+ }
+}

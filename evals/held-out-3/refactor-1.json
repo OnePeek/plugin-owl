@@ -1,0 +1,95 @@
+{
+ "id": "refactor-1",
+ "type": "refactor",
+ "cwd": "/work/shipping-calc",
+ "steps": [
+  {
+   "u": "calculateRate() in rates.py is 300 lines of nested ifs. Split it up without changing results. There's a golden-file test."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/shipping-calc/shipping/rates.py",
+    "offset": 1,
+    "limit": 40
+   },
+   "r": "def calculate_rate(parcel, dest, service):\n    if service == 'express':\n        if dest.country == 'US':\n            ...\n"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest tests/test_golden_rates.py -q"
+   },
+   "r": "1 passed (2,400 parcels)"
+  },
+  {
+   "a": "The function has three parts: surcharge selection by service, zone lookup by destination, and weight banding. I'll extract each into its own function and keep calculate_rate as the composition."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/shipping-calc/shipping/zones.py",
+    "content": "def zone_for(dest): ..."
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/shipping-calc/shipping/bands.py",
+    "content": "def band_price(weight_kg, table): ..."
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/shipping-calc/shipping/rates.py",
+    "old_string": "def calculate_rate(parcel, dest, service):",
+    "new_string": "def calculate_rate(parcel, dest, service):\n    zone = zone_for(dest)\n    base = band_price(parcel.weight_kg, TABLES[(service, zone)])\n    return base + surcharge(service, parcel, dest)\n\n\ndef _old_calculate_rate(parcel, dest, service):"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest tests/test_golden_rates.py -q"
+   },
+   "r": "1 passed (2,400 parcels)"
+  },
+  {
+   "a": "The golden test still matches all 2,400 parcels. I left the old function in as _old_calculate_rate so it can be compared and deleted in a follow-up."
+  }
+ ],
+ "reference": {
+  "task_type": "refactor",
+  "summary": "Split the 300-line shipping rate function into zone lookup, weight banding and surcharge pieces, with the original function now a short composition. The golden-file test over 2,400 parcels passes before and after; the old implementation is kept temporarily as a private function for comparison.",
+  "facts": [
+   "calculate_rate split into zone, band and surcharge parts",
+   "new zones and bands modules",
+   "golden test of 2,400 parcels passes before and after",
+   "old function kept as _old_calculate_rate",
+   "no behaviour change intended"
+  ],
+  "specific": [
+   "extract function refactor",
+   "golden-file regression test"
+  ],
+  "decisions": [
+   {
+    "choice": "keep the old function as a private copy for a follow-up comparison and removal",
+    "reason": "it lets the new composition be checked against the original before the original is deleted"
+   }
+  ],
+  "skills": [
+   "Python",
+   "refactoring",
+   "pytest"
+  ],
+  "not_skills": [
+   "SQL",
+   "Docker",
+   "TypeScript"
+  ]
+ }
+}

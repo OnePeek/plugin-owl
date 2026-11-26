@@ -9,7 +9,9 @@ import { SYSTEM_PROMPT, WRAPPER } from "./prompt.js";
 import { pickEnv, SUMMARISER_ENV } from "../state/env.js";
 
 export const SUMMARY_TIMEOUT_MS = 60_000;
-export const SUMMARY_MODEL = "sonnet";
+// An exact model id, never an alias: an alias moves when a newer model ships and would change the summaries unnoticed.
+// The CLI has no temperature flag, so the id is the only pin available.
+export const SUMMARY_MODEL = "claude-sonnet-5-5";
 
 export type Summariser = (sessionText: string) => Promise<string | undefined>;
 

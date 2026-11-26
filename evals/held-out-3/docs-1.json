@@ -1,0 +1,79 @@
+{
+ "id": "docs-1",
+ "type": "docs",
+ "cwd": "/work/pdf-toolkit",
+ "steps": [
+  {
+   "u": "Our README's install section is out of date, we moved from setup.py to pyproject with uv. Update it and add a short troubleshooting section for the poppler error."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/pdf-toolkit/README.md"
+   },
+   "r": "## Install\n\n    pip install -r requirements.txt\n    python setup.py install\n\n## Usage\n..."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/pdf-toolkit/pyproject.toml"
+   },
+   "r": "[project]\nname = \"pdf-toolkit\"\nrequires-python = \">=3.11\"\n[project.scripts]\npdftk-lite = \"pdf_toolkit.cli:main\""
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "poppler|PDFInfoNotInstalledError",
+    "path": "/work/pdf-toolkit"
+   },
+   "r": "src/pdf_toolkit/render.py:12: from pdf2image import convert_from_path  # needs poppler"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/pdf-toolkit/README.md",
+    "old_string": "    pip install -r requirements.txt\n    python setup.py install",
+    "new_string": "    uv sync\n    uv run pdftk-lite --help\n\nPython 3.11 or newer is required."
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/pdf-toolkit/README.md",
+    "old_string": "## Usage",
+    "new_string": "## Troubleshooting\n\n**`PDFInfoNotInstalledError: Unable to get page count`**: the page renderer needs the poppler utilities. Install them with `brew install poppler` (macOS) or `apt install poppler-utils` (Debian/Ubuntu), then retry.\n\n## Usage"
+   },
+   "r": "ok"
+  },
+  {
+   "a": "README now uses uv for install, states the Python 3.11 requirement taken from pyproject, and has a troubleshooting entry for the poppler error. I did not run the commands in a clean environment."
+  }
+ ],
+ "reference": {
+  "task_type": "docs",
+  "summary": "Updated the README install section from setup.py and pip to uv with the Python 3.11 requirement, and added a troubleshooting entry explaining the poppler error and how to install it on macOS and Debian. The instructions were not tried in a clean environment.",
+  "facts": [
+   "install switched to uv",
+   "Python 3.11 or newer stated",
+   "troubleshooting section for the poppler error",
+   "install commands for macOS and Debian/Ubuntu",
+   "not run in a clean environment"
+  ],
+  "specific": [
+   "README install instructions",
+   "poppler dependency of pdf2image"
+  ],
+  "decisions": [],
+  "skills": [
+   "technical writing",
+   "Python packaging",
+   "uv"
+  ],
+  "not_skills": [
+   "Sphinx",
+   "CI configuration",
+   "Docker"
+  ]
+ }
+}
