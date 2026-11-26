@@ -12,8 +12,8 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "node scripts/lint.mjs",
-    "test": "node scripts/build.mjs --quiet && node --test --test-concurrency=1 \"dist/tests/unit/*.test.js\" \"dist/tests/privacy/*.test.js\" \"dist/tests/injection/*.test.js\" \"dist/tests/latency/*.test.js\" \"dist/tests/eval/*.test.js\"",
-    "test:privacy": "node scripts/build.mjs --quiet && node --test \"dist/tests/privacy/*.test.js\" \"dist/tests/injection/*.test.js\"",
+    "test": "node scripts/build.mjs --quiet && node --test --test-concurrency=1 --test-force-exit --test-timeout=120000 \"dist/tests/unit/*.test.js\" \"dist/tests/privacy/*.test.js\" \"dist/tests/injection/*.test.js\" \"dist/tests/latency/*.test.js\" \"dist/tests/eval/*.test.js\"",
+    "test:privacy": "node scripts/build.mjs --quiet && node --test --test-force-exit --test-timeout=120000 \"dist/tests/privacy/*.test.js\" \"dist/tests/injection/*.test.js\"",
     "eval": "node scripts/build.mjs --quiet && node dist/evals/run.js",
     "eval:injection": "node scripts/build.mjs --quiet && node dist/tests/injection/live.js",
     "check": "npm run typecheck && npm run lint && npm test"
