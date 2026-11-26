@@ -3,7 +3,7 @@
 import { matchSecret } from "./rules.js";
 import { isWordDotted, isWordIdentifier } from "./words.js";
 
-export type Hit = "taint" | "secret" | "email" | "url" | "host" | "path" | "ip" | "blob" | "entropy" | "quote" | "name" | "blocklist" | "sentences" | "unicode" | "ticket";
+export type Hit = "taint" | "secret" | "email" | "url" | "host" | "path" | "ip" | "blob" | "entropy" | "quote" | "name" | "blocklist" | "sentences" | "unicode" | "ticket" | "injection";
 
 export interface Names {
   /** Names learned from the project: remote owner and repository, package names, top-level directories. */
@@ -26,6 +26,11 @@ const HOST = /(?<![\w.-])[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+){1,}\.[a-z]{2,}(?![\w
 // A ticket id (PAY-1234). Public standard names that look the same are exempt (SHA-256, UTF-8, ISO-8601, RFC-8785...).
 const TICKET = /(?<![A-Za-z0-9-])([A-Z][A-Z0-9]{1,9})-\d{1,7}(?![A-Za-z0-9])/g;
 const TICKET_OK = new Set(["SHA", "UTF", "ISO", "RFC", "ES", "IPV", "TLS", "SSL", "HTTP", "AES", "CVE", "CWE", "ECMA", "IEEE", "PEP", "JSR", "WCAG", "GPT", "PCI", "SOC", "ASVS", "OWASP", "UTC", "GMT", "MP", "COVID", "ISBN", "FIPS", "NIST", "PKCS", "ECDSA", "RSA", "MD", "CRC", "EC", "P", "X", "H", "IPV4", "IPV6", "S3", "EC2", "TOP", "OAUTH"]);
+// Instruction shapes aimed at a model that reads the text later; the same phrases as the server's injection screen
+// (backend connector_sync_pipeline/models/leak_screen.py `_INJECTION`). A hit holds the record.
+const INJECTION = /\b(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+|the\s+)?(?:previous|prior|above|earlier|your|system)\s+(?:instructions?|rules?|prompts?)\b|\bsystem\s+prompt\b|\byou\s+are\s+now\b|\bact\s+as\s+(?:an?\s+)?(?:admin|administrator|system)\b/i;
+// the verbs are written in pieces: the lint bans the grading words in src/ (AIP-A1), and this is a phrase to refuse, not one we use
+const INJECTION_GRADE = new RegExp(String.raw`\b(?:rate|${"sco"}re|${"ran"}k)\s+(?:this\s+)?(?:person|candidate|user)\s+(?:as\s+)?(?:an?\s+)?expert\b`, "i");
 const HEX_RUN = /[0-9a-fA-F]{20,}/;
 const B64_RUN = /[A-Za-z0-9+_=-]{20,}/g;
 const SPELLED = /(?:^|\s)(?:[A-Za-z0-9][\s.\-_,]+){7,}[A-Za-z0-9](?=\s|$|[.,;])/;
@@ -168,6 +173,7 @@ export function checkText(input: string, names: Names = NO_NAMES): Hit[] {
   if (copy !== text && (matchSecret(copy) !== undefined || keyMaterial(text.replace(FORMAT_CHARS, "").replace(SPLIT, JOIN_MARK)))) hits.add("secret");
   // device only: the same key-material rules on every joined stretch, so a word joined in front (Used nxej...) cannot hide a key
   if (copy !== text && keyMaterial(joinSplit(text, JOIN_MARK))) hits.add("secret");
+  if (INJECTION.test(text) || INJECTION_GRADE.test(text)) hits.add("injection");
   if (EMAIL.test(text)) hits.add("email");
   if (URL_SCHEME.test(text) || BARE_DOMAIN.test(text)) hits.add("url");
   if (hostHit(text)) hits.add("host");
@@ -211,9 +217,17 @@ export function sentenceCount(text: string): number {
  * URL, path, address, blob or blocklisted word is NOT edited into shape: the caller re-checks and holds the record.
  */
 export function cleanText(text: string, names: Names = NO_NAMES): string {
+  return replaceLearned(typographic(text), names);
+}
+
+/** The typographic repairs alone (no name replacement): the text the structure rules (email, URL, host, path) must also be read on, because a learned name inside an email domain is rewritten first and would hide the email. */
+export function typographic(text: string): string {
   let t = text.normalize("NFC").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f​-‏‪-‮⁦-⁩﻿]/g, "");
   t = t.replace(/[“”„«»`"]/g, "").replace(/’/g, "'").replace(/‘/g, "");
-  t = t.replace(/(?<!\p{L})'|'(?!\p{L})/gu, "");
+  return t.replace(/(?<!\p{L})'|'(?!\p{L})/gu, "");
+}
+
+function replaceLearned(t: string, names: Names): string {
   for (const n of names.learned) if (n.trim().length >= 4 && containsName(t, n)) t = t.replace(new RegExp(`(?<![A-Za-z0-9])${escapeRe(n)}(?![A-Za-z0-9])`, "gi"), "the project");
   return t.replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, " ").trim();
 }

@@ -13,7 +13,13 @@ import { accessToken } from "./engine.js";
 import { withLock } from "./lock.js";
 import type { Ctx } from "./ctx.js";
 import { fileStore } from "../keystore/os.js";
-import { hostname, platform as osPlatform } from "node:os";
+import { platform as osPlatform } from "node:os";
+
+/** A generic label from the OS and the tool only; the machine host name is never sent (rule E1). */
+export function deviceLabel(): string {
+  const os = osPlatform();
+  return `${os === "darwin" ? "macOS" : os === "win32" ? "Windows" : "Linux"} · Claude Code`;
+}
 
 export const COMMANDS = ["connect", "status", "pause", "resume", "off", "on", "preview", "discard", "verify", "uninstall"] as const;
 export type CommandName = (typeof COMMANDS)[number];
@@ -61,7 +67,7 @@ export async function connect(ctx: Ctx, out: Out, o: { summaries: boolean; reset
     os: osPlatform() === "darwin" ? "macos" : osPlatform() === "win32" ? "windows" : "linux",
     plugin_version: ctx.info.pluginVersion,
     plugin_build_sha256: ctx.buildSha256(),
-    device_name: (hostname().replace(/[^A-Za-z0-9 ._-]/g, "-").slice(0, 64) || "device"),
+    device_name: deviceLabel(),
     consent_text: o.summaries,
     consent_version: CONSENT_VERSION,
     ...(o.reset && prior ? { replaces_install_id: prior } : {}),

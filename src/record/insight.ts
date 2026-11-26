@@ -1,7 +1,7 @@
 // Turn the summariser's raw reply into a record `insight`, or HOLD (rules E2, E3). The model's output is untrusted: it is
 // parsed strictly, every string is cleaned and then checked with the contract's text rules; one remaining hit holds the
 // whole record. Nothing is ever "fixed up" beyond the typographic cleaner.
-import { checkText, cleanText, sentenceCount, type Hit, type Names } from "../clean/filter.js";
+import { checkText, cleanText, typographic, sentenceCount, type Hit, type Names } from "../clean/filter.js";
 import { TASK_TYPES, type TaskType } from "../summarise/prompt.js";
 
 export interface Insight {
@@ -52,6 +52,9 @@ export function finalizeInsight(raw: string, names: Names): InsightResult {
 
   const hits = new Set<Hit>();
   for (const t of [summary, ...decisions, ...skills]) for (const h of checkText(t, names)) hits.add(h);
+  // B5: the learned-name rewrite can hide a structure (priya@acme-internal.example became priya@the project.example); read the
+  // text before the rewrite too, for every rule except the name rules themselves
+  for (const t of [o["summary"] as string, ...(o["decisions"] as string[]), ...(o["skills"] as string[])]) for (const h of checkText(typographic(t), { ...names, learned: [] })) hits.add(h);
   if (hits.size > 0) return { ok: false, reason: "leak", hits: [...hits] };
   return { ok: true, insight: { summary, task_type: o["task_type"] as TaskType, decisions, skills } };
 }

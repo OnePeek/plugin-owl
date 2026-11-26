@@ -343,3 +343,12 @@ test("the OAuth loopback closes a kept-alive browser connection, so the helper p
   assert.equal(await Promise.race([closed, timer]), true, "the server must not keep the browser connection open");
   agent.destroy();
 });
+
+test("B7: the device label is built from OS and tool only, never the host name", async () => {
+  const { deviceLabel } = await import("../../src/cli/commands.js");
+  const { hostname } = await import("node:os");
+  const l = deviceLabel();
+  assert.match(l, /^(macOS|Windows|Linux) · Claude Code$/);
+  const h = (hostname().split(".")[0] ?? "").toLowerCase();
+  assert.ok(h.length < 4 || !l.toLowerCase().includes(h));
+});
