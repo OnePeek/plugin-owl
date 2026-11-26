@@ -1,86 +1,82 @@
 {
-  "id": "infra-2",
-  "type": "infra",
-  "cwd": "/home/runner/work/ledgerly-android",
-  "steps": [
-    {
-      "u": "Our Android CI takes 19 minutes, mostly Gradle downloading dependencies. Add caching to .github/workflows/build.yml."
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/home/runner/work/ledgerly-android/.github/workflows/build.yml"
-      },
-      "r": "10 jobs:\n11   build:\n12     runs-on: ubuntu-latest\n13     steps:\n14       - uses: actions/checkout@v4\n15       - uses: actions/setup-java@v4\n16         with: { distribution: temurin, java-version: '17' }\n17       - run: ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon"
-    },
-    {
-      "a": "Options: a hand-rolled actions/cache step keyed on hashes of the gradle files, setup-java's cache: gradle flag, or gradle/actions/setup-gradle. setup-gradle caches the dependency and build caches with sensible cleanup, saves only from the default branch so PRs don't thrash the cache, and gives a build summary; a manual actions/cache key would invalidate the whole cache on any lockfile change. I'll go with setup-gradle."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/home/runner/work/ledgerly-android/.github/workflows/build.yml",
-        "old_string": "      - run: ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon",
-        "new_string": "      - uses: gradle/actions/setup-gradle@v4\n        with:\n          cache-read-only: ${{ github.ref != 'refs/heads/main' }}\n      - run: ./gradlew assembleDebug testDebugUnitTest lintDebug --build-cache"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/home/runner/work/ledgerly-android/gradle.properties",
-        "old_string": "org.gradle.jvmargs=-Xmx2g",
-        "new_string": "org.gradle.jvmargs=-Xmx4g -XX:+UseParallelGC\norg.gradle.caching=true\norg.gradle.parallel=true"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "actionlint .github/workflows/build.yml && ./gradlew help --build-cache -q && echo ok"
-      },
-      "r": "ok"
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "gh run list --workflow build.yml --limit 3 --json displayTitle,conclusion,durationMs -q '.[] | [.displayTitle,.conclusion,(.durationMs/60000|floor)] | @tsv'"
-      },
-      "r": "ci: gradle caching (2nd run)\tsuccess\t6\nci: gradle caching (1st run, cold)\tsuccess\t18\nbump compose bom\tsuccess\t19"
-    },
-    {
-      "a": "Added gradle/actions/setup-gradle (writing the cache only from main, read-only on other branches), turned on the Gradle build cache and parallel builds, and raised the JVM heap. The cold run took 18 minutes as expected; the warm run took 6 minutes, down from 19."
-    }
-  ],
-  "reference": {
-    "task_type": "infra",
-    "summary": "Added Gradle dependency and build caching to an Android GitHub Actions workflow using the official setup-gradle action, writing the cache only from the main branch, and enabled the Gradle build cache and parallel builds. A warm run dropped from about 19 to about 6 minutes.",
-    "facts": [
-      "The workflow had no caching and took about 19 minutes",
-      "setup-gradle was added with a read-only cache on non-main branches",
-      "Gradle build cache and parallel execution were enabled and the JVM heap raised to 4 GB",
-      "The cold run took 18 minutes and the warm run 6 minutes"
-    ],
-    "specific": [
-      "CI dependency caching",
-      "Gradle build cache"
-    ],
-    "decisions": [
-      {
-        "choice": "Use the setup-gradle action instead of a manual actions/cache step or setup-java caching",
-        "reason": "it manages cleanup, saves only from the default branch and avoids invalidating the whole cache on any lockfile change"
-      }
-    ],
-    "skills": [
-      "GitHub Actions",
-      "Gradle",
-      "CI optimisation"
-    ],
-    "not_skills": [
-      "Docker",
-      "Kotlin application code",
-      "Terraform",
-      "test writing"
-    ]
+ "id": "infra-2",
+ "type": "infra",
+ "cwd": "/home/dev/src/corvid-platform",
+ "steps": [
+  {
+   "u": "The access-logs bucket keeps everything forever. Per the retention policy (https://confluence.corvid.internal/x/LOGRET2) we need: versioning on, move to Glacier after 30 days, delete after 400. Update the Terraform."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/corvid-platform/terraform/modules/logging/s3.tf"
+   },
+   "r": "resource \"aws_s3_bucket\" \"access_logs\" {\n  bucket = \"${var.env}-corvid-access-logs\"\n  tags   = local.tags\n}\n\nresource \"aws_s3_bucket_public_access_block\" \"access_logs\" {\n  bucket                  = aws_s3_bucket.access_logs.id\n  block_public_acls       = true\n  restrict_public_buckets = true\n}"
+  },
+  {
+   "a": "Using the separate `aws_s3_bucket_versioning` and `aws_s3_bucket_lifecycle_configuration` resources (AWS provider v4+ style). With versioning on, expiring current objects only adds delete markers, so I'll also expire noncurrent versions, or storage would keep growing."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/corvid-platform/terraform/modules/logging/s3.tf",
+    "old_string": "resource \"aws_s3_bucket_public_access_block\" \"access_logs\" {",
+    "new_string": "resource \"aws_s3_bucket_versioning\" \"access_logs\" {\n  bucket = aws_s3_bucket.access_logs.id\n  versioning_configuration {\n    status = \"Enabled\"\n  }\n}\n\nresource \"aws_s3_bucket_lifecycle_configuration\" \"access_logs\" {\n  bucket     = aws_s3_bucket.access_logs.id\n  depends_on = [aws_s3_bucket_versioning.access_logs]\n\n  rule {\n    id     = \"retention\"\n    status = \"Enabled\"\n    filter {}\n\n    transition {\n      days          = 30\n      storage_class = \"GLACIER\"\n    }\n    expiration {\n      days = 400\n    }\n    noncurrent_version_expiration {\n      noncurrent_days = 30\n    }\n  }\n}\n\nresource \"aws_s3_bucket_public_access_block\" \"access_logs\" {"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cd terraform/envs/staging && terraform fmt -check -recursive ../../ && terraform validate"
+   },
+   "r": "Success! The configuration is valid."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cd terraform/envs/staging && terraform plan -no-color | tail -12"
+   },
+   "r": "  # module.logging.aws_s3_bucket_lifecycle_configuration.access_logs will be created\n  + resource \"aws_s3_bucket_lifecycle_configuration\" \"access_logs\" {\n      + bucket = \"staging-corvid-access-logs\"\n      ...\n    }\n\n  # module.logging.aws_s3_bucket_versioning.access_logs will be created\n  + resource \"aws_s3_bucket_versioning\" \"access_logs\" {\n      + bucket = \"staging-corvid-access-logs\"\n    }\n\nPlan: 2 to add, 0 to change, 0 to destroy."
+  },
+  {
+   "a": "Added versioning and a lifecycle rule (Glacier at 30 days, expire at 400, noncurrent versions expire after 30) to the logging module. fmt and validate pass; the staging plan is 2 to add, 0 to change, 0 to destroy. I haven't applied anything."
   }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Added S3 versioning and a lifecycle retention rule to the access logs bucket in a Terraform logging module: move to Glacier at 30 days, expire at 400 days, and expire noncurrent versions. Terraform fmt and validate pass and the staging plan shows 2 resources to add and nothing destroyed; nothing was applied.",
+  "facts": [
+   "Added aws_s3_bucket_versioning with status Enabled",
+   "Added aws_s3_bucket_lifecycle_configuration: GLACIER at 30 days, expiration at 400 days",
+   "Added noncurrent_version_expiration after 30 days",
+   "terraform validate succeeded",
+   "Staging plan: 2 to add, 0 to change, 0 to destroy; not applied"
+  ],
+  "specific": [
+   "S3 lifecycle and retention policy in Terraform",
+   "noncurrent version expiration with versioning"
+  ],
+  "decisions": [
+   {
+    "choice": "also expire noncurrent versions",
+    "reason": "with versioning on, expiring current objects only adds delete markers and storage would keep growing"
+   },
+   {
+    "choice": "use the separate versioning and lifecycle resources",
+    "reason": "that is the style of version 4 and later of the AWS provider"
+   }
+  ],
+  "skills": [
+   "Terraform",
+   "AWS S3",
+   "infrastructure planning"
+  ],
+  "not_skills": [
+   "terraform apply / deployment",
+   "IAM policy design",
+   "Kubernetes",
+   "cost analysis"
+  ]
+ }
 }

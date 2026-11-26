@@ -1,108 +1,101 @@
 {
-  "id": "bugfix-2",
-  "type": "bugfix",
-  "cwd": "/Users/mira/work/carepath-api",
-  "steps": [
-    {
-      "u": "Bug from pharmacy QA: converting 0.1 mg levothyroxine to mcg shows 100.00000000000001 mcg on the label preview. Fix the conversion in dosing/units.py please."
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/Users/mira/work/carepath-api/dosing/units.py"
-      },
-      "r": "1 FACTORS = {(\"mg\", \"mcg\"): 1000.0, (\"g\", \"mg\"): 1000.0, (\"mcg\", \"mg\"): 0.001}\n2 \n3 def convert(amount: float, src: str, dst: str) -> float:\n4     if src == dst:\n5         return amount\n6     return amount * FACTORS[(src, dst)]\n...\n14 def label_text(amount, unit):\n15     return f\"{amount} {unit}\""
-    },
-    {
-      "t": "Grep",
-      "i": {
-        "pattern": "convert\\(",
-        "path": "dosing",
-        "output_mode": "content"
-      },
-      "r": "dosing/labels.py:22:    qty = convert(rx.amount, rx.unit, target_unit)\ndosing/schedule.py:57:    daily = convert(dose.amount, dose.unit, \"mg\") * dose.per_day"
-    },
-    {
-      "a": "Binary floats can't represent 0.1 exactly, so multiplying by 1000.0 leaks the error into the label. The amounts come in as strings from the prescription feed, so I'll carry them as Decimal end to end and quantize only when formatting."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/Users/mira/work/carepath-api/dosing/units.py",
-        "old_string": "FACTORS = {(\"mg\", \"mcg\"): 1000.0, (\"g\", \"mg\"): 1000.0, (\"mcg\", \"mg\"): 0.001}\n\ndef convert(amount: float, src: str, dst: str) -> float:",
-        "new_string": "from decimal import Decimal\n\nFACTORS = {(\"mg\", \"mcg\"): Decimal(\"1000\"), (\"g\", \"mg\"): Decimal(\"1000\"), (\"mcg\", \"mg\"): Decimal(\"0.001\")}\n\ndef convert(amount: Decimal | str, src: str, dst: str) -> Decimal:\n    amount = Decimal(str(amount))"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/Users/mira/work/carepath-api/dosing/units.py",
-        "old_string": "    return f\"{amount} {unit}\"",
-        "new_string": "    return f\"{Decimal(amount).normalize():f} {unit}\""
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "pytest tests/dosing -q"
-      },
-      "r": "..........F....\nFAILED tests/dosing/test_schedule.py::test_daily_total - TypeError: unsupported operand type(s) for *: 'decimal.Decimal' and 'float'\n1 failed, 14 passed in 0.41s"
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/Users/mira/work/carepath-api/dosing/schedule.py",
-        "offset": 50,
-        "limit": 12
-      },
-      "r": "50 @dataclass\n51 class Dose:\n52     amount: Decimal\n53     unit: str\n54     per_day: float\n...\n57     daily = convert(dose.amount, dose.unit, \"mg\") * dose.per_day"
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/Users/mira/work/carepath-api/dosing/schedule.py",
-        "old_string": "    per_day: float",
-        "new_string": "    per_day: int"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "pytest tests/dosing -q && pytest -q 2>&1 | tail -1"
-      },
-      "r": "...............\n15 passed in 0.38s\n412 passed, 3 skipped in 9.87s"
-    },
-    {
-      "a": "Done. Unit conversion now uses Decimal factors and accepts strings or Decimals, and labels are formatted with normalize, so 0.1 mg shows as 100 mcg. Doses per day became an int (it was only ever a whole count), which fixed the one mixed Decimal/float multiply. All 412 tests pass."
-    }
-  ],
-  "reference": {
-    "task_type": "bugfix",
-    "summary": "Fixed a floating point error in medication unit conversion that printed 100.00000000000001 mcg on labels by switching the conversion factors and amounts to Decimal and normalising when formatting; a follow-on type error in the daily total was fixed by making doses per day an integer, and the full test suite passes.",
-    "facts": [
-      "The conversion multiplied binary floats, so 0.1 mg became 100.00000000000001 mcg",
-      "Factors and amounts now use Decimal and labels normalise the value",
-      "A Decimal times float TypeError in the daily total surfaced and was fixed by making doses per day an int",
-      "All tests pass (412 passed)"
-    ],
-    "specific": [
-      "floating point precision bug",
-      "Decimal arithmetic for unit conversion"
-    ],
-    "decisions": [],
-    "skills": [
-      "Python",
-      "numeric precision handling",
-      "pytest"
-    ],
-    "not_skills": [
-      "database migration",
-      "API design",
-      "concurrency debugging",
-      "frontend development"
-    ]
+ "id": "bugfix-2",
+ "type": "bugfix",
+ "cwd": "/home/dev/src/trailmap-web",
+ "steps": [
+  {
+   "u": "The trail search box sometimes shows results for the previous query, not what I typed last. Look at SearchBox."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/trailmap-web/src/components/SearchBox.tsx"
+   },
+   "r": "12 export function SearchBox({ onResults }: Props) {\n13   const [query, setQuery] = useState('');\n14   useEffect(() => {\n15     const t = setTimeout(async () => {\n16       const res = await fetchTrails(query);\n17       onResults(res);\n18     }, 250);\n19     return () => clearTimeout(t);\n20   }, [query]);"
+  },
+  {
+   "a": "The debounce is cleared correctly, but an in-flight `fetchTrails` that started earlier can resolve after a newer one and call `onResults` with stale data. That's a response race, not a debounce bug. I'll use an AbortController per effect run and ignore results from aborted requests."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/trailmap-web/src/components/SearchBox.tsx",
+    "old_string": "    const t = setTimeout(async () => {\n      const res = await fetchTrails(query);\n      onResults(res);\n    }, 250);\n    return () => clearTimeout(t);",
+    "new_string": "    const ctrl = new AbortController();\n    const t = setTimeout(async () => {\n      try {\n        const res = await fetchTrails(query, { signal: ctrl.signal });\n        if (!ctrl.signal.aborted) onResults(res);\n      } catch (e) {\n        if ((e as DOMException).name !== 'AbortError') throw e;\n      }\n    }, 250);\n    return () => { clearTimeout(t); ctrl.abort(); };"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx vitest run src/components/SearchBox.test.tsx"
+   },
+   "r": " FAIL  src/components/SearchBox.test.tsx > SearchBox > passes the abort signal to fetchTrails\nTypeError: fetchTrails is not a function or its return value is not iterable\n  at src/components/SearchBox.tsx:16:27\n\n Test Files  1 failed (1)\n      Tests  1 failed | 3 passed (4)",
+   "err": true
+  },
+  {
+   "a": "The test mock for `fetchTrails` only accepts one argument and returns undefined for the second call shape. `fetchTrails` itself in `src/api/trails.ts` also needs to forward the signal to `fetch`."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/trailmap-web/src/api/trails.ts",
+    "old_string": "export async function fetchTrails(q: string) {\n  const r = await fetch(`/api/trails?q=${encodeURIComponent(q)}`);",
+    "new_string": "export async function fetchTrails(q: string, opts: { signal?: AbortSignal } = {}) {\n  const r = await fetch(`/api/trails?q=${encodeURIComponent(q)}`, { signal: opts.signal });"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/trailmap-web/src/components/SearchBox.test.tsx",
+    "old_string": "vi.mock('../api/trails', () => ({ fetchTrails: (q: string) => results[q] }));",
+    "new_string": "vi.mock('../api/trails', () => ({ fetchTrails: vi.fn(async (q: string) => results[q]) }));"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx vitest run src/components/SearchBox.test.tsx"
+   },
+   "r": " \u2713 src/components/SearchBox.test.tsx (4 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  4 passed (4)"
+  },
+  {
+   "a": "Stale results were caused by out-of-order responses. Each effect run now aborts the previous request via AbortController, `fetchTrails` forwards the signal, and the SearchBox tests pass (4/4)."
   }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed a React search box that showed stale results: responses from earlier queries could arrive after newer ones and overwrite them. The search effect now creates an AbortController on each run and aborts the previous request, and the fetch helper forwards the abort signal. After fixing the test mock, all 4 search box tests pass.",
+  "facts": [
+   "Symptom: results for the previous query appeared",
+   "Root cause was a race between in-flight fetches, not the debounce",
+   "Added AbortController in the SearchBox useEffect cleanup",
+   "fetchTrails now accepts and forwards an AbortSignal",
+   "First test run failed because of the mock; after updating it, 4/4 tests pass"
+  ],
+  "specific": [
+   "race condition between out-of-order async responses",
+   "request cancellation with AbortController in useEffect cleanup"
+  ],
+  "decisions": [
+   {
+    "choice": "cancel stale requests with AbortController rather than change the debounce",
+    "reason": "the debounce was already cleared correctly and the bug was an earlier request resolving after a newer one"
+   }
+  ],
+  "skills": [
+   "React hooks",
+   "useEffect cleanup",
+   "TypeScript",
+   "Vitest mocking"
+  ],
+  "not_skills": [
+   "Redux state management",
+   "backend API changes",
+   "CSS styling",
+   "server-side rendering"
+  ]
+ }
 }

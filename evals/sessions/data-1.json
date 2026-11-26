@@ -1,94 +1,90 @@
 {
-  "id": "data-1",
-  "type": "data",
-  "cwd": "/Users/analyst/lingo-analytics",
-  "steps": [
-    {
-      "u": "Product wants a retention table for learners who signed up in Q3: what share are still doing lessons N weeks later. Postgres read replica, tables users and lesson_events."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "psql \"$REPLICA_URL\" -c \"select date_trunc('day', created_at)::date d, count(*) from users where created_at >= '2026-07-01' and created_at < '2026-10-01' group by 1 order by 2 limit 5\""
-      },
-      "r": "     d      | count\n------------+-------\n 2026-08-16 |    41\n 2026-07-05 |    44\n 2026-09-21 |    52\n 2026-08-30 |    55\n 2026-07-12 |    57\n(5 rows)"
-    },
-    {
-      "a": "Daily signups are as low as 41 on some days, so daily cohorts would make the retention percentages very noisy (one learner is 2+ points). I'll group into weekly signup cohorts (~13 cohorts of 400-900 users) and measure activity by week since signup."
-    },
-    {
-      "t": "Write",
-      "i": {
-        "file_path": "/Users/analyst/lingo-analytics/sql/q3_weekly_retention.sql",
-        "content": "with cohort as (\n  select id as user_id, date_trunc('week', created_at)::date as cohort_week\n  from users\n  where created_at >= '2026-07-01' and created_at < '2026-10-01'\n    and not is_test_account\n),\nactivity as (\n  select distinct e.user_id,\n         ((date_trunc('week', e.occurred_at)::date - c.cohort_week) / 7) as week_n\n  from lesson_events e\n  join cohort c using (user_id)\n  where e.event_type = 'lesson_completed'\n    and e.occurred_at >= c.cohort_week\n)\nselect c.cohort_week,\n       count(distinct c.user_id) as cohort_size,\n       round(100.0 * count(distinct a.user_id) filter (where a.week_n = 1) / count(distinct c.user_id), 1) as w1,\n       round(100.0 * count(distinct a.user_id) filter (where a.week_n = 4) / count(distinct c.user_id), 1) as w4,\n       round(100.0 * count(distinct a.user_id) filter (where a.week_n = 8) / count(distinct c.user_id), 1) as w8\nfrom cohort c\nleft join activity a using (user_id)\ngroup by 1 order by 1;\n"
-      },
-      "r": "File created."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "psql \"$REPLICA_URL\" -f sql/q3_weekly_retention.sql"
-      },
-      "r": "ERROR:  canceling statement due to statement timeout\nDETAIL:  statement_timeout = 60s on replica",
-      "err": true
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "psql \"$REPLICA_URL\" -c \"explain select 1 from lesson_events e where e.event_type='lesson_completed' and e.occurred_at >= '2026-07-01'\" | head -4 && psql \"$REPLICA_URL\" -c '\\di lesson_events*'"
-      },
-      "r": " Seq Scan on lesson_events e  (cost=0.00..4129880.10 rows=61203311 width=0)\n   Filter: ((occurred_at >= '2026-07-01'::date) AND (event_type = 'lesson_completed'))\n\n lesson_events_pkey | index | lesson_events\n lesson_events_user_id_occurred_at_idx | index | lesson_events"
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/Users/analyst/lingo-analytics/sql/q3_weekly_retention.sql",
-        "old_string": "  where e.event_type = 'lesson_completed'\n    and e.occurred_at >= c.cohort_week",
-        "new_string": "  where e.event_type = 'lesson_completed'\n    and e.occurred_at >= c.cohort_week\n    and e.occurred_at < c.cohort_week + interval '9 weeks'"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "psql \"$REPLICA_URL\" -f sql/q3_weekly_retention.sql"
-      },
-      "r": " cohort_week | cohort_size |  w1  |  w4  |  w8\n-------------+-------------+------+------+------\n 2026-06-29  |         412 | 41.3 | 22.6 | 15.5\n 2026-07-06  |         488 | 43.0 | 23.4 | 16.2\n ...\n 2026-09-21  |         903 | 51.2 | 30.1 |  \u2014\n 2026-09-28  |         171 | 49.7 |  \u2014   |  \u2014\n(14 rows)\nTime: 18412.330 ms"
-    },
-    {
-      "a": "Retention table done (sql/q3_weekly_retention.sql): weekly signup cohorts for Q3, excluding test accounts, with the share completing a lesson in week 1, 4 and 8 after signup. The first version timed out on the replica's 60 s limit; bounding each user's events to 9 weeks after their cohort lets it use the (user_id, occurred_at) index and it runs in 18 s. Week-1 retention rises from about 41% for early July cohorts to about 51% in late September. The first and last cohorts are partial weeks (the quarter starts on a Wednesday and ends mid-week), and recent cohorts have no week-8 data yet."
-    }
-  ],
-  "reference": {
-    "task_type": "data",
-    "summary": "Built a weekly cohort retention query in SQL for learners who signed up in a quarter, measuring the share completing a lesson in weeks 1, 4 and 8 after signup. The first version hit the replica's statement timeout; bounding events to nine weeks after each cohort let it use an index and finish in about 18 seconds, showing week-1 retention rising from about 41% to about 51%.",
-    "facts": [
-      "Some days had as few as 41 signups",
-      "Weekly cohorts were used, excluding test accounts",
-      "The first run hit the 60 s statement timeout with a sequential scan",
-      "Bounding events to 9 weeks after the cohort week brought it to about 18 s",
-      "Week-1 retention rose from about 41% to about 51% across the quarter; the edge cohorts are partial"
-    ],
-    "specific": [
-      "cohort retention analysis",
-      "SQL query bounding to use an index"
-    ],
-    "decisions": [
-      {
-        "choice": "Use weekly signup cohorts rather than daily",
-        "reason": "daily cohorts were as small as 41 users, making percentages too noisy"
-      }
-    ],
-    "skills": [
-      "SQL",
-      "PostgreSQL query plans",
-      "cohort analysis"
-    ],
-    "not_skills": [
-      "dashboard building",
-      "machine learning",
-      "ETL pipeline orchestration",
-      "data visualisation"
-    ]
+ "id": "data-1",
+ "type": "data",
+ "cwd": "/home/dev/src/orbitfare",
+ "steps": [
+  {
+   "u": "About 40k bookings have fare_cents NULL since the March import; legacy fare_decimal is still there. Write a backfill and run it on staging. Prod waits for my go."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "psql \"$STAGING_DSN\" -c \"SELECT count(*) FROM bookings WHERE fare_cents IS NULL AND fare_decimal IS NOT NULL;\""
+   },
+   "r": "psql: connected to db-staging-02.orbitfare.internal:5432 (orbitfare_staging)\n count\n-------\n 41227\n(1 row)"
+  },
+  {
+   "a": "I'll write `scripts/backfill_fare_cents.py`: keyset batches of 2,000 by id, `ROUND(fare_decimal * 100)` to avoid float truncation, one transaction per batch so a failure mid-run doesn't hold locks on the whole table, and `--dry-run` as the default."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/orbitfare/scripts/backfill_fare_cents.py",
+    "content": "import argparse, os, psycopg\n\nSQL = \"\"\"\nUPDATE bookings SET fare_cents = ROUND(fare_decimal * 100)::bigint\nWHERE id IN (SELECT id FROM bookings WHERE id > %s AND fare_cents IS NULL\n             AND fare_decimal IS NOT NULL ORDER BY id LIMIT %s)\nRETURNING id\n\"\"\"\n\ndef main():\n    p = argparse.ArgumentParser()\n    p.add_argument('--commit', action='store_true')\n    p.add_argument('--batch', type=int, default=2000)\n    a = p.parse_args()\n    last, total = 0, 0\n    with psycopg.connect(os.environ['DSN']) as conn:\n        while True:\n            with conn.transaction():\n                ids = [r[0] for r in conn.execute(SQL, (last, a.batch))]\n                if not ids:\n                    break\n                last, total = max(ids), total + len(ids)\n                print(f'batch up to id={last} total={total}')\n                if not a.commit:\n                    conn.rollback(); break\n    print(('updated' if a.commit else 'would update (first batch only)'), total)\n\nif __name__ == '__main__':\n    main()\n"
+   },
+   "r": "File created successfully at: /home/dev/src/orbitfare/scripts/backfill_fare_cents.py"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "DSN=\"$STAGING_DSN\" python scripts/backfill_fare_cents.py"
+   },
+   "r": "batch up to id=1180442 total=2000\nwould update (first batch only) 2000"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "DSN=\"$STAGING_DSN\" python scripts/backfill_fare_cents.py --commit"
+   },
+   "r": "batch up to id=1180442 total=2000\nbatch up to id=1192871 total=4000\n...\nbatch up to id=1415508 total=41227\nupdated 41227"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "psql \"$STAGING_DSN\" -c \"SELECT count(*) FILTER (WHERE fare_cents IS NULL AND fare_decimal IS NOT NULL) AS remaining, count(*) FILTER (WHERE fare_cents <> ROUND(fare_decimal*100)) AS mismatched FROM bookings;\""
+   },
+   "r": " remaining | mismatched\n-----------+------------\n         0 |          0\n(1 row)"
+  },
+  {
+   "a": "Staging backfill done: 41,227 rows updated, 0 remaining NULLs, 0 mismatches against fare_decimal. The script is in `scripts/backfill_fare_cents.py`; I have not touched prod. Run the same command with the prod DSN when you're ready."
   }
+ ],
+ "reference": {
+  "task_type": "data",
+  "summary": "Wrote a Python backfill script that fills missing integer fare amounts on bookings from a legacy decimal column, in keyset-paginated batches with one transaction per batch and a dry run by default. Ran it on staging: 41,227 rows updated, with 0 remaining and 0 mismatched on verification. Production was deliberately not run and waits for the engineer.",
+  "facts": [
+   "About 41k bookings had NULL fare_cents with fare_decimal present",
+   "Backfill uses batches of 2,000 keyed by id, one transaction per batch",
+   "Uses ROUND(fare_decimal * 100) to convert to cents",
+   "Dry run first, then --commit on staging updated 41,227 rows",
+   "Verification query showed 0 remaining and 0 mismatched",
+   "Production not run yet"
+  ],
+  "specific": [
+   "batched data backfill with keyset pagination",
+   "dry-run then commit with verification query"
+  ],
+  "decisions": [
+   {
+    "choice": "use one transaction per batch rather than one big transaction",
+    "reason": "a failure midway should not hold locks on the whole table"
+   },
+   {
+    "choice": "round the decimal value times 100 when converting",
+    "reason": "plain float conversion could truncate the integer cents"
+   }
+  ],
+  "skills": [
+   "Python",
+   "PostgreSQL",
+   "SQL",
+   "data backfill and verification"
+  ],
+  "not_skills": [
+   "schema migration",
+   "ORM modelling",
+   "Airflow DAG authoring",
+   "production deployment"
+  ]
+ }
 }

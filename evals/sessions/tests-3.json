@@ -1,88 +1,81 @@
 {
-  "id": "tests-3",
-  "type": "tests",
-  "cwd": "/Users/ana/Developer/Pulseline",
-  "steps": [
-    {
-      "u": "Add snapshot tests for WorkoutSummaryView (light, dark, and largest dynamic type). We use swift-snapshot-testing."
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/Users/ana/Developer/Pulseline/Pulseline/Features/Summary/WorkoutSummaryView.swift",
-        "offset": 1,
-        "limit": 20
-      },
-      "r": "5 struct WorkoutSummaryView: View {\n6     let summary: WorkoutSummary\n7     var body: some View {\n8         VStack(alignment: .leading, spacing: 12) {\n9             Text(summary.title).font(.title2.bold())\n10            StatGrid(stats: summary.stats)\n11            HeartRateChart(samples: summary.heartRate)\n..."
-    },
-    {
-      "t": "Write",
-      "i": {
-        "file_path": "/Users/ana/Developer/Pulseline/PulselineTests/Snapshots/WorkoutSummaryViewSnapshotTests.swift",
-        "content": "import SnapshotTesting\nimport SwiftUI\nimport XCTest\n@testable import Pulseline\n\nfinal class WorkoutSummaryViewSnapshotTests: XCTestCase {\n    private let view = WorkoutSummaryView(summary: .fixture5k)\n\n    func testLight() {\n        assertSnapshot(of: view, as: .image(layout: .device(config: .iPhone13), traits: .init(userInterfaceStyle: .light)))\n    }\n    func testDark() {\n        assertSnapshot(of: view, as: .image(layout: .device(config: .iPhone13), traits: .init(userInterfaceStyle: .dark)))\n    }\n    func testAccessibilityXXXL() {\n        assertSnapshot(of: view, as: .image(layout: .device(config: .iPhone13), traits: .init(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge)))\n    }\n}\n"
-      },
-      "r": "File created."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "xcodebuild test -scheme Pulseline -destination 'platform=iOS Simulator,name=iPhone 15,OS=18.1' -only-testing:PulselineTests/WorkoutSummaryViewSnapshotTests 2>&1 | tail -6"
-      },
-      "r": "Test Case '-[WorkoutSummaryViewSnapshotTests testLight]' failed (1.21 seconds).\nfailed - No reference was found on disk. Automatically recorded snapshot: \u2026/__Snapshots__/WorkoutSummaryViewSnapshotTests/testLight.1.png\n(3 failures: references recorded)\n** TEST FAILED **"
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "xcodebuild test -scheme Pulseline -destination 'platform=iOS Simulator,name=iPhone 15,OS=18.1' -only-testing:PulselineTests/WorkoutSummaryViewSnapshotTests 2>&1 | tail -4"
-      },
-      "r": "Test Suite 'WorkoutSummaryViewSnapshotTests' passed.\n     Executed 3 tests, with 0 failures (0 unexpected) in 2.88 seconds\n** TEST SUCCEEDED **"
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "cat .github/workflows/ios.yml | grep -n 'destination\\|xcode-version'"
-      },
-      "r": "14:        xcode-version: '16.0'\n31:          -destination 'platform=iOS Simulator,name=iPhone 15,OS=18.0'"
-    },
-    {
-      "a": "Locally they pass once references are recorded, but CI runs Xcode 16.0 with iOS 18.0 while these were recorded on 18.1. Let me check whether that matters by running against the 18.0 runtime here."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "xcodebuild test -scheme Pulseline -destination 'platform=iOS Simulator,name=iPhone 15,OS=18.0' -only-testing:PulselineTests/WorkoutSummaryViewSnapshotTests 2>&1 | grep -E 'failed|Executed'"
-      },
-      "r": "testAccessibilityXXXL failed - Snapshot does not match reference. 1.84% of pixels differ (threshold 0%).\ntestDark failed - Snapshot does not match reference. 0.31% of pixels differ\n     Executed 3 tests, with 2 failures (0 unexpected) in 3.02 seconds"
-    },
-    {
-      "a": "The 18.0 runtime renders text and the chart antialiasing slightly differently, so two of the three snapshots fail there. Options are to record references on the CI runtime, pin both to one simulator version, or add a perceptual precision tolerance (e.g. precision: 0.98). I've left the tests in place with 18.1 references; they will fail in CI as things stand. Which approach do you want?"
-    }
-  ],
-  "reference": {
-    "task_type": "tests",
-    "summary": "Added SwiftUI snapshot tests for a workout summary screen in light mode, dark mode and the largest accessibility text size, and recorded reference images. They pass on the local simulator runtime but two fail on the older runtime CI uses because rendering differs slightly, so the tests are not yet CI-safe and the approach for that is left open.",
-    "facts": [
-      "Three snapshot tests were added: light, dark and largest dynamic type",
-      "References were recorded on iOS 18.1 and the tests pass there",
-      "CI uses Xcode 16.0 with iOS 18.0",
-      "On iOS 18.0 two of three snapshots fail with small pixel differences",
-      "Options offered: record on the CI runtime, pin one simulator, or add a precision tolerance"
-    ],
-    "specific": [
-      "snapshot testing",
-      "simulator rendering differences"
-    ],
-    "decisions": [],
-    "skills": [
-      "Swift",
-      "SwiftUI",
-      "XCTest snapshot testing"
-    ],
-    "not_skills": [
-      "UI automation tests",
-      "backend testing",
-      "accessibility audit",
-      "CI pipeline changes"
-    ]
+ "id": "tests-3",
+ "type": "tests",
+ "cwd": "/home/dev/src/tidewatch",
+ "steps": [
+  {
+   "u": "Coverage on tidewatch/reconcile.py is 61%. Bring it up, focusing on the branches we never hit."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest --cov=tidewatch.reconcile --cov-report=term-missing tests/test_reconcile.py -q 2>&1 | tail -4"
+   },
+   "r": "Name                     Stmts   Miss Branch BrPart  Cover   Missing\n------------------------------------------------------------------------\ntidewatch/reconcile.py      88     31     34      9    61%   42-51, 66->70, 74-88, 101-109\n4 passed in 0.62s"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/tidewatch/tidewatch/reconcile.py"
+   },
+   "r": "40 def reconcile(ledger: list[Entry], bank: list[Txn], tolerance_cents: int = 0) -> Report:\n41     ...\n42     if not ledger and not bank:\n43         return Report.empty()\n...\n66     if abs(e.amount_cents - t.amount_cents) <= tolerance_cents:\n...\n74     # duplicate bank transactions with same reference\n...\n101 def _match_by_date_window(e, candidates, days=3):"
+  },
+  {
+   "a": "Missing: the empty-input early return (42-51), the tolerance branch (66->70), duplicate bank references (74-88) and the date-window fallback (101-109). I'll add a parametrized test for tolerance and focused tests for the others, using a small `make_entry`/`make_txn` fixture factory."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/tidewatch/tests/test_reconcile_branches.py",
+    "content": "import datetime as dt\nimport pytest\nfrom tidewatch.reconcile import reconcile, Report\n\nD = dt.date(2026, 11, 2)\n\n\ndef test_empty_inputs_return_empty_report():\n    assert reconcile([], []) == Report.empty()\n\n\n@pytest.mark.parametrize('diff,tol,matched', [(0, 0, True), (3, 5, True), (6, 5, False)])\ndef test_tolerance(make_entry, make_txn, diff, tol, matched):\n    r = reconcile([make_entry(1000, D, 'A1')], [make_txn(1000 + diff, D, 'A1')], tolerance_cents=tol)\n    assert (len(r.matched) == 1) is matched\n\n\ndef test_duplicate_bank_reference_flagged(make_entry, make_txn):\n    r = reconcile([make_entry(500, D, 'R9')], [make_txn(500, D, 'R9'), make_txn(500, D, 'R9')])\n    assert len(r.matched) == 1\n    assert [t.reference for t in r.duplicates] == ['R9']\n\n\ndef test_date_window_fallback_matches_without_reference(make_entry, make_txn):\n    r = reconcile([make_entry(700, D, None)], [make_txn(700, D + dt.timedelta(days=2), None)])\n    assert len(r.matched) == 1\n\n\ndef test_date_window_excludes_outside(make_entry, make_txn):\n    r = reconcile([make_entry(700, D, None)], [make_txn(700, D + dt.timedelta(days=4), None)])\n    assert r.unmatched_ledger and r.unmatched_bank\n"
+   },
+   "r": "File created successfully at: /home/dev/src/tidewatch/tests/test_reconcile_branches.py"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/tidewatch/tests/conftest.py",
+    "old_string": "import pytest\n",
+    "new_string": "import pytest\nfrom tidewatch.models import Entry, Txn\n\n\n@pytest.fixture\ndef make_entry():\n    return lambda cents, date, ref: Entry(amount_cents=cents, date=date, reference=ref)\n\n\n@pytest.fixture\ndef make_txn():\n    return lambda cents, date, ref: Txn(amount_cents=cents, date=date, reference=ref)\n"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest --cov=tidewatch.reconcile --cov-report=term-missing tests/ -q 2>&1 | tail -4"
+   },
+   "r": "Name                     Stmts   Miss Branch BrPart  Cover   Missing\n------------------------------------------------------------------------\ntidewatch/reconcile.py      88      4     34      2    94%   83-84, 107->exit\n11 passed in 0.81s"
+  },
+  {
+   "a": "Added 7 test cases (one parametrized over three tolerance cases) plus `make_entry`/`make_txn` fixtures. reconcile.py coverage went from 61% to 94%; the remaining misses are a logging-only branch and a defensive early exit. All 11 tests pass."
   }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Raised branch coverage of a Python reconciliation module from 61% to 94% with pytest tests for previously unhit branches: empty inputs, a parametrized amount tolerance test, duplicate bank references, and the date window fallback inside and outside the window, with fixture factories in the shared conftest. All 11 tests pass.",
+  "facts": [
+   "Started at 61% coverage with term-missing report",
+   "New tests/test_reconcile_branches.py covering empty input, tolerance, duplicates, date-window fallback",
+   "Parametrized tolerance test with three cases",
+   "Added make_entry and make_txn fixtures to conftest.py",
+   "Coverage 94%, 11 passed"
+  ],
+  "specific": [
+   "coverage-driven branch testing with pytest",
+   "parametrized tests and fixture factories"
+  ],
+  "decisions": [],
+  "skills": [
+   "pytest",
+   "coverage analysis",
+   "Python"
+  ],
+  "not_skills": [
+   "fixing bugs in reconcile",
+   "mutation testing",
+   "CI configuration",
+   "refactoring"
+  ]
+ }
 }

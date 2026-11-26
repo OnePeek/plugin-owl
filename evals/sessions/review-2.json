@@ -1,72 +1,71 @@
 {
-  "id": "review-2",
-  "type": "review",
-  "cwd": "/home/dev/fieldnotes",
-  "steps": [
-    {
-      "u": "Review migration 0047 that backfills normalized phone numbers for all farmer profiles. It's in PR #812. Comments only."
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/home/dev/fieldnotes/profiles/migrations/0047_backfill_phone_e164.py"
-      },
-      "r": "1 from django.db import migrations\n2 import phonenumbers\n3 from profiles.models import FarmerProfile\n4 \n5 def forwards(apps, schema_editor):\n6     for p in FarmerProfile.objects.all():\n7         n = phonenumbers.parse(p.phone_raw, \"KE\")\n8         p.phone_e164 = phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)\n9         p.save()\n10\n11 class Migration(migrations.Migration):\n12     dependencies = [(\"profiles\", \"0046_farmerprofile_phone_e164\")]\n13     operations = [migrations.RunPython(forwards)]"
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "psql -h localhost -d fieldnotes -c \"select count(*), count(*) filter (where phone_raw is null or phone_raw = '') as blank from profiles_farmerprofile\""
-      },
-      "r": "  count  | blank\n---------+-------\n 1840221 |  3307\n(1 row)"
-    },
-    {
-      "t": "Grep",
-      "i": {
-        "pattern": "def save|post_save",
-        "path": "profiles"
-      },
-      "r": "profiles/models.py:88:    def save(self, *args, **kwargs):\nprofiles/signals.py:14:@receiver(post_save, sender=FarmerProfile)"
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/home/dev/fieldnotes/profiles/signals.py",
-        "offset": 12,
-        "limit": 8
-      },
-      "r": "14 @receiver(post_save, sender=FarmerProfile)\n15 def sync_to_crm(sender, instance, **kwargs):\n16     crm_client.upsert_contact(instance.id, instance.phone_e164, instance.region)"
-    },
-    {
-      "a": "Comments for migration 0047:\n\n1. It imports the real FarmerProfile model instead of apps.get_model('profiles', 'FarmerProfile'). That breaks once the model changes in a later migration and also means the custom save() runs.\n2. p.save() fires the post_save signal, which calls the CRM upsert for every row: about 1.84 million external API calls inside a migration. Use the historical model and bulk_update with update_fields instead.\n3. phonenumbers.parse raises NumberParseException on the 3,307 blank or null phone_raw values (and likely on junk values), which aborts the whole migration. Skip blanks and record unparseable values rather than failing.\n4. Loading 1.8M rows with .all() and saving one by one in a single transaction will hold locks for a long time; iterate with .iterator(chunk_size=...) and set atomic = False with batched commits, or move the backfill into a management command run outside deploy.\n5. No reverse function; add migrations.RunPython.noop as the reverse so the migration can be rolled back.\n\nNo changes made."
-    }
-  ],
-  "reference": {
-    "task_type": "review",
-    "summary": "Reviewed a Django data migration that backfills normalised phone numbers and left comments only: it uses the live model instead of the historical one, saving each row would trigger a CRM sync signal for about 1.8 million rows, blank numbers would make parsing raise and abort the migration, the single large transaction should be batched, and it has no reverse operation.",
-    "facts": [
-      "The migration imports the live model rather than using apps.get_model",
-      "Each save would fire a post_save signal that calls the CRM, about 1.84 million times",
-      "3,307 rows have blank or null phone values that would make parsing fail",
-      "Batching with iterator and bulk_update or a management command was suggested",
-      "A no-op reverse was recommended; no changes were made"
-    ],
-    "specific": [
-      "data migration review",
-      "backfill safety in Django migrations"
-    ],
-    "decisions": [],
-    "skills": [
-      "code review",
-      "Django migrations",
-      "PostgreSQL",
-      "Python"
-    ],
-    "not_skills": [
-      "writing the corrected migration",
-      "performance benchmarking",
-      "frontend review",
-      "CI configuration"
-    ]
+ "id": "review-2",
+ "type": "review",
+ "cwd": "/home/dev/src/inkwell",
+ "steps": [
+  {
+   "u": "Review Dana's branch before it goes to Brightwater Health's pilot: it adds per-tenant document retention. The changed files are inkwell/retention/purge.py and inkwell/retention/models.py. Comments only please, no edits."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/inkwell/inkwell/retention/purge.py"
+   },
+   "r": "14 def purge_expired(session, tenant_id: int, now=None):\n15     now = now or datetime.utcnow()\n16     policy = session.get(RetentionPolicy, tenant_id)\n17     cutoff = now - timedelta(days=policy.days)\n18     q = session.query(Document).filter(Document.created_at < cutoff)\n19     for doc in q:\n20         storage.delete(doc.blob_key)\n21         session.delete(doc)\n22     session.commit()"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/inkwell/inkwell/retention/models.py"
+   },
+   "r": "8  class RetentionPolicy(Base):\n9      __tablename__ = 'retention_policies'\n10     tenant_id = mapped_column(Integer, primary_key=True)\n11     days = mapped_column(Integer, nullable=False)\n12     legal_hold = mapped_column(Boolean, default=False)"
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "legal_hold",
+    "path": "inkwell"
+   },
+   "r": "inkwell/retention/models.py:12:    legal_hold = mapped_column(Boolean, default=False)"
+  },
+  {
+   "t": "Glob",
+   "i": {
+    "pattern": "tests/**/test_*retention*.py"
+   },
+   "r": "No files found"
+  },
+  {
+   "a": "Review comments (no changes made):\n\n1. **Blocker, purge.py:18**: the query doesn't filter by `Document.tenant_id == tenant_id`, so purging one tenant deletes every tenant's expired documents under that tenant's policy.\n2. **Blocker, legal_hold**: the column exists but `purge_expired` never checks it, so documents under legal hold would be deleted.\n3. **purge.py:19-22**: blobs are deleted before the DB commit. If the commit fails, rows point at missing blobs. Delete rows first, commit, then delete blobs (or queue blob deletion).\n4. **purge.py:16**: `session.get` returns None for tenants without a policy, so `policy.days` raises AttributeError. Decide whether no policy means never purge.\n5. **Minor**: `datetime.utcnow()` is naive and deprecated in 3.12; use `datetime.now(timezone.utc)` to match `created_at` if that column is tz-aware.\n6. No tests in the branch; at least a cross-tenant isolation test is needed before the pilot."
   }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed a Python SQLAlchemy branch adding per-tenant document retention, leaving comments only with no code changes. Found two blockers: the purge query has no tenant filter, so it would delete the documents of other tenants, and legal hold is never checked. Also flagged blob deletion before the database commit, a crash when a tenant has no policy, naive UTC timestamps and missing tests.",
+  "facts": [
+   "Review only; no edits made",
+   "Blocker: purge_expired query lacks a tenant_id filter (cross-tenant deletion)",
+   "Blocker: legal_hold column is never checked",
+   "Blob deletion happens before the DB commit, risking dangling rows",
+   "Missing policy causes AttributeError on policy.days",
+   "Asked for tests, especially cross-tenant isolation"
+  ],
+  "specific": [
+   "multi-tenant data isolation bug found in code review",
+   "destructive operation ordering (storage delete before commit)"
+  ],
+  "decisions": [],
+  "skills": [
+   "code review",
+   "Python",
+   "SQLAlchemy",
+   "multi-tenancy reasoning"
+  ],
+  "not_skills": [
+   "implementing the fix",
+   "writing tests",
+   "database migration",
+   "performance profiling"
+  ]
+ }
 }

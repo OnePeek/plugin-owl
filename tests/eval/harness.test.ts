@@ -14,6 +14,19 @@ import { repoRoot } from "../helpers/paths.js";
 const sessions = loadSessions(join(repoRoot(), "evals", "sessions"));
 const refAsInsight = (s: (typeof sessions)[number]) => ({ summary: s.reference.summary, task_type: s.reference.task_type as (typeof TASK_TYPES)[number], decisions: s.reference.decisions.map((d) => `Chose to ${d.choice} because ${d.reason}.`.slice(0, 300)), skills: s.reference.skills });
 
+test("the dev sets used for prompt work (evals/dev, evals/dev-2 = burned held-out set 1) are well formed and disjoint from the held-out set", () => {
+  const heldIds = new Set(sessions.map((s) => JSON.stringify(s.steps[0])));
+  for (const set of ["dev", "dev-2"]) {
+    const dev = loadSessions(join(repoRoot(), "evals", set));
+    assert.equal(dev.length, 30, set);
+    for (const t of TASK_TYPES) assert.equal(dev.filter((s) => s.type === t).length, 3, set + " " + t);
+    for (const s of dev) {
+      assert.equal(s.reference.task_type, s.type, set + " " + s.id);
+      assert.ok(!heldIds.has(JSON.stringify(s.steps[0])), "held-out session reused in " + set + ": " + s.id);
+    }
+  }
+});
+
 test("AIP-I1: 30 sessions, 3 of each task type", () => {
   assert.equal(sessions.length, 30);
   for (const t of TASK_TYPES) assert.equal(sessions.filter((s) => s.type === t).length, 3, t);
@@ -43,7 +56,7 @@ test("the deterministic judge fails wrong type, padded skills, leaks and missing
   const s = sessions[0]!;
   const good = refAsInsight(s);
   assert.equal(deterministic(s.reference, { ...good, task_type: s.type === "docs" ? "infra" : "docs" }, []).task_type, false);
-  assert.equal(deterministic(s.reference, { ...good, skills: [...good.skills, "Docker"] }, []).not_padded, false);
+  assert.equal(deterministic(s.reference, { ...good, skills: [...good.skills, s.reference.not_skills?.[0] ?? "Docker"] }, []).not_padded, false); // a skill the reference says was never exercised
   assert.equal(deterministic(s.reference, { ...good, skills: [...good.skills, ...Array.from({ length: 9 }, (_, i) => "Skill" + i)].slice(0, 12) }, []).not_padded, false);
   assert.equal(deterministic(s.reference, { ...good, summary: good.summary + " See https://x.example.org/a for more." }, []).no_leak, false);
   assert.equal(deterministic(s.reference, undefined, []).schema, false);

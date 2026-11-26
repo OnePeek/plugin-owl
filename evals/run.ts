@@ -2,8 +2,9 @@
 // HELD-OUT sessions in evals/sessions, judge each against its reference answer with a DIFFERENT model (opus judges the
 // sonnet summariser), and write evals/results/latest.json with the run metadata (resolved model ids, CLI version, prompt,
 // judge and set sha256, date). Exit code 1 below the bar (27 of 30) or on any leak.
-// Honesty rules (review round 1): the held-out set was written by a separate agent that never saw the prompt; prompt work
-// uses only evals/dev (`npm run eval -- --set dev`, written to results/dev.json), never the held-out set.
+// Honesty rules (review round 1): the held-out set was written by a separate agent that never saw the prompt or the dev
+// sets; prompt work uses only evals/dev and evals/dev-2 (`npm run eval -- --set dev|dev-2`, written to results/<set>.json),
+// never the held-out set. A held-out set run twice is burned and moves to a dev set (evals/dev-2 is held-out set 1).
 // Needs a signed-in `claude`; it costs the person's own tokens (about 60 runs), so it is not part of `npm test`.
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -89,7 +90,7 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const si = argv.indexOf("--set");
   const set = si >= 0 ? (argv[si + 1] as string) : "sessions";
-  if (set !== "sessions" && set !== "dev") throw new Error("--set is sessions (held-out) or dev");
+  if (set !== "sessions" && set !== "dev" && set !== "dev-2") throw new Error("--set is sessions (held-out), dev or dev-2");
   const only = argv.filter((a, i) => a !== "--set" && i !== si + 1);
   const dir = join(ROOT, "evals", set);
   const sessions = loadSessions(dir).filter((x) => only.length === 0 || only.includes(x.id));
@@ -116,7 +117,7 @@ async function main(): Promise<void> {
   })();
   const run = {
     date: new Date().toISOString(),
-    set: set === "sessions" ? "held-out (evals/sessions, written without the prompt)" : "dev (evals/dev, used for prompt work)",
+    set: set === "sessions" ? "held-out (evals/sessions, written without the prompt or the dev sets)" : `${set} (evals/${set}, used for prompt work)`,
     set_sha256: setSha256(dir),
     prompt_sha256: promptSha256(),
     judge_sha256: sha256Of(JUDGE_SYSTEM + "\n--model " + JUDGE_MODEL),
@@ -129,7 +130,7 @@ async function main(): Promise<void> {
   };
   const result = { run, prompt_sha256: run.prompt_sha256, model: SUMMARY_MODEL, sessions: verdicts.length, passed, leaks, bar: PASS_BAR, ok: passed >= PASS_BAR && leaks === 0 && only.length === 0, verdicts: verdicts.map((v) => ({ id: v.id, pass: v.pass, criteria: v.criteria, notes: v.notes, summary: v.insight?.summary, task_type: v.insight?.task_type, decisions: v.insight?.decisions, skills: v.insight?.skills })) };
   mkdirSync(join(ROOT, "evals", "results"), { recursive: true });
-  writeFileSync(join(ROOT, "evals", "results", set === "sessions" ? "latest.json" : "dev.json"), JSON.stringify(result, null, 1) + "\n");
+  writeFileSync(join(ROOT, "evals", "results", set === "sessions" ? "latest.json" : `${set}.json`), JSON.stringify(result, null, 1) + "\n");
   console.log(`\nEVAL ${passed}/${verdicts.length} passed, ${leaks} leaks, bar ${PASS_BAR}/30 -> ${result.ok ? "OK" : "BELOW BAR"}`);
   process.exitCode = result.ok ? 0 : 1;
 }

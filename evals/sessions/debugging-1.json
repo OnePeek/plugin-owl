@@ -1,88 +1,84 @@
 {
-  "id": "debugging-1",
-  "type": "debugging",
-  "cwd": "/home/svc/ticketing-gateway",
-  "steps": [
-    {
-      "u": "ticketing-gateway pods get OOMKilled every ~6 hours in prod. Find out why. Don't change prod; staging is gw-staging-2.int.tixnet.local."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "kubectl -n tickets top pod -l app=gateway --containers && kubectl -n tickets get events --field-selector reason=OOMKilling | tail -3"
-      },
-      "r": "POD                        NAME     CPU(cores)  MEMORY(bytes)\ngateway-7d9f-abcde         gateway  210m        1388Mi\ngateway-7d9f-fghij         gateway  190m        902Mi\n4m   Warning  OOMKilling  node/ip-10-4-3-12  Memory cgroup out of memory: Killed process 1 (node)"
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "ssh gw-staging-2.int.tixnet.local 'node --inspect=0 dist/server.js & sleep 2; curl -s localhost:9229/json | jq -r .[0].id'; node scripts/heap-snap.js gw-staging-2.int.tixnet.local before.heapsnapshot"
-      },
-      "r": "c1a9...\nwrote before.heapsnapshot (148 MB)"
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "npx autocannon -d 600 -c 50 http://gw-staging-2.int.tixnet.local:8080/v1/events/123/seats >/dev/null && node scripts/heap-snap.js gw-staging-2.int.tixnet.local after.heapsnapshot && node scripts/heap-diff.js before.heapsnapshot after.heapsnapshot | head -8"
-      },
-      "r": "wrote after.heapsnapshot (611 MB)\nconstructor              delta_count   delta_size\n(closure)                +1,204,331    +188 MB\nListenerEntry            +601,880      +96 MB\nSeatMapSubscription      +601,880      +72 MB\nArray                    +1,210,002    +64 MB\nIncomingMessage          +12           +0.1 MB"
-    },
-    {
-      "t": "Grep",
-      "i": {
-        "pattern": "seatEvents\\.on\\(|seatEvents\\.off\\(|removeListener",
-        "path": "src",
-        "output_mode": "content"
-      },
-      "r": "src/routes/seats.ts:31:  seatEvents.on(`seat:${eventId}`, sub.onChange);\nsrc/ws/live.ts:44:  seatEvents.off(`seat:${eventId}`, handler);"
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/home/svc/ticketing-gateway/src/routes/seats.ts",
-        "offset": 22,
-        "limit": 20
-      },
-      "r": "22 router.get('/v1/events/:eventId/seats', async (req, res) => {\n23   const { eventId } = req.params;\n24   const sub = new SeatMapSubscription(eventId);\n...\n31   seatEvents.on(`seat:${eventId}`, sub.onChange);\n32   const map = await sub.snapshot();\n33   res.json(map);\n34 });"
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "grep -rn 'setMaxListeners' src/"
-      },
-      "r": "src/events/bus.ts:7:seatEvents.setMaxListeners(0); // silence warnings, see INC-4471"
-    },
-    {
-      "a": "Found the cause. The plain HTTP seat-map route creates a SeatMapSubscription and registers its onChange on the shared seatEvents emitter for every request, then returns a one-off JSON snapshot without ever calling off(). Only the WebSocket path removes its listener. Each request leaks a listener entry, a closure and a subscription object (heap grew ~460 MB over a 10-minute load test, dominated by those three types). The leak was masked because setMaxListeners(0) disables Node's MaxListenersExceeded warning. The likely fix is not to subscribe at all on the HTTP route (it only needs the snapshot), and to restore a listener limit so this shows up again; I haven't changed any code yet."
-    }
-  ],
-  "reference": {
-    "task_type": "debugging",
-    "summary": "Diagnosed a Node.js memory leak causing out-of-memory kills: heap snapshot diffs under load showed listener entries, closures and subscription objects growing, traced to an HTTP route that adds an event emitter listener per request and never removes it, hidden because the max-listeners warning had been disabled. No fix was applied; removing the subscription from the route and restoring the listener limit was proposed.",
-    "facts": [
-      "Production pods were OOM killed roughly every six hours",
-      "A 10-minute load test on staging grew the heap from about 148 MB to 611 MB",
-      "Heap diff growth was dominated by closures, listener entries and subscription objects",
-      "The HTTP seat-map route registers a listener per request without removing it; only the WebSocket path removes it",
-      "setMaxListeners(0) had silenced the warning",
-      "No code was changed"
-    ],
-    "specific": [
-      "event listener memory leak",
-      "heap snapshot diffing"
-    ],
-    "decisions": [],
-    "skills": [
-      "Node.js",
-      "heap profiling",
-      "Kubernetes troubleshooting",
-      "load testing"
-    ],
-    "not_skills": [
-      "writing a fix and tests",
-      "database tuning",
-      "frontend debugging",
-      "Terraform"
-    ]
+ "id": "debugging-1",
+ "type": "debugging",
+ "cwd": "/home/dev/src/parcelhub",
+ "steps": [
+  {
+   "u": "RouteRefreshJob throws ConcurrentModificationException a few times a day in staging. Figure out why. Don't merge a fix yet, I want to discuss the approach with the team."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -A12 'ConcurrentModificationException' logs/staging-worker.log | head -20"
+   },
+   "r": "2026-11-25T09:14:02.118Z ERROR [route-refresh-1] c.p.routing.RouteRefreshJob - refresh failed\njava.util.ConcurrentModificationException: null\n\tat java.base/java.util.HashMap$HashIterator.nextNode(HashMap.java:1605)\n\tat java.base/java.util.HashMap$ValueIterator.next(HashMap.java:1633)\n\tat com.parcelhub.routing.RouteCache.refreshAll(RouteCache.java:58)\n\tat com.parcelhub.routing.RouteRefreshJob.run(RouteRefreshJob.java:31)\n\tat java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:304)"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/parcelhub/src/main/java/com/parcelhub/routing/RouteCache.java"
+   },
+   "r": "22  private final Map<String, Route> routes = new HashMap<>();\n...\n55  public void refreshAll() {\n56    for (Route r : routes.values()) {\n57      Route fresh = planner.replan(r);\n58      listeners.forEach(l -> l.onRefreshed(fresh));\n59    }\n60  }\n...\n71  public void evict(String id) { routes.remove(id); }"
+  },
+  {
+   "a": "My first guess was two threads touching the map. Let me check whether wrapping it with Collections.synchronizedMap makes the test reproduction go away."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew test --tests 'com.parcelhub.routing.RouteCacheStressTest' -Dstress.sync=true"
+   },
+   "r": "RouteCacheStressTest > refreshWhileEvicting() FAILED\n    java.util.ConcurrentModificationException at RouteCache.java:56\n\n1 test completed, 1 failed\nBUILD FAILED in 14s",
+   "err": true
+  },
+  {
+   "a": "Synchronizing doesn't help, so it isn't only cross-thread. Looking at who calls `evict`."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "\\.evict\\(",
+    "path": "src/main/java"
+   },
+   "r": "src/main/java/com/parcelhub/routing/StaleRouteListener.java:19:      cache.evict(route.id());\nsrc/main/java/com/parcelhub/api/RouteAdminController.java:44:    routeCache.evict(id);"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/parcelhub/src/main/java/com/parcelhub/routing/StaleRouteListener.java"
+   },
+   "r": "15  @Override\n16  public void onRefreshed(Route route) {\n17    if (route.isExpired()) {\n18      // drop expired routes immediately\n19      cache.evict(route.id());\n20    }\n21  }"
+  },
+  {
+   "a": "Root cause: `StaleRouteListener.onRefreshed` is called synchronously from inside the `routes.values()` loop in `RouteCache.refreshAll`, and it calls `evict`, which removes from the same HashMap on the same thread. The iterator's modCount check then throws ConcurrentModificationException on the next `next()`. It only happens when a refreshed route is expired, which explains the few-per-day rate. A lock can't fix a same-thread modification, which is why synchronizedMap failed. Options for the team: (1) iterate over a snapshot `new ArrayList<>(routes.values())`; (2) collect expired ids and evict after the loop; (3) switch to ConcurrentHashMap, whose weakly consistent iterators tolerate removal, which also covers the admin endpoint's cross-thread `evict`. I haven't changed any code."
   }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Investigated an intermittent ConcurrentModificationException in a scheduled Java job. A listener called during the route cache's map iteration evicts entries from the same map on the same thread; an experiment with a synchronized map still failed, confirming it is not a locking problem. Ended at diagnosis with fix options and no code changed, as requested.",
+  "facts": [
+   "Stack trace pointed at RouteCache.refreshAll iterating routes.values()",
+   "Trying Collections.synchronizedMap still failed the stress test",
+   "StaleRouteListener.onRefreshed calls cache.evict during the iteration",
+   "Same-thread modification during iteration triggers the modCount check",
+   "Proposed snapshot iteration, deferred eviction, or ConcurrentHashMap; no fix applied"
+  ],
+  "specific": [
+   "ConcurrentModificationException from modifying a HashMap during iteration (re-entrant listener callback)",
+   "fail-fast iterator / modCount"
+  ],
+  "decisions": [],
+  "skills": [
+   "Java",
+   "reading stack traces",
+   "concurrency debugging",
+   "hypothesis testing"
+  ],
+  "not_skills": [
+   "implementing the fix",
+   "writing new unit tests",
+   "Spring configuration",
+   "performance tuning"
+  ]
+ }
 }

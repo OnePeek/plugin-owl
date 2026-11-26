@@ -1,0 +1,97 @@
+{
+  "id": "data-2",
+  "type": "data",
+  "cwd": "/home/ds/coldchain-pipeline",
+  "steps": [
+    {
+      "u": "The daily cold-chain temperature report says some reefer containers had 2x the readings they should. Find out where the duplicates come from and fix the pipeline step."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/ds/coldchain-pipeline/pipeline/clean.py",
+        "offset": 1,
+        "limit": 30
+      },
+      "r": "12 def clean(df: pd.DataFrame) -> pd.DataFrame:\n13     df = df.dropna(subset=[\"temp_c\"])\n14     df[\"ts\"] = pd.to_datetime(df[\"ts\"], utc=True)\n15     df = df.drop_duplicates(subset=[\"device_id\", \"ts\"])\n16     return df[(df.temp_c > -40) & (df.temp_c < 30)]"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "python - <<'EOF'\nimport pandas as pd\ndf = pd.read_parquet('data/raw/2026-11-18.parquet')\nprint(len(df), df.device_id.nunique())\nd = df[df.duplicated(['device_id','seq'], keep=False)].sort_values(['device_id','seq'])\nprint(len(d))\nprint(d[['device_id','seq','ts','temp_c','gateway_id']].head(6).to_string(index=False))\nEOF"
+      },
+      "r": "1846020 2210\n214877\ndevice_id   seq                        ts  temp_c gateway_id\n RF-00418 99121 2026-11-18T03:14:07.000Z   -18.2      gw-07\n RF-00418 99121 2026-11-18T03:14:07.412Z   -18.2      gw-07\n RF-00418 99122 2026-11-18T03:15:07.000Z   -18.3      gw-07\n RF-00418 99122 2026-11-18T03:15:07.391Z   -18.3      gw-07\n RF-02003 51010 2026-11-18T11:40:00.000Z    -0.4      gw-12\n RF-02003 51010 2026-11-18T11:40:01.207Z    -0.4      gw-12"
+    },
+    {
+      "a": "The duplicates are the same reading (same device and sequence number) delivered twice by the gateway, which retransmits under at-least-once delivery, and on the retry the gateway stamps its own receive time, so ts differs by a few hundred milliseconds and dedup on (device_id, ts) misses them. I could round ts to the second, but that would still miss retries that cross a second boundary (RF-02003 above) and could merge genuinely distinct readings; the device sequence number is the reading's identity, so I'll dedup on (device_id, seq) and keep the earliest ts."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/ds/coldchain-pipeline/pipeline/clean.py",
+        "old_string": "    df = df.drop_duplicates(subset=[\"device_id\", \"ts\"])",
+        "new_string": "    # Gateways retransmit (at-least-once) and re-stamp ts on retry; seq is the device's reading id.\n    df = df.sort_values(\"ts\").drop_duplicates(subset=[\"device_id\", \"seq\"], keep=\"first\")"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "python - <<'EOF'\nimport pandas as pd\nfrom pipeline.clean import clean\ndf = pd.read_parquet('data/raw/2026-11-18.parquet')\nc = clean(df)\nprint(len(c), c.duplicated(['device_id','seq']).sum())\nprint(c.groupby('device_id').size().describe()[['mean','max']])\nEOF"
+      },
+      "r": "1737584 0\nmean     786.2\nmax     1440.0\nName: count, dtype: float64"
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/ds/coldchain-pipeline/tests/test_clean.py",
+        "old_string": "def test_drops_null_temps():",
+        "new_string": "def test_dedups_gateway_retries_by_seq():\n    df = pd.DataFrame({\n        \"device_id\": [\"RF-1\", \"RF-1\", \"RF-1\"],\n        \"seq\": [10, 10, 11],\n        \"ts\": [\"2026-01-01T00:00:00.000Z\", \"2026-01-01T00:00:01.207Z\", \"2026-01-01T00:01:00Z\"],\n        \"temp_c\": [-18.0, -18.0, -18.1],\n    })\n    out = clean(df)\n    assert list(out.seq) == [10, 11]\n    assert str(out.ts.iloc[0]) == \"2026-01-01 00:00:00+00:00\"\n\n\ndef test_drops_null_temps():"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "pytest -q tests/test_clean.py"
+      },
+      "r": "......\n6 passed in 0.71s"
+    },
+    {
+      "a": "Cause: gateway retransmissions under at-least-once delivery, re-stamped with a slightly later receive time, so dedup on (device_id, ts) didn't catch them. The cleaning step now dedups on (device_id, seq), keeping the earliest timestamp. On the 18 Nov file that removes 108,436 duplicate rows; no device now exceeds 1,440 readings a day (one per minute). Added a test for a retry that crosses a second boundary; all 6 tests pass."
+    }
+  ],
+  "reference": {
+    "task_type": "data",
+    "summary": "Found that duplicated cold-chain sensor readings came from gateway retransmissions under at-least-once delivery that were re-stamped with a later receive time, so deduplicating on device and timestamp missed them. The pandas cleaning step now deduplicates on device and sequence number keeping the earliest timestamp, removing about 108k duplicates from one day's file, with a new test passing.",
+    "facts": [
+      "Duplicates had the same device and sequence number but timestamps a few hundred milliseconds to over a second apart",
+      "The old step deduplicated on device id and timestamp",
+      "The new step deduplicates on device id and sequence number, keeping the earliest timestamp",
+      "On one day's file about 108k duplicate rows were removed and no device exceeds 1,440 readings",
+      "A test for a retry crossing a second boundary was added; 6 tests pass"
+    ],
+    "specific": [
+      "deduplication of at-least-once delivery",
+      "idempotency key choice in a data pipeline"
+    ],
+    "decisions": [
+      {
+        "choice": "Deduplicate on device and sequence number instead of rounding timestamps",
+        "reason": "rounding misses retries that cross a second boundary and could merge distinct readings, while the sequence number is the reading's identity"
+      }
+    ],
+    "skills": [
+      "Python",
+      "pandas",
+      "data quality analysis",
+      "pytest"
+    ],
+    "not_skills": [
+      "SQL query tuning",
+      "stream processing frameworks",
+      "dashboard building",
+      "machine learning"
+    ]
+  }
+}

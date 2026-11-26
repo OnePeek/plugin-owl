@@ -1,0 +1,114 @@
+{
+  "id": "refactor-2",
+  "type": "refactor",
+  "cwd": "/Users/jo/games/starhaul",
+  "steps": [
+    {
+      "u": "world.py is 1,800 lines. Split movement, collision and AI out into separate system modules (ECS-style) so they're testable. Frame time must stay under 16 ms on the benchmark level."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "python -m starhaul.bench --level asteroid_field --frames 600"
+      },
+      "r": "frames=600 mean_ms=11.2 p95_ms=13.9 max_ms=15.4"
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/Users/jo/games/starhaul/starhaul/world.py",
+        "offset": 400,
+        "limit": 30
+      },
+      "r": "400 def update(self, dt):\n401     for e in self.entities:\n402         e.x += e.vx * dt\n403         e.y += e.vy * dt\n404         if e.ai: e.ai.think(self, dt)\n405         for o in self.grid.near(e):\n406             if collide(e, o): self.resolve(e, o)\n..."
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/Users/jo/games/starhaul/starhaul/systems/movement.py",
+        "content": "class MovementSystem:\n    def run(self, world, dt):\n        for e in world.query(Position, Velocity):\n            p, v = e.get(Position), e.get(Velocity)\n            p.x += v.x * dt\n            p.y += v.y * dt\n"
+      },
+      "r": "File created."
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/Users/jo/games/starhaul/starhaul/systems/collision.py",
+        "content": "class CollisionSystem:\n    def run(self, world, dt):\n        world.grid.rebuild(world.query(Position, Collider))\n        for e in world.query(Position, Collider):\n            for o in world.grid.near(e):\n                if overlaps(e, o):\n                    world.events.emit(Collision(e, o))\n"
+      },
+      "r": "File created."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/Users/jo/games/starhaul/starhaul/world.py",
+        "old_string": "def update(self, dt):\n    for e in self.entities:",
+        "new_string": "def update(self, dt):\n    for system in self.systems:\n        system.run(self, dt)\n    return\n    for e in self.entities:  # legacy path, to delete"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "pytest -q tests/ && python -m starhaul.bench --level asteroid_field --frames 600"
+      },
+      "r": "48 passed in 3.10s\nframes=600 mean_ms=19.7 p95_ms=24.3 max_ms=31.0"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "python -m cProfile -s cumtime -m starhaul.bench --level asteroid_field --frames 120 2>&1 | head -8"
+      },
+      "r": "   ncalls  tottime  cumtime  filename:lineno(function)\n   360     0.010    2.304  world.py:88(query)\n  4.1e6     1.120    1.871  entity.py:22(get)\n   120     0.401    0.950  grid.py:30(rebuild)"
+    },
+    {
+      "a": "Mean frame time went from 11.2 ms to 19.7 ms. The profile shows the cost is in world.query and per-component get() lookups, which now happen three times per entity per frame, plus rebuilding the grid every frame. Fixing it properly means archetype storage or cached queries, which is a bigger change."
+    },
+    {
+      "u": "We ship the demo build tomorrow. Revert it, we'll do the ECS split after the demo."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "rm -r starhaul/systems && git checkout -- starhaul/world.py && python -m starhaul.bench --level asteroid_field --frames 600"
+      },
+      "r": "frames=600 mean_ms=11.3 p95_ms=14.0 max_ms=15.6"
+    },
+    {
+      "a": "Reverted: the systems package is removed and world.py is back to the original; the benchmark is back at 11.3 ms mean. For later: the split needs cached component queries (or archetype tables) and incremental grid updates to stay under budget."
+    }
+  ],
+  "reference": {
+    "task_type": "refactor",
+    "summary": "Attempted to split a large game world update loop into separate entity-component-system modules for movement and collision. Tests passed but mean frame time rose from about 11 to about 20 ms, profiling traced it to repeated component queries and per-frame grid rebuilds, and the change was reverted before a demo with the benchmark back to baseline.",
+    "facts": [
+      "Baseline benchmark was about 11.2 ms mean per frame",
+      "After the split tests passed but mean frame time rose to 19.7 ms",
+      "Profiling pointed at world.query, per-component get lookups and grid rebuilds",
+      "The refactor was reverted and the benchmark returned to about 11.3 ms",
+      "Cached queries or archetype storage were noted as needed for a later attempt"
+    ],
+    "specific": [
+      "entity component system refactor",
+      "frame time performance regression"
+    ],
+    "decisions": [
+      {
+        "choice": "Revert the refactor instead of optimising it now",
+        "reason": "the demo build ships the next day"
+      }
+    ],
+    "skills": [
+      "Python",
+      "profiling with cProfile",
+      "game loop architecture",
+      "benchmarking"
+    ],
+    "not_skills": [
+      "database design",
+      "multiplayer networking",
+      "shader programming",
+      "CI configuration"
+    ]
+  }
+}

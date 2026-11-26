@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkText, cleanText, redactInput, sentenceCount, shannon } from "../../src/clean/filter.js";
+import { checkText, cleanText, joinSplit, redactInput, sentenceCount, shannon, taintHit } from "../../src/clean/filter.js";
 import { finalizeInsight } from "../../src/record/insight.js";
 import { canaries } from "../helpers/canary.js";
+import { isWordDotted, isWordIdentifier } from "../../src/clean/words.js";
+import { repoRoot } from "../helpers/paths.js";
+import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const GOOD = "Fixed a race between cache invalidation and refill that served stale prices after bulk updates, by versioning cache entries. Tests pass.";
 const NONE = { learned: [], blocklist: [] };
@@ -89,4 +94,63 @@ test("finalizeInsight: good output is accepted and cleaned, bad output is held o
 test("fenced JSON from the model is accepted", () => {
   const r = finalizeInsight("```json\n" + JSON.stringify({ summary: GOOD, task_type: "bugfix", decisions: [], skills: ["TypeScript"] }) + "\n```", NONE);
   assert.ok(r.ok);
+});
+
+test("code identifiers made of dictionary words pass every rule (exception, class, hook and package names)", () => {
+  for (const id of ["IllegalStateException", "java.util.concurrent", "useEffect", "KafkaConsumer", "ConcurrentHashMap", "ArrayIndexOutOfBoundsException", "UnsupportedOperationException", "HttpClientErrorException", "XMLHttpRequest", "getElementsByClassName", "componentDidUpdate", "TransactionRolledbackException", "AbstractSingletonProxyFactoryBean"]) {
+    assert.deepEqual(checkText("Fixed the " + id + " in the worker."), [], id);
+  }
+  assert.ok(isWordIdentifier("IllegalStateException") && isWordDotted("java.util.concurrent"));
+  // a word-shaped random name, a dotted host with an environment label and a file name are still held
+  for (const [text, hit] of [["Stored AbcDefGhiJklMnoPqr in the vault.", "entropy"], ["Value StateExceptionXq7Rv9Lm was found.", "entropy"], ["Host billing.payments.prod was slow.", "host"], ["Opened payment.proto today.", "path"]] as const) {
+    assert.ok(checkText(text).includes(hit), text);
+  }
+});
+
+test("45k generated secrets: the word-identifier pass never fires and every one is held", () => {
+  const rnd = (n: number, a: string): string => {
+    const b = randomBytes(n);
+    let s = "";
+    for (let i = 0; i < n; i++) s += a[(b[i] as number) % a.length];
+    return s;
+  };
+  const alphabets = ["abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz0123456789", "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"];
+  let n = 0;
+  const missed: string[] = [];
+  for (let i = 0; i < 45000; i++) {
+    const s = i % 5 === 4 ? randomBytes(12 + (i % 24)).toString("base64").replace(/=+$/, "") : rnd(16 + (i % 33), alphabets[i % 4] as string);
+    for (const piece of s.split(/[-_.+/=]+/)) {
+      if (piece.length < 16 || shannon(piece) <= 3.5) continue;
+      n++;
+      if (isWordIdentifier(piece) || checkText("Stored " + piece + " in the vault.").length === 0) missed.push(piece);
+    }
+  }
+  assert.ok(n > 40000, "cases " + n);
+  assert.deepEqual(missed, []);
+});
+
+test("shared text vectors: the cleaner gives the answer the server must give (tests/fixtures/ai_plugin_text_vectors.json)", () => {
+  const file = JSON.parse(readFileSync(join(repoRoot(), "tests", "fixtures", "ai_plugin_text_vectors.json"), "utf8")) as { vectors: { text: string; held: boolean }[] };
+  const wrong = file.vectors.filter((v) => checkText(v.text).length > 0 !== v.held).map((v) => v.text);
+  assert.deepEqual(wrong, []);
+  assert.ok(file.vectors.length >= 31);
+});
+
+test("split secrets: spaced, hyphenated, underscored or zero-width split keys are read whole and held; prose is not joined into a hit", () => {
+  const split = (s: string, sep: string, at = 4): string => s.match(new RegExp(`.{1,${at}}`, "g"))!.join(sep);
+  for (let i = 0; i < 200; i++) {
+    const aws = canaries.awsKey();
+    const gh = canaries.githubToken();
+    const ghBody = gh.slice(4);
+    for (const text of [split(aws, " "), split(aws, "-"), split(aws, "_"), split(aws, "​", 1), "ghp_" + split(ghBody, "-"), "ghp_" + split(ghBody, " ", 6), "gh" + "p_​" + ghBody, split(gh, "⁠", 3)]) {
+      assert.ok(checkText("Rotated " + text + " for the deploy role.").includes("secret"), text);
+    }
+  }
+  assert.equal(joinSplit("Rotated AKIA QWER"), "Rotated AKIA QWER RotatedAKIA RotatedAKIAQWER AKIAQWER");
+  assert.ok(joinSplit("a\u200bb c").startsWith("ab c") && !joinSplit("one\u200b two").includes("\u200b"));
+  for (const ok of ["Added a retry loop with jitter to the sync worker and kept the queue size small.", "Rotated the deploy role credentials and documented the steps.", "Moved the long-running import into small batches."]) assert.deepEqual(checkText(ok), [], ok);
+  // input side: the joined key becomes taint, so a whole copy in the answer is caught even though the input held it split
+  const key = canaries.awsKey();
+  const red = redactInput("the key is " + split(key, " ") + " here");
+  assert.ok(taintHit("Used " + key + " today", red.taint));
 });

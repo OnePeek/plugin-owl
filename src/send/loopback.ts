@@ -17,17 +17,19 @@ export function waitForCallback(port: number, state: string, timeoutMs = 300_000
     const srv = createServer((req, res) => {
       const u = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
       if (req.method !== "GET" || u.pathname !== "/callback") {
-        res.writeHead(404).end();
+        res.writeHead(404, { Connection: "close" }).end();
         return;
       }
       const ok = u.searchParams.get("state") === state;
-      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" }).end(ok ? "OnePeek is connected. You can close this tab." : "Sign-in did not match. You can close this tab.");
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", Connection: "close" }).end(ok ? "OnePeek is connected. You can close this tab." : "Sign-in did not match. You can close this tab.");
       finish(ok ? { ...(u.searchParams.get("code") ? { code: u.searchParams.get("code") as string } : {}), ...(u.searchParams.get("error") ? { error: u.searchParams.get("error") as string } : {}) } : { error: "state_mismatch" });
     });
     const timer = setTimeout(() => finish({ error: "timeout" }), timeoutMs);
     function finish(c: Callback): void {
       clearTimeout(timer);
+      // close() alone waits for a browser's kept-alive connection, which would keep the helper process running
       srv.close();
+      srv.closeAllConnections();
       resolve(c);
     }
     srv.on("error", () => finish({ error: "listen_failed" }));

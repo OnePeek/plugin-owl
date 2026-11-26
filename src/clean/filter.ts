@@ -1,6 +1,7 @@
 // The text rules of the contract (Insight schema) as one pure function. The same rules run on the device before signing
 // and on the server before storing (rule E4); a text that fails after cleaning is HELD, never sent (rule E2).
 import { matchSecret } from "./rules.js";
+import { isWordDotted, isWordIdentifier } from "./words.js";
 
 export type Hit = "taint" | "secret" | "email" | "url" | "host" | "path" | "ip" | "blob" | "entropy" | "quote" | "name" | "blocklist" | "sentences" | "unicode" | "ticket";
 
@@ -48,7 +49,9 @@ export function isPathLike(tok: string): boolean {
   // owner/repo or type/branch shapes (acme-corp/billing-api, feature/refund-fix); CI/CD, TCP/IP and and/or pass
   if (/^[a-z0-9][\w.-]*\/[\w.-]+$/.test(tok) && /[-_\d]/.test(tok)) return true;
   if (TECH_NAMES.has(tok.toLowerCase())) return false;
-  return FILE_EXT.test(tok) || ANY_FILE.test(tok) || MORE_EXT.test(tok);
+  if (FILE_EXT.test(tok) || MORE_EXT.test(tok)) return true;
+  // the open extension rule: a dotted name of dictionary words (java.util.concurrent) is a package or API name, not a file
+  return ANY_FILE.test(tok) && !isWordDotted(tok);
 }
 
 export function shannon(s: string): number {
@@ -84,6 +87,34 @@ function containsName(text: string, name: string): boolean {
   return new RegExp(`(?<![A-Za-z0-9])${escapeRe(name)}(?![A-Za-z0-9])`, "i").test(text);
 }
 
+const FORMAT_CHARS = /[\u200B-\u200F\u2060\uFEFF]/g;
+const CHUNKED = /[A-Za-z0-9]+(?:[ _-]+[A-Za-z0-9]+)+/g;
+
+/**
+ * The normalised copy the secret rules also run on (ruling 11-26, mirrored by the server): zero-width and format characters
+ * removed, and a run of spaces, hyphens or underscores dropped where it sits between two letter-or-digit chunks of 4 or more
+ * characters, so a key split as AKIA QWER ... or with hyphens or zero-width spaces is read whole. A hit on either copy holds.
+ * Each joined stretch is written out from every chunk it can start at to every chunk it can end at (Rotated AKIA QWER here
+ * gives RotatedAKIA ... AKIAQWER ...), so a word joined in front of or behind the key cannot hide its edges from a rule that
+ * needs a word boundary. A stretch is at most 24 chunks, so the copy stays small.
+ */
+export function joinSplit(text: string): string {
+  return text.replace(FORMAT_CHARS, "").replace(CHUNKED, (run) => {
+    const parts = run.split(/([ _-]+)/);
+    const variants: string[] = [run];
+    for (let start = 0; start < parts.length; start += 2) {
+      let out = parts[start] as string;
+      for (let i = start + 1; i + 1 < parts.length && i - start < 48; i += 2) {
+        const prev = parts[i - 1] as string;
+        const next = parts[i + 1] as string;
+        out += (prev.length >= 4 && next.length >= 4 ? "" : (parts[i] as string)) + next;
+        variants.push(out);
+      }
+    }
+    return variants.join(" ");
+  });
+}
+
 /** Detect every rule the text breaks. Empty list = clean. */
 export function checkText(input: string, names: Names = NO_NAMES): Hit[] {
   const hits = new Set<Hit>();
@@ -102,10 +133,10 @@ export function checkText(input: string, names: Names = NO_NAMES): Hit[] {
       }
     }
   }
-  if (matchSecret(text) !== undefined) hits.add("secret");
+  if (matchSecret(text) !== undefined || matchSecret(joinSplit(text)) !== undefined) hits.add("secret");
   if (EMAIL.test(text)) hits.add("email");
   if (URL_SCHEME.test(text) || BARE_DOMAIN.test(text)) hits.add("url");
-  if (HOST.test(text)) hits.add("host");
+  if (hostHit(text)) hits.add("host");
   for (const m of text.matchAll(TICKET)) if (!TICKET_OK.has(m[1] as string)) hits.add("ticket");
   if (IPV4.test(text) || IPV6.test(text)) hits.add("ip");
   if (HEX_RUN.test(text)) hits.add("blob");
@@ -114,7 +145,7 @@ export function checkText(input: string, names: Names = NO_NAMES): Hit[] {
     const tok = raw.replace(TRIM, "");
     if (isPathLike(tok)) hits.add("path");
     // entropy is judged per alphanumeric piece, so a hyphenated phrase such as retry-with-backoff is not mistaken for key material
-    for (const piece of tok.split(/[-_.]+/)) if (piece.length >= 16 && shannon(piece) > 3.5) hits.add("entropy");
+    for (const piece of tok.split(/[-_.]+/)) if (piece.length >= 16 && shannon(piece) > 3.5 && !isWordIdentifier(piece)) hits.add("entropy");
     if (tok.length >= 10 && /^[A-Za-z0-9]+$/.test(tok) && (tok.match(/\d/g) ?? []).length >= 3 && (tok.match(/[A-Za-z]/g) ?? []).length >= 3 && (tok.length >= 14 || (/[a-z]/.test(tok) && /[A-Z]/.test(tok)))) hits.add("blob"); // fragments of split secrets
   }
   if (SPELLED.test(text)) hits.add("blob"); // a secret spelled out one character at a time
@@ -122,6 +153,18 @@ export function checkText(input: string, names: Names = NO_NAMES): Hit[] {
   for (const n of names.learned) if (containsName(text, n)) hits.add("name");
   for (const n of names.blocklist) if (containsName(text, n)) hits.add("blocklist");
   return [...hits];
+}
+
+// Network suffixes and environment words: a dotted name ending in one of these is a host even when its labels are words.
+const HOST_WORDS = new Set(["internal", "local", "lan", "corp", "intranet", "localdomain", "home", "arpa", "prod", "production", "staging", "stage", "dev", "test", "qa", "uat", "svc", "cluster", "cloud", "net", "com", "org", "io", "host", "server", "service", "db", "database", "api", "node"]);
+
+/** A host name match, unless it is a dotted name of dictionary words (java.util.concurrent) with no network or environment label. */
+function hostHit(text: string): boolean {
+  for (const m of text.matchAll(new RegExp(HOST.source, "gi"))) {
+    const labels = m[0].toLowerCase().split(".");
+    if (!(isWordDotted(m[0]) && !labels.some((l) => HOST_WORDS.has(l)))) return true;
+  }
+  return false;
 }
 
 /** At most 3 sentences (contract rule for `summary`). */
@@ -184,6 +227,8 @@ const tokensOf = (m: string): string[] => {
 export function redactInput(text: string): Redacted {
   const taint: string[] = [];
   const global = (re: RegExp): RegExp => new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+  // a split key (spaced, hyphenated or zero-width split) is read whole on the joined copy; its value becomes taint so no copy of it, split or whole, can come back
+  for (const r of SECRET_RULES) if (!WEAK_RULES.has(r.id)) for (const m of joinSplit(text).matchAll(global(r.re))) if (!global(r.re).test(text)) taint.push(m[0]);
   let t = text.replace(/-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|$)/g, (m) => (taint.push(m), "[SECRET]"));
   for (const r of SECRET_RULES) t = t.replace(global(r.re), (m) => (WEAK_RULES.has(r.id) ? taint.push(...tokensOf(m)) : taint.push(m), "[SECRET]"));
   t = t.replace(global(EMAIL), "[EMAIL]").replace(global(URL_SCHEME), "[URL]").replace(global(IPV4), "[IP]");

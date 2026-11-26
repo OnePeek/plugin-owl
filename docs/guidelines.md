@@ -34,8 +34,10 @@ scripts/  build.mjs (tsc + build-info), lint.mjs (CI rules)
 - Privacy and injection tests gate every merge: hostile fixtures must never put a planted secret on the wire in any encoding.
 - The eval (`npm run eval`) gates a release: 27 of 30 sessions pass every criterion, 0 leaks.
 - Each rule id (AIP-*) in the LLD names a test; keep the names.
-- The eval set (`evals/sessions`) is HELD OUT: written by a separate author who never saw the prompt. Prompt work uses
-  only `evals/dev` (`npm run eval -- --set dev`); no prompt example may come from the held-out set. The judge is a
+- The eval set (`evals/sessions`) is HELD OUT: written by a separate author who never saw the prompt or the dev sets, and
+  run once per prompt. Prompt work uses only `evals/dev` and `evals/dev-2` (`npm run eval -- --set dev|dev-2`); no
+  prompt example may come from the held-out set. A held-out set that has been run twice is burned and becomes a dev set
+  (`evals/dev-2` is held-out set 1). The judge is a
   different model from the summariser (opus judges sonnet); `evals/results/latest.json` records the resolved model
   ids, CLI version, prompt, judge and set sha256 and the date.
 

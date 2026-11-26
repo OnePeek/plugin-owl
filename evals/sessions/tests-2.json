@@ -1,98 +1,88 @@
 {
-  "id": "tests-2",
-  "type": "tests",
-  "cwd": "/opt/src/clinic-scheduler",
-  "steps": [
-    {
-      "u": "test_reminders.py::test_sends_24h_reminder fails maybe once a week in CI, usually around midnight UTC. Make it deterministic."
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/opt/src/clinic-scheduler/tests/test_reminders.py",
-        "offset": 1,
-        "limit": 25
-      },
-      "r": "8 def test_sends_24h_reminder(db, outbox):\n9     appt = make_appointment(db, starts_at=datetime.utcnow() + timedelta(hours=24))\n10    run_reminder_job(db)\n11    assert [m.appointment_id for m in outbox] == [appt.id]"
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/opt/src/clinic-scheduler/scheduler/reminders.py",
-        "offset": 1,
-        "limit": 30
-      },
-      "r": "14 def run_reminder_job(db):\n15     today = date.today()\n16     window_start = datetime.combine(today + timedelta(days=1), time.min)\n17     window_end = window_start + timedelta(days=1)\n18     for appt in db.appointments_between(window_start, window_end):"
-    },
-    {
-      "a": "The job buckets by calendar day using date.today() (local time) while the test uses utcnow()+24h, so near midnight the appointment falls on the day after tomorrow and is skipped. Options: freeze time in the test with freezegun, or give the job an injectable clock. freezegun would hide the local-vs-UTC mismatch rather than fix it, and the scheduler already passes a Clock into the booking service, so I'll inject the same Clock here and use UTC consistently."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/opt/src/clinic-scheduler/scheduler/reminders.py",
-        "old_string": "def run_reminder_job(db):\n    today = date.today()",
-        "new_string": "def run_reminder_job(db, clock: Clock = SYSTEM_CLOCK):\n    today = clock.now_utc().date()"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/opt/src/clinic-scheduler/tests/test_reminders.py",
-        "old_string": "def test_sends_24h_reminder(db, outbox):\n    appt = make_appointment(db, starts_at=datetime.utcnow() + timedelta(hours=24))\n    run_reminder_job(db)",
-        "new_string": "@pytest.mark.parametrize(\"now\", [\n    datetime(2026, 3, 10, 12, 0, tzinfo=UTC),\n    datetime(2026, 3, 10, 23, 59, tzinfo=UTC),\n    datetime(2026, 3, 11, 0, 1, tzinfo=UTC),\n])\ndef test_sends_24h_reminder(db, outbox, now):\n    clock = FixedClock(now)\n    appt = make_appointment(db, starts_at=datetime.combine(now.date() + timedelta(days=1), time(9), tzinfo=UTC))\n    run_reminder_job(db, clock=clock)"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "pytest tests/test_reminders.py -q -p no:randomly && pytest tests/test_reminders.py -q --count=200 -x 2>&1 | tail -1"
-      },
-      "r": "......\n6 passed in 0.52s\n1200 passed in 31.08s"
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "grep -rn 'run_reminder_job(' scheduler/ | grep -v def"
-      },
-      "r": "scheduler/cron.py:22:    run_reminder_job(db)"
-    },
-    {
-      "a": "Made it deterministic. The job now takes a Clock (defaulting to the system clock, so the cron caller is unchanged) and computes 'tomorrow' from UTC instead of local date.today(). The test is parametrized with a fixed clock at midday, one minute before and one minute after midnight UTC; it passed 1,200 repeated runs."
-    }
-  ],
-  "reference": {
-    "task_type": "tests",
-    "summary": "Made a flaky reminder test deterministic: the job computed tomorrow from local date while the test used UTC, so it failed near midnight. An injectable clock was added to the job, which now uses UTC, and the test was parametrized with fixed times around midnight; it passed 1,200 repeated runs.",
-    "facts": [
-      "The job used local date.today() while the test used utcnow, which disagreed near midnight",
-      "The job now accepts a Clock defaulting to the system clock and uses UTC",
-      "The test is parametrized at midday and one minute either side of midnight",
-      "The test passed 1,200 repeated runs"
-    ],
-    "specific": [
-      "flaky time-dependent test",
-      "clock injection"
-    ],
-    "decisions": [
-      {
-        "choice": "Inject a clock instead of freezing time with freezegun",
-        "reason": "freezegun would hide the local versus UTC mismatch, and the codebase already injects a Clock elsewhere"
-      }
-    ],
-    "skills": [
-      "Python",
-      "pytest",
-      "time zone handling",
-      "dependency injection"
-    ],
-    "not_skills": [
-      "CI pipeline configuration",
-      "database migration",
-      "load testing",
-      "mocking HTTP services"
-    ]
+ "id": "tests-2",
+ "type": "tests",
+ "cwd": "/home/dev/src/ripplemq",
+ "steps": [
+  {
+   "u": "Add property-based tests for the frame codec: encode then decode should round-trip for any frame, and decode must never panic on garbage."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/ripplemq/src/codec.rs"
+   },
+   "r": "pub struct Frame { pub topic: String, pub partition: u16, pub offset: u64, pub payload: Vec<u8> }\npub fn encode(f: &Frame) -> Vec<u8> { ... }\npub fn decode(buf: &[u8]) -> Result<(Frame, usize), CodecError> { ... }"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/ripplemq/Cargo.toml",
+    "old_string": "[dev-dependencies]\n",
+    "new_string": "[dev-dependencies]\nproptest = \"1.4\"\n"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/ripplemq/tests/codec_props.rs",
+    "content": "use proptest::prelude::*;\nuse ripplemq::codec::{decode, encode, Frame};\n\nfn arb_frame() -> impl Strategy<Value = Frame> {\n    (\"[a-z0-9._-]{1,64}\", any::<u16>(), any::<u64>(), prop::collection::vec(any::<u8>(), 0..4096))\n        .prop_map(|(topic, partition, offset, payload)| Frame { topic, partition, offset, payload })\n}\n\nproptest! {\n    #[test]\n    fn roundtrip(f in arb_frame()) {\n        let bytes = encode(&f);\n        let (g, used) = decode(&bytes).unwrap();\n        prop_assert_eq!(used, bytes.len());\n        prop_assert_eq!(g, f);\n    }\n\n    #[test]\n    fn decode_never_panics(buf in prop::collection::vec(any::<u8>(), 0..512)) {\n        let _ = decode(&buf);\n    }\n\n    #[test]\n    fn truncated_frame_is_incomplete(f in arb_frame(), cut in 1usize..16) {\n        let bytes = encode(&f);\n        let cut = cut.min(bytes.len());\n        prop_assert!(decode(&bytes[..bytes.len() - cut]).is_err());\n    }\n}\n"
+   },
+   "r": "File created successfully at: /home/dev/src/ripplemq/tests/codec_props.rs"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cargo test --test codec_props"
+   },
+   "r": "error[E0369]: binary operation `==` cannot be applied to type `Frame`\n  --> tests/codec_props.rs:15:9\n   |\n15 |         prop_assert_eq!(g, f);\n   = note: an implementation of `PartialEq` might be missing for `Frame`",
+   "err": true
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/ripplemq/src/codec.rs",
+    "old_string": "pub struct Frame {",
+    "new_string": "#[derive(Debug, Clone, PartialEq, Eq)]\npub struct Frame {"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cargo test --test codec_props"
+   },
+   "r": "running 3 tests\ntest decode_never_panics ... ok\ntest truncated_frame_is_incomplete ... ok\ntest roundtrip ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; finished in 2.87s"
+  },
+  {
+   "a": "Added proptest-based tests in `tests/codec_props.rs`: round-trip equality including bytes consumed, decode never panics on arbitrary input, and truncated frames return an error. `Frame` needed `Debug, Clone, PartialEq, Eq` derives for the assertions. All 3 properties pass (256 cases each by default)."
   }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Added property-based tests with proptest for a Rust message frame codec: encoding then decoding round-trips and consumes every byte, decoding never panics on arbitrary bytes, and truncated frames return an error. Added equality and debug derives to the frame type so the assertions compile; all 3 property tests pass.",
+  "facts": [
+   "Added proptest 1.4 as a dev-dependency",
+   "Strategy arb_frame generates topic, partition, offset and payload up to 4096 bytes",
+   "Three properties: roundtrip, decode_never_panics, truncated_frame_is_incomplete",
+   "First compile failed: Frame lacked PartialEq; added derives",
+   "cargo test --test codec_props: 3 passed"
+  ],
+  "specific": [
+   "property-based testing (proptest)",
+   "round-trip and robustness properties for a binary codec"
+  ],
+  "decisions": [],
+  "skills": [
+   "Rust",
+   "proptest",
+   "test design"
+  ],
+  "not_skills": [
+   "fuzzing with cargo-fuzz",
+   "fixing codec bugs",
+   "benchmarking",
+   "async networking"
+  ]
+ }
 }

@@ -1,104 +1,95 @@
 {
-  "id": "bugfix-1",
-  "type": "bugfix",
-  "cwd": "/home/dev/src/fleetroute",
-  "steps": [
-    {
-      "u": "Drivers in the Phoenix and Denver depots are seeing delivery ETAs an hour off since the clocks changed on Sunday. The ETA code is in internal/eta. Can you fix it?"
-    },
-    {
-      "t": "Grep",
-      "i": {
-        "pattern": "FixedZone|UTCOffset",
-        "path": "internal/eta"
-      },
-      "r": "internal/eta/window.go:41:\tloc := time.FixedZone(depot.TZName, depot.UTCOffsetSeconds)\ninternal/eta/window_test.go:18:\t\tdepot: Depot{TZName: \"MST\", UTCOffsetSeconds: -7 * 3600},"
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/home/dev/src/fleetroute/internal/eta/window.go"
-      },
-      "r": "35 func LocalWindow(depot Depot, eta time.Time, slack time.Duration) Window {\n36 \t// depot.UTCOffsetSeconds is captured when the depot is created\n...\n41 \tloc := time.FixedZone(depot.TZName, depot.UTCOffsetSeconds)\n42 \tstart := eta.Add(-slack).In(loc)\n43 \tend := eta.Add(slack).In(loc)\n44 \treturn Window{Start: start, End: end}\n45 }"
-    },
-    {
-      "a": "The window is built with a fixed UTC offset that was captured when the depot row was created, so any depot that observes daylight saving time drifts by an hour after a transition. Two options: keep storing offsets and recompute them on a schedule, or store the IANA zone name (America/Denver) and let time.LoadLocation resolve the offset for each instant. Recomputing offsets still breaks for ETAs that straddle a transition, so I'll switch to IANA zones; the depots table already has an iana_zone column that is populated."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/home/dev/src/fleetroute/internal/eta/window.go",
-        "old_string": "\tloc := time.FixedZone(depot.TZName, depot.UTCOffsetSeconds)",
-        "new_string": "\tloc, err := zones.Load(depot.IANAZone) // cached time.LoadLocation\n\tif err != nil {\n\t\treturn Window{}, fmt.Errorf(\"depot %s: bad zone %q: %w\", depot.ID, depot.IANAZone, err)\n\t}"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Write",
-      "i": {
-        "file_path": "/home/dev/src/fleetroute/internal/eta/zones/zones.go",
-        "content": "package zones\n\nimport (\n\t\"sync\"\n\t\"time\"\n)\n\nvar cache sync.Map\n\nfunc Load(name string) (*time.Location, error) {\n\tif v, ok := cache.Load(name); ok {\n\t\treturn v.(*time.Location), nil\n\t}\n\tloc, err := time.LoadLocation(name)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tcache.Store(name, loc)\n\treturn loc, nil\n}\n"
-      },
-      "r": "File created."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/home/dev/src/fleetroute/internal/eta/window_test.go",
-        "old_string": "\t\tdepot: Depot{TZName: \"MST\", UTCOffsetSeconds: -7 * 3600},",
-        "new_string": "\t\tdepot: Depot{IANAZone: \"America/Denver\"},\n\t\teta:   time.Date(2026, 11, 2, 15, 0, 0, 0, time.UTC), // day after fall-back\n\t\twantStartLocal: \"07:30 MST\","
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "go test ./internal/eta/... -run 'Window|DST' -v"
-      },
-      "r": "=== RUN   TestLocalWindow/denver_after_fallback\n=== RUN   TestLocalWindow/phoenix_no_dst\n=== RUN   TestLocalWindow/straddles_transition\n--- PASS: TestLocalWindow (0.00s)\n=== RUN   TestZonesLoadCaches\n--- PASS: TestZonesLoadCaches (0.00s)\nPASS\nok  \tfleetroute/internal/eta\t0.214s"
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "go vet ./... && go test ./... 2>&1 | tail -4"
-      },
-      "r": "ok  \tfleetroute/internal/dispatch\t1.902s\nok  \tfleetroute/internal/eta\t0.208s\nok  \tfleetroute/internal/eta/zones\t0.011s\nok  \tfleetroute/internal/store\t3.441s"
-    },
-    {
-      "a": "Fixed. LocalWindow now resolves the depot's IANA zone (cached) instead of a stored fixed offset, so windows follow DST transitions, and Arizona depots without DST still work. Added test cases for the day after fall-back, a no-DST zone and a window straddling the transition; the full suite and go vet pass. The UTCOffsetSeconds column is now unused and can be dropped in a later migration."
-    }
-  ],
-  "reference": {
-    "task_type": "bugfix",
-    "summary": "Fixed delivery ETA windows that were an hour off after the daylight saving change by replacing a stored fixed UTC offset with IANA time zone lookup (cached), and added tests for the transition day, a no-DST zone and a window spanning the change; the full Go suite passes.",
-    "facts": [
-      "ETA windows used a fixed UTC offset captured at depot creation",
-      "The fix resolves the depot's IANA zone with time.LoadLocation behind a cache",
-      "Tests cover the day after fall-back, a zone without DST and a window straddling the transition",
-      "go vet and the full test suite pass",
-      "The old offset column is left unused for a later cleanup"
-    ],
-    "specific": [
-      "daylight saving time zone bug",
-      "IANA time zone resolution instead of fixed offsets"
-    ],
-    "decisions": [
-      {
-        "choice": "Store and use IANA zone names instead of recomputing fixed offsets",
-        "reason": "recomputed offsets still break for ETAs that straddle a transition"
-      }
-    ],
-    "skills": [
-      "Go",
-      "time zone handling",
-      "unit testing",
-      "root cause analysis"
-    ],
-    "not_skills": [
-      "database migration",
-      "frontend development",
-      "performance profiling",
-      "Docker"
-    ]
+ "id": "bugfix-1",
+ "type": "bugfix",
+ "cwd": "/home/dev/src/ledgerline",
+ "steps": [
+  {
+   "u": "Priya (priya.nandakumar@ledgerline-corp.example) reports that page 2 of GET /v1/invoices repeats the last invoice from page 1. Can you fix it?"
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "func (s \\*Store) ListInvoices",
+    "path": "internal/store"
+   },
+   "r": "internal/store/invoices.go:88:func (s *Store) ListInvoices(ctx context.Context, accountID string, after int64, limit int) ([]Invoice, error) {"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/ledgerline/internal/store/invoices.go"
+   },
+   "r": "88  func (s *Store) ListInvoices(ctx context.Context, accountID string, after int64, limit int) ([]Invoice, error) {\n89  \tconst q = `SELECT id, account_id, total_cents, issued_at FROM invoices\n90  \t\tWHERE account_id = $1 AND id >= $2 ORDER BY id LIMIT $3`\n91  \trows, err := s.db.QueryContext(ctx, q, accountID, after, limit)\n92  \tif err != nil {\n93  \t\treturn nil, fmt.Errorf(\"list invoices: %w\", err)\n94  \t}"
+  },
+  {
+   "a": "The keyset cursor is inclusive: `id >= $2` returns the cursor row again, and the handler sets `after` to the last id of the previous page. I'll make the comparison strict in the query rather than dropping the first row in the handler, because the handler trick silently skips a real row when the cursor invoice has been deleted."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/ledgerline/internal/store/invoices.go",
+    "old_string": "AND id >= $2 ORDER BY id",
+    "new_string": "AND id > $2 ORDER BY id"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/ledgerline/internal/store/invoices_test.go",
+    "old_string": "func TestListInvoicesEmpty(t *testing.T) {",
+    "new_string": "func TestListInvoicesCursorNoDuplicate(t *testing.T) {\n\ts := newTestStore(t)\n\tseedInvoices(t, s, \"acct_1\", 5)\n\tp1, _ := s.ListInvoices(ctx, \"acct_1\", 0, 3)\n\tp2, _ := s.ListInvoices(ctx, \"acct_1\", p1[len(p1)-1].ID, 3)\n\trequire.Len(t, p2, 2)\n\trequire.NotEqual(t, p1[2].ID, p2[0].ID)\n}\n\nfunc TestListInvoicesEmpty(t *testing.T) {"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "go test ./internal/store/... -run ListInvoices -v"
+   },
+   "r": "=== RUN   TestListInvoicesCursorNoDuplicate\n--- PASS: TestListInvoicesCursorNoDuplicate (0.04s)\n=== RUN   TestListInvoicesEmpty\n--- PASS: TestListInvoicesEmpty (0.01s)\nPASS\nok  \tgithub.com/ledgerline/api/internal/store\t0.412s"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "go test ./..."
+   },
+   "r": "ok  \tgithub.com/ledgerline/api/internal/api\t1.208s\nok  \tgithub.com/ledgerline/api/internal/store\t0.655s\nok  \tgithub.com/ledgerline/api/internal/billing\t0.301s"
+  },
+  {
+   "a": "Fixed: the cursor comparison in `ListInvoices` is now exclusive (`id > $2`), with a regression test `TestListInvoicesCursorNoDuplicate`. All packages pass."
   }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed duplicate rows across pages of the invoices list endpoint in a Go service. The keyset pagination cursor used an inclusive comparison, so each page repeated the last row of the previous one; it now uses an exclusive comparison. Added a regression test, and the full Go test suite passes.",
+  "facts": [
+   "Bug: page 2 repeated the last invoice of page 1",
+   "Root cause was an inclusive keyset cursor in the SQL query of Store.ListInvoices",
+   "Changed `id >= $2` to `id > $2`",
+   "Added regression test TestListInvoicesCursorNoDuplicate",
+   "go test ./... passed"
+  ],
+  "specific": [
+   "keyset (cursor) pagination off-by-one",
+   "inclusive vs exclusive cursor comparison"
+  ],
+  "decisions": [
+   {
+    "choice": "fix the comparison in the SQL query instead of dropping the first row in the handler",
+    "reason": "dropping a row in the handler would skip a real row when the cursor invoice had been deleted"
+   }
+  ],
+  "skills": [
+   "Go",
+   "SQL query debugging",
+   "regression testing"
+  ],
+  "not_skills": [
+   "database migration",
+   "performance tuning",
+   "React",
+   "load testing"
+  ]
+ }
 }

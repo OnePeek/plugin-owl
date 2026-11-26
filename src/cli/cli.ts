@@ -4,6 +4,7 @@
 import { fileURLToPath } from "node:url";
 import { COMMANDS, connect, discard, preview, setMode, status, uninstall, verify, type CommandName, type Out } from "./commands.js";
 import { createInterface } from "node:readline";
+import { isatty } from "node:tty";
 import { randomInt } from "node:crypto";
 import { CONSENT_QUESTION } from "../send/contract.js";
 import { openCtx, type Ctx } from "./ctx.js";
@@ -40,9 +41,11 @@ export async function askConsentWith(p: Prompter, word = `${WORDS[randomInt(WORD
 
 /** A real interactive terminal: stdin and stdout are TTYs and stdin can switch to raw mode (a pipe cannot). */
 export function ttyPrompter(): Prompter {
-  const stdin = process.stdin as NodeJS.ReadStream;
+  // process.stdin is only touched on a real terminal: opening it on a pipe (a hook, CI) can keep the process alive
+  const tty = isatty(0) && isatty(1);
+  const stdin = tty ? (process.stdin as NodeJS.ReadStream) : undefined;
   return {
-    interactive: stdin.isTTY === true && process.stdout.isTTY === true && typeof stdin.setRawMode === "function",
+    interactive: stdin !== undefined && stdin.isTTY === true && process.stdout.isTTY === true && typeof stdin.setRawMode === "function",
     ask: (q) =>
       new Promise((resolve) => {
         const rl = createInterface({ input: process.stdin, output: process.stdout });

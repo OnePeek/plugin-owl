@@ -1,124 +1,87 @@
 {
-  "id": "migration-1",
-  "type": "migration",
-  "cwd": "/home/build/dockyard-planner",
-  "steps": [
-    {
-      "u": "Move dockyard-planner from Python 3.8 to 3.12 (3.8 is EOL). Get the tests green on 3.12."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "uv venv -p 3.12 .venv312 && . .venv312/bin/activate && uv pip install -r requirements.txt 2>&1 | tail -4"
-      },
-      "r": "error: Failed to build `numpy==1.21.6`\n  Caused by: ModuleNotFoundError: No module named 'distutils'\n  hint: numpy 1.21.6 does not support Python 3.12",
-      "err": true
-    },
-    {
-      "t": "Read",
-      "i": {
-        "file_path": "/home/build/dockyard-planner/requirements.txt"
-      },
-      "r": "numpy==1.21.6\npandas==1.3.5\nortools==9.3.10497\npydantic==1.10.13\nrequests==2.31.0\npytest==7.1.2"
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/home/build/dockyard-planner/requirements.txt",
-        "old_string": "numpy==1.21.6\npandas==1.3.5\nortools==9.3.10497\npydantic==1.10.13\nrequests==2.31.0\npytest==7.1.2",
-        "new_string": "numpy==1.26.4\npandas==2.2.3\nortools==9.10.4067\npydantic==1.10.18\nrequests==2.32.3\npytest==8.3.3"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": ". .venv312/bin/activate && uv pip install -r requirements.txt -q && pytest -q 2>&1 | tail -8"
-      },
-      "r": "ERROR collecting planner/version_check.py\nplanner/version_check.py:2: in <module>\n    from distutils.version import LooseVersion\nE   ModuleNotFoundError: No module named 'distutils'\nFAILED planner/berths.py::test_assign - AttributeError: 'DataFrame' object has no attribute 'append'\nFAILED planner/report.py::test_weekly - FutureWarning turned error: Series.__getitem__ treating keys as positions is deprecated\n2 failed, 131 passed, 1 error in 14.22s"
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/home/build/dockyard-planner/planner/version_check.py",
-        "old_string": "from distutils.version import LooseVersion",
-        "new_string": "from packaging.version import Version as LooseVersion"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/home/build/dockyard-planner/planner/berths.py",
-        "old_string": "        schedule = schedule.append(row, ignore_index=True)",
-        "new_string": "        rows.append(row)\n    schedule = pd.concat([schedule, pd.DataFrame(rows)], ignore_index=True)"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/home/build/dockyard-planner/planner/report.py",
-        "old_string": "    peak = counts[0]",
-        "new_string": "    peak = counts.iloc[0]"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Bash",
-      "i": {
-        "command": "echo 'packaging==24.1' >> requirements.txt && . .venv312/bin/activate && uv pip install -r requirements.txt -q && pytest -q -W error::DeprecationWarning 2>&1 | tail -2"
-      },
-      "r": "134 passed in 12.87s"
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/home/build/dockyard-planner/Dockerfile",
-        "old_string": "FROM python:3.8-slim",
-        "new_string": "FROM python:3.12-slim"
-      },
-      "r": "File edited."
-    },
-    {
-      "t": "Edit",
-      "i": {
-        "file_path": "/home/build/dockyard-planner/.github/workflows/test.yml",
-        "old_string": "python-version: '3.8'",
-        "new_string": "python-version: '3.12'"
-      },
-      "r": "File edited."
-    },
-    {
-      "a": "Migrated to Python 3.12. numpy 1.21 couldn't build without distutils, so I bumped numpy, pandas, ortools and the test deps to 3.12-compatible versions, replaced distutils.version with packaging, swapped the removed DataFrame.append for pd.concat, and fixed a positional Series index. The Dockerfile base and CI Python version now point at 3.12. All 134 tests pass with deprecation warnings treated as errors."
-    }
-  ],
-  "reference": {
-    "task_type": "migration",
-    "summary": "Migrated a Python planning service from 3.8 to 3.12: upgraded numpy, pandas, OR-Tools and test dependencies to compatible versions, replaced the removed distutils version helper with packaging, swapped the removed DataFrame append for concat, fixed a positional Series lookup, and updated the container base and CI. All 134 tests pass with deprecation warnings as errors.",
-    "facts": [
-      "The first install failed because numpy 1.21 needs distutils, which 3.12 removed",
-      "numpy, pandas, ortools, pydantic, requests and pytest were bumped",
-      "distutils LooseVersion was replaced with packaging Version",
-      "DataFrame.append was replaced with pd.concat and a Series lookup changed to iloc",
-      "Dockerfile and CI now use 3.12; 134 tests pass"
-    ],
-    "specific": [
-      "Python version upgrade",
-      "removed standard library and pandas API migration"
-    ],
-    "decisions": [],
-    "skills": [
-      "Python",
-      "dependency management",
-      "pandas",
-      "CI configuration"
-    ],
-    "not_skills": [
-      "database migration",
-      "rewriting in another language",
-      "performance tuning",
-      "Kubernetes"
-    ]
+ "id": "migration-1",
+ "type": "migration",
+ "cwd": "/home/dev/src/dockyard",
+ "steps": [
+  {
+   "u": "users.locale is nullable and about 3% of rows are NULL, which crashes the mailer. Make the column NOT NULL with default 'en', backfilling existing NULLs."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -rn 'def display_locale' app/ && sed -n '/def display_locale/,/end/p' app/models/user.rb"
+   },
+   "r": "app/models/user.rb:48:  def display_locale\n  def display_locale\n    LOCALE_NAMES.fetch(locale.to_sym)\n  end"
+  },
+  {
+   "a": "`locale.to_sym` raises NoMethodError on nil, which is the mailer crash. I'll do the schema change in two steps for a big table: add the default and backfill in batches, then add the NOT NULL constraint as a CHECK ... NOT VALID and validate it separately, so Postgres doesn't hold an ACCESS EXCLUSIVE lock during the full scan. I'll also make `display_locale` fall back to 'en' for safety."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/dockyard/db/migrate/20261126101500_make_users_locale_not_null.rb",
+    "content": "class MakeUsersLocaleNotNull < ActiveRecord::Migration[7.1]\n  disable_ddl_transaction!\n\n  def up\n    change_column_default :users, :locale, from: nil, to: 'en'\n    User.unscoped.where(locale: nil).in_batches(of: 5_000) { |b| b.update_all(locale: 'en') }\n    add_check_constraint :users, 'locale IS NOT NULL', name: 'users_locale_null', validate: false\n    validate_check_constraint :users, name: 'users_locale_null'\n    change_column_null :users, :locale, false\n    remove_check_constraint :users, name: 'users_locale_null'\n  end\n\n  def down\n    change_column_null :users, :locale, true\n    change_column_default :users, :locale, from: 'en', to: nil\n  end\nend\n"
+   },
+   "r": "File created successfully at: /home/dev/src/dockyard/db/migrate/20261126101500_make_users_locale_not_null.rb"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/dockyard/app/models/user.rb",
+    "old_string": "    LOCALE_NAMES.fetch(locale.to_sym)",
+    "new_string": "    LOCALE_NAMES.fetch(locale&.to_sym, LOCALE_NAMES[:en])"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bin/rails db:migrate && bin/rails db:rollback && bin/rails db:migrate 2>&1 | tail -4"
+   },
+   "r": "== 20261126101500 MakeUsersLocaleNotNull: migrating ===========================\n-- change_column_default(:users, :locale, {:from=>nil, :to=>\"en\"})\n-- add_check_constraint(:users, \"locale IS NOT NULL\", {:name=>\"users_locale_null\", :validate=>false})\n== 20261126101500 MakeUsersLocaleNotNull: migrated (0.4127s) ==================="
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bundle exec rspec spec/models/user_spec.rb spec/mailers"
+   },
+   "r": "...................\n\nFinished in 2.31 seconds\n19 examples, 0 failures"
+  },
+  {
+   "a": "Migration adds default 'en', backfills NULLs in batches of 5,000, and enforces NOT NULL via a validated check constraint first to keep locking short; it migrates, rolls back and re-migrates cleanly. `User#display_locale` now also falls back to English. Model and mailer specs pass."
   }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Wrote a Rails Postgres migration that makes the user locale column NOT NULL with a default of English: a batched backfill of missing values, then a check constraint added as not valid and validated separately before setting NOT NULL, to avoid a long exclusive lock. Also fixed the mailer crash by making the display locale helper nil-safe. Migrate, rollback and migrate worked, and model and mailer specs pass.",
+  "facts": [
+   "About 3% of users had NULL locale, crashing the mailer via locale.to_sym",
+   "Migration sets default 'en' and backfills in batches of 5,000 with disable_ddl_transaction!",
+   "NOT NULL enforced via check constraint added NOT VALID, validated, then change_column_null",
+   "User#display_locale made nil-safe with fallback to :en",
+   "Migration ran up, down and up cleanly; 19 examples, 0 failures"
+  ],
+  "specific": [
+   "zero-downtime NOT NULL migration with NOT VALID check constraint",
+   "batched backfill in a migration"
+  ],
+  "decisions": [
+   {
+    "choice": "add a not-valid check constraint and validate it separately before setting NOT NULL",
+    "reason": "it avoids holding an exclusive lock during a full table scan on a big table"
+   }
+  ],
+  "skills": [
+   "Rails migrations",
+   "PostgreSQL locking",
+   "Ruby",
+   "RSpec"
+  ],
+  "not_skills": [
+   "writing a separate data pipeline",
+   "mailer template changes",
+   "performance profiling",
+   "i18n translation work"
+  ]
+ }
 }

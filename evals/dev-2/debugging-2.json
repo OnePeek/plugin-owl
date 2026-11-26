@@ -1,0 +1,96 @@
+{
+  "id": "debugging-2",
+  "type": "debugging",
+  "cwd": "/workspace/orderflow",
+  "steps": [
+    {
+      "u": "We get 'deadlock detected' from Postgres a few times an hour in the order service, always in reserveStock. Figure out why and fix it if it's simple."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "kubectl logs deploy/orderflow --since=2h | grep -A3 'deadlock detected' | head -12"
+      },
+      "r": "ERROR: deadlock detected\n  Detail: Process 18231 waits for ShareLock on transaction 99812; blocked by process 18240.\n  Process 18240 waits for ShareLock on transaction 99809; blocked by process 18231.\n  Context: while updating tuple (412,7) in relation \"inventory\"\n  SQL: UPDATE inventory SET reserved = reserved + $1 WHERE sku_id = $2 AND warehouse_id = $3"
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/workspace/orderflow/src/main/java/com/orderflow/stock/StockService.java",
+        "offset": 40,
+        "limit": 22
+      },
+      "r": "40 @Transactional\n41 public void reserveStock(Order order) {\n42   for (OrderLine line : order.getLines()) {\n43     int updated = jdbc.update(RESERVE_SQL, line.getQty(), line.getSkuId(), order.getWarehouseId());\n44     if (updated == 0) throw new OutOfStockException(line.getSkuId());\n45   }\n46 }"
+    },
+    {
+      "a": "Classic lock-ordering deadlock: two orders with overlapping SKUs update inventory rows in the order the lines appear in each cart. Order A locks sku 5 then waits on sku 9; order B locks sku 9 then waits on sku 5. Two fixes: sort lines by sku_id so every transaction locks rows in the same order, or SELECT ... FOR UPDATE NOWAIT and retry on failure. NOWAIT would turn contention into user-visible retries on popular items, while sorting removes the cycle without extra round trips, so I'll sort."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/workspace/orderflow/src/main/java/com/orderflow/stock/StockService.java",
+        "old_string": "  for (OrderLine line : order.getLines()) {",
+        "new_string": "  // Lock inventory rows in a global order (sku_id) to avoid lock-ordering deadlocks.\n  List<OrderLine> lines = order.getLines().stream()\n      .sorted(Comparator.comparing(OrderLine::getSkuId))\n      .toList();\n  for (OrderLine line : lines) {"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/workspace/orderflow/src/test/java/com/orderflow/stock/ReserveStockConcurrencyIT.java",
+        "content": "@Testcontainers\nclass ReserveStockConcurrencyIT {\n  @Test\n  void opposingLineOrdersDoNotDeadlock() throws Exception {\n    seedInventory(List.of(5L, 9L), 10_000);\n    var pool = Executors.newFixedThreadPool(16);\n    var futures = IntStream.range(0, 400).mapToObj(i -> pool.submit(() ->\n        stock.reserveStock(order(i % 2 == 0 ? List.of(5L, 9L) : List.of(9L, 5L))))).toList();\n    for (var f : futures) f.get(30, SECONDS);\n    assertThat(reserved(5L)).isEqualTo(400);\n  }\n}\n"
+      },
+      "r": "File created."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "git stash -q && ./gradlew integrationTest --tests '*ReserveStockConcurrencyIT*' -q 2>&1 | tail -3; git stash pop -q && ./gradlew integrationTest --tests '*ReserveStockConcurrencyIT*' -q 2>&1 | tail -3"
+      },
+      "r": "ReserveStockConcurrencyIT > opposingLineOrdersDoNotDeadlock() FAILED\n    org.springframework.dao.CannotAcquireLockException: deadlock detected\n\nBUILD SUCCESSFUL in 41s"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "./gradlew test integrationTest -q 2>&1 | tail -2"
+      },
+      "r": "BUILD SUCCESSFUL in 2m 12s\n612 tests completed, 0 failed"
+    },
+    {
+      "a": "Root cause was lock ordering: reserveStock updated inventory rows in cart order, so two orders sharing SKUs in opposite order could deadlock. Lines are now sorted by sku_id before updating. A new Testcontainers test with 400 concurrent opposing orders reproduces the deadlock without the fix and passes with it; the full suite passes."
+    }
+  ],
+  "reference": {
+    "task_type": "debugging",
+    "summary": "Traced intermittent Postgres deadlocks in a Java order service to inconsistent lock ordering: stock reservation updated inventory rows in cart order, so orders with the same items in opposite order formed a cycle. Lines are now sorted by item id before updating, and a concurrent integration test that reproduced the deadlock now passes along with the full suite.",
+    "facts": [
+      "Postgres logs showed two transactions waiting on each other while updating inventory",
+      "reserveStock updated rows in the order lines appear in the cart",
+      "The fix sorts order lines by sku id before updating",
+      "A Testcontainers test with 400 concurrent opposing orders fails without the fix and passes with it",
+      "The full suite of 612 tests passes"
+    ],
+    "specific": [
+      "database deadlock from lock ordering",
+      "consistent lock acquisition order"
+    ],
+    "decisions": [
+      {
+        "choice": "Sort updates by sku id rather than using SELECT FOR UPDATE NOWAIT with retries",
+        "reason": "NOWAIT would turn contention into user-visible retries on popular items, while ordering removes the cycle"
+      }
+    ],
+    "skills": [
+      "Java",
+      "PostgreSQL locking",
+      "concurrency testing",
+      "log analysis"
+    ],
+    "not_skills": [
+      "query plan optimisation",
+      "frontend debugging",
+      "Kafka",
+      "Terraform"
+    ]
+  }
+}
