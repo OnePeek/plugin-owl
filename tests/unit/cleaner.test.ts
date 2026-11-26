@@ -146,6 +146,16 @@ test("split secrets: spaced, hyphenated, underscored or zero-width split keys ar
       assert.ok(checkText("Rotated " + text + " for the deploy role.").includes("secret"), text);
     }
   }
+  // a random key split into chunks (no known prefix) is held by the key-material rules on the joined copy
+  const ALNUM = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  for (let i = 0; i < 300; i++) {
+    const b = randomBytes(24);
+    let key = "";
+    for (let j = 0; j < 24; j++) key += ALNUM[(b[j] as number) % ALNUM.length];
+    // limit shared with the server rule: a joined key that holds 7+ lower-case letters in a row reads as words and is not caught
+    if (!/\d/.test(key) || /[a-z]{7,}/.test(key)) continue;
+    for (const sep of [" ", "-", "_", "\u200b"]) assert.ok(checkText("Used " + split(key, sep, 6) + " for the job.").length > 0, split(key, sep, 6));
+  }
   assert.equal(joinSplit("Rotated AKIA QWER"), "Rotated AKIA QWER RotatedAKIA RotatedAKIAQWER AKIAQWER");
   assert.ok(joinSplit("a\u200bb c").startsWith("ab c") && !joinSplit("one\u200b two").includes("\u200b"));
   for (const ok of ["Added a retry loop with jitter to the sync worker and kept the queue size small.", "Rotated the deploy role credentials and documented the steps.", "Moved the long-running import into small batches."]) assert.deepEqual(checkText(ok), [], ok);

@@ -45,6 +45,8 @@
     {"text": "Pasted ghp_\u200bAbCdEfGhIjKlMnOpQrStUvWxYz0123456789 into the job.", "held": true},
     {"text": "Pasted ghp_AbCd-EfGh-IjKl-MnOp-QrSt-UvWx-Yz01-2345-6789 into the job.", "held": true},
     {"text": "Added a retry loop with jitter to the sync worker and kept the queue size small.", "held": false},
-    {"text": "Split the long-running import into small batches with a fixed page size.", "held": false}
+    {"text": "Split the long-running import into small batches with a fixed page size.", "held": false},
+    {"text": "Diagnosed the slow query with EXPLAIN ANALYZE and recommended a composite index.", "held": false},
+    {"text": "Renamed a column in a Python SQLAlchemy app with a reversible Alembic migration.", "held": false}
   ]
 }
