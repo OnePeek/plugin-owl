@@ -1,0 +1,82 @@
+{
+ "id": "migration-2",
+ "type": "migration",
+ "cwd": "/work/legacy-api",
+ "steps": [
+  {
+   "u": "Move the users table from MySQL to Postgres. About 12 million rows. Minimal downtime please."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/legacy-api/schema/users.sql"
+   },
+   "r": "CREATE TABLE users (id INT AUTO_INCREMENT, email VARCHAR(255), created DATETIME, flags TINYINT(1) ...)"
+  },
+  {
+   "a": "Type differences to handle: AUTO_INCREMENT becomes an identity column, DATETIME has no time zone so it must be interpreted as UTC explicitly, and TINYINT(1) flags become booleans. For minimal downtime I will bulk load a snapshot, then replay changes from the binlog until cutover."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/legacy-api/migrate/users_pg.sql",
+    "content": "CREATE TABLE users (id BIGINT GENERATED ALWAYS AS IDENTITY, email text, created timestamptz, is_active boolean);\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pgloader mysql://old pgsql://new --with 'workers=8'"
+   },
+   "r": "12,004,311 rows copied, 0 errors"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python verify_counts.py users"
+   },
+   "r": "mysql 12004311 postgres 12004311; checksum sample 10k ok"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/legacy-api/migrate/cutover.md",
+    "content": "1. Pause writes 2. Replay final binlog 3. Verify counts 4. Switch connection string 5. Keep MySQL read-only for a week\n"
+   },
+   "r": "created"
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Prepared a MySQL to Postgres migration of a 12 million row users table: mapped types, bulk loaded with pgloader with matching counts and a checksum sample, and wrote a cutover plan with change replay and a week of read-only fallback.",
+  "facts": [
+   "MySQL to Postgres for the users table",
+   "12 million rows copied with no errors",
+   "type mapping for identity, time zone and booleans",
+   "counts and checksum sample verified",
+   "cutover plan written"
+  ],
+  "specific": [
+   "type mapping between databases",
+   "snapshot plus change replay cutover"
+  ],
+  "decisions": [
+   {
+    "choice": "bulk load a snapshot then replay changes before cutover",
+    "reason": "it keeps the downtime window short"
+   }
+  ],
+  "skills": [
+   "PostgreSQL",
+   "MySQL",
+   "pgloader",
+   "database migration"
+  ],
+  "not_skills": [
+   "React",
+   "Docker",
+   "Terraform"
+  ]
+ }
+}

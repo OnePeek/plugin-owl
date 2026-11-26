@@ -1,91 +1,101 @@
 {
- "id": "infra-1",
- "type": "infra",
- "cwd": "/work/platform",
- "steps": [
-  {
-   "u": "Our Docker image for the API is 1.4 GB and builds take 9 minutes. Slim it down."
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/platform/api/Dockerfile"
-   },
-   "r": "FROM node:22\nCOPY . .\nRUN npm install\nCMD [\"node\",\"dist/server.js\"]"
-  },
-  {
-   "a": "Single stage with dev dependencies and the full node image. I will switch to a multi-stage build: install and compile in a build stage, copy only production dependencies and the compiled output into a slim runtime image, and order layers so dependency install is cached."
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/platform/api/Dockerfile",
-    "content": "FROM node:22-slim AS build\nCOPY package*.json ./\nRUN npm ci\nCOPY . .\nRUN npm run build && npm prune --omit=dev\nFROM gcr.io/distroless/nodejs22\nCOPY --from=build /app/dist ./dist\nCOPY --from=build /app/node_modules ./node_modules\nCMD [\"dist/server.js\"]\n"
-   },
-   "r": "created"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "docker build -t api:slim ."
-   },
-   "r": "Successfully built (74 s)"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "docker images api:slim --format {{.Size}}"
-   },
-   "r": "168MB"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "docker run --rm api:slim --version"
-   },
-   "r": "v22.11.0"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/platform/.dockerignore",
-    "old_string": "",
-    "new_string": "node_modules\n.git\ncoverage\n"
-   },
-   "r": "edited"
+  "id": "infra-1",
+  "type": "infra",
+  "cwd": "/Users/devops/infra-live",
+  "steps": [
+    {
+      "u": "The scan-uploads bucket for the radiology archive is costing too much. Add lifecycle rules: move objects older than 90 days to a colder tier, expire noncurrent versions after 30 days. Radiologists sometimes pull a 2-year-old study during a consult and expect it in seconds."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/Users/devops/infra-live/modules/imaging-storage/s3.tf"
+      },
+      "r": "1 resource \"aws_s3_bucket\" \"scans\" {\n2   bucket = \"${var.env}-scan-uploads\"\n3 }\n4 resource \"aws_s3_bucket_versioning\" \"scans\" {\n5   bucket = aws_s3_bucket.scans.id\n6   versioning_configuration { status = \"Enabled\" }\n7 }"
+    },
+    {
+      "a": "For the 90-day tier: Glacier Deep Archive is the cheapest but restores take up to 12 hours, and Glacier Flexible Retrieval takes minutes to hours. Since old studies are opened during live consults and need to load in seconds, I'll use Glacier Instant Retrieval, which keeps millisecond access at a higher storage price than the other Glacier classes but well below Standard."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/Users/devops/infra-live/modules/imaging-storage/s3.tf",
+        "old_string": "  versioning_configuration { status = \"Enabled\" }\n}",
+        "new_string": "  versioning_configuration { status = \"Enabled\" }\n}\n\nresource \"aws_s3_bucket_lifecycle_configuration\" \"scans\" {\n  bucket     = aws_s3_bucket.scans.id\n  depends_on = [aws_s3_bucket_versioning.scans]\n\n  rule {\n    id     = \"current-to-glacier-ir\"\n    status = \"Enabled\"\n    filter {}\n    transition {\n      days          = 90\n      storage_class = \"GLACIER_IR\"\n    }\n  }\n\n  rule {\n    id     = \"expire-noncurrent\"\n    status = \"Enabled\"\n    filter {}\n    noncurrent_version_expiration { noncurrent_days = 30 }\n    abort_incomplete_multipart_upload { days_after_initiation = 7 }\n  }\n}"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "cd envs/prod && terraform fmt -check -recursive ../../modules && terraform validate && terraform plan -target=module.imaging_storage -no-color | tail -20"
+      },
+      "r": "Success! The configuration is valid.\n\nTerraform will perform the following actions:\n\n  # module.imaging_storage.aws_s3_bucket_lifecycle_configuration.scans will be created\n  + resource \"aws_s3_bucket_lifecycle_configuration\" \"scans\" {\n      + bucket = \"prod-scan-uploads\"\n      + rule {\n          + id     = \"current-to-glacier-ir\"\n          + transition { + days = 90  + storage_class = \"GLACIER_IR\" }\n        }\n      + rule {\n          + id     = \"expire-noncurrent\"\n          ...\n        }\n    }\n\nPlan: 1 to add, 0 to change, 0 to destroy.\n\nState lock acquired from backend tfstate-lock on tf-state.corp-infra.internal"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "aws s3api list-objects-v2 --bucket prod-scan-uploads --query 'Contents[?Size<`131072`] | length(@)'"
+      },
+      "r": "48213"
+    },
+    {
+      "a": "One catch: Glacier IR bills a minimum of 128 KB per object, and there are about 48k objects under 128 KB (mostly DICOM sidecar JSON). I'll exclude them from the transition with an object size filter so they don't cost more after moving."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/Users/devops/infra-live/modules/imaging-storage/s3.tf",
+        "old_string": "    id     = \"current-to-glacier-ir\"\n    status = \"Enabled\"\n    filter {}",
+        "new_string": "    id     = \"current-to-glacier-ir\"\n    status = \"Enabled\"\n    filter {\n      object_size_greater_than = 131072\n    }"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "cd envs/prod && terraform plan -target=module.imaging_storage -no-color | grep -E 'Plan:|object_size'"
+      },
+      "r": "              + object_size_greater_than = 131072\nPlan: 1 to add, 0 to change, 0 to destroy."
+    },
+    {
+      "a": "Lifecycle config is ready and the prod plan shows one resource to add: objects over 128 KB move to Glacier Instant Retrieval after 90 days, noncurrent versions expire after 30 days, and incomplete multipart uploads are aborted after 7 days. I haven't applied it; run terraform apply in envs/prod when you're ready."
+    }
+  ],
+  "reference": {
+    "task_type": "infra",
+    "summary": "Added Terraform S3 lifecycle rules for a medical imaging bucket: objects over 128 KB move to Glacier Instant Retrieval after 90 days, noncurrent versions expire after 30 days and stale multipart uploads are aborted. The production plan shows one resource to add and was left unapplied for the engineer.",
+    "facts": [
+      "Objects transition to Glacier Instant Retrieval after 90 days",
+      "Noncurrent versions expire after 30 days and incomplete multipart uploads after 7 days",
+      "About 48k small objects are excluded with a size filter because of the 128 KB minimum billable size",
+      "The plan shows 1 to add, 0 to change, 0 to destroy",
+      "The change was not applied"
+    ],
+    "specific": [
+      "S3 lifecycle policies",
+      "storage class tiering"
+    ],
+    "decisions": [
+      {
+        "choice": "Use Glacier Instant Retrieval rather than Deep Archive or Flexible Retrieval",
+        "reason": "old studies are opened during live consults and must load in seconds"
+      },
+      {
+        "choice": "Exclude objects under 128 KB from the transition",
+        "reason": "Glacier Instant Retrieval bills a 128 KB minimum per object, so small files would cost more"
+      }
+    ],
+    "skills": [
+      "Terraform",
+      "AWS S3",
+      "cloud cost optimisation"
+    ],
+    "not_skills": [
+      "Kubernetes",
+      "CI pipeline configuration",
+      "database tuning",
+      "application code changes"
+    ]
   }
- ],
- "reference": {
-  "task_type": "infra",
-  "summary": "Cut the API Docker image from 1.4 GB to 168 MB and the build from nine minutes to about 74 seconds with a multi-stage build onto a distroless runtime, cached dependency install layer and a dockerignore.",
-  "facts": [
-   "image was 1.4 GB, now 168 MB",
-   "multi-stage build",
-   "distroless runtime image",
-   "dependency layer cached",
-   "dockerignore added",
-   "build took 74 seconds"
-  ],
-  "specific": [
-   "multi-stage Docker build",
-   "distroless image",
-   "layer caching"
-  ],
-  "decisions": [
-   {
-    "choice": "multi-stage build with a distroless runtime",
-    "reason": "the runtime only needs compiled output and production dependencies, not dev tooling"
-   }
-  ],
-  "skills": [
-   "Docker",
-   "Node.js",
-   "multi-stage builds"
-  ],
-  "not_skills": [
-   "Kubernetes",
-   "Terraform",
-   "Python"
-  ]
- }
 }

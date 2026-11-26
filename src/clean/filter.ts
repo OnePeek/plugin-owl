@@ -190,7 +190,7 @@ export function redactInput(text: string): Redacted {
   t = t.replace(/[A-Za-z0-9+_=-]{20,}/g, (m) => (isBlobRun(m) || HEX_RUN.test(m) ? (taint.push(m), "[BLOB]") : m));
   t = t.replace(MIXED_ID, (m) => (secretish(m) ? (taint.push(m), "[BLOB]") : m));
   // any other long, random-looking token (base64 with slashes, for example)
-  t = t.replace(/\S{24,}/g, (m) => ((shannon(m) > 3.6 && /\d/.test(m) && /[a-z]/.test(m) && /[A-Z]/.test(m) && !/[a-z]{7,}/.test(m)) || (m.length >= 32 && shannon(m) > 4.3 && /[a-z]/.test(m) && /[A-Z]/.test(m)) ? (taint.push(m), "[BLOB]") : m));
+  t = t.replace(/\S{24,}/g, (m) => ((shannon(m) > 3.6 && /\d/.test(m) && /[a-z]/.test(m) && /[A-Z]/.test(m) && !/[a-z]{7,}/.test(m)) || (m.length >= 32 && /^[A-Za-z0-9+/=_-]+$/.test(m) && shannon(m) > 4.3 && /[a-z]/.test(m) && /[A-Z]/.test(m)) ? (taint.push(m), "[BLOB]") : m));
   return { text: t, taint };
 }
 

@@ -1,81 +1,86 @@
 {
- "id": "infra-2",
- "type": "infra",
- "cwd": "/work/infra-live",
- "steps": [
-  {
-   "u": "Add a CloudWatch alarm and SNS email for when the queue depth stays above 1000 for 10 minutes. We use Terraform."
-  },
-  {
-   "t": "Glob",
-   "i": {
-    "pattern": "modules/**/*.tf"
-   },
-   "r": "modules/queue/main.tf\nmodules/alerts/main.tf"
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/infra-live/modules/alerts/main.tf"
-   },
-   "r": "resource \"aws_sns_topic\" \"alerts\" {...}"
-  },
-  {
-   "a": "There is already an alerts topic, so the alarm should publish to it rather than creating a second topic. A single breach would page on spikes, so I will require 10 consecutive one-minute periods above the threshold."
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/infra-live/modules/queue/main.tf",
-    "old_string": "# alarms",
-    "new_string": "resource \"aws_cloudwatch_metric_alarm\" \"depth\" {\n  metric_name = \"ApproximateNumberOfMessagesVisible\"\n  threshold = 1000\n  evaluation_periods = 10\n  period = 60\n  comparison_operator = \"GreaterThanThreshold\"\n  alarm_actions = [var.alerts_topic_arn]\n}"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "terraform fmt -check && terraform validate"
-   },
-   "r": "Success! The configuration is valid."
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "terraform plan -out plan.out"
-   },
-   "r": "Plan: 1 to add, 0 to change, 0 to destroy."
+  "id": "infra-2",
+  "type": "infra",
+  "cwd": "/home/runner/work/ledgerly-android",
+  "steps": [
+    {
+      "u": "Our Android CI takes 19 minutes, mostly Gradle downloading dependencies. Add caching to .github/workflows/build.yml."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/runner/work/ledgerly-android/.github/workflows/build.yml"
+      },
+      "r": "10 jobs:\n11   build:\n12     runs-on: ubuntu-latest\n13     steps:\n14       - uses: actions/checkout@v4\n15       - uses: actions/setup-java@v4\n16         with: { distribution: temurin, java-version: '17' }\n17       - run: ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon"
+    },
+    {
+      "a": "Options: a hand-rolled actions/cache step keyed on hashes of the gradle files, setup-java's cache: gradle flag, or gradle/actions/setup-gradle. setup-gradle caches the dependency and build caches with sensible cleanup, saves only from the default branch so PRs don't thrash the cache, and gives a build summary; a manual actions/cache key would invalidate the whole cache on any lockfile change. I'll go with setup-gradle."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/runner/work/ledgerly-android/.github/workflows/build.yml",
+        "old_string": "      - run: ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon",
+        "new_string": "      - uses: gradle/actions/setup-gradle@v4\n        with:\n          cache-read-only: ${{ github.ref != 'refs/heads/main' }}\n      - run: ./gradlew assembleDebug testDebugUnitTest lintDebug --build-cache"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/runner/work/ledgerly-android/gradle.properties",
+        "old_string": "org.gradle.jvmargs=-Xmx2g",
+        "new_string": "org.gradle.jvmargs=-Xmx4g -XX:+UseParallelGC\norg.gradle.caching=true\norg.gradle.parallel=true"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "actionlint .github/workflows/build.yml && ./gradlew help --build-cache -q && echo ok"
+      },
+      "r": "ok"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "gh run list --workflow build.yml --limit 3 --json displayTitle,conclusion,durationMs -q '.[] | [.displayTitle,.conclusion,(.durationMs/60000|floor)] | @tsv'"
+      },
+      "r": "ci: gradle caching (2nd run)\tsuccess\t6\nci: gradle caching (1st run, cold)\tsuccess\t18\nbump compose bom\tsuccess\t19"
+    },
+    {
+      "a": "Added gradle/actions/setup-gradle (writing the cache only from main, read-only on other branches), turned on the Gradle build cache and parallel builds, and raised the JVM heap. The cold run took 18 minutes as expected; the warm run took 6 minutes, down from 19."
+    }
+  ],
+  "reference": {
+    "task_type": "infra",
+    "summary": "Added Gradle dependency and build caching to an Android GitHub Actions workflow using the official setup-gradle action, writing the cache only from the main branch, and enabled the Gradle build cache and parallel builds. A warm run dropped from about 19 to about 6 minutes.",
+    "facts": [
+      "The workflow had no caching and took about 19 minutes",
+      "setup-gradle was added with a read-only cache on non-main branches",
+      "Gradle build cache and parallel execution were enabled and the JVM heap raised to 4 GB",
+      "The cold run took 18 minutes and the warm run 6 minutes"
+    ],
+    "specific": [
+      "CI dependency caching",
+      "Gradle build cache"
+    ],
+    "decisions": [
+      {
+        "choice": "Use the setup-gradle action instead of a manual actions/cache step or setup-java caching",
+        "reason": "it manages cleanup, saves only from the default branch and avoids invalidating the whole cache on any lockfile change"
+      }
+    ],
+    "skills": [
+      "GitHub Actions",
+      "Gradle",
+      "CI optimisation"
+    ],
+    "not_skills": [
+      "Docker",
+      "Kotlin application code",
+      "Terraform",
+      "test writing"
+    ]
   }
- ],
- "reference": {
-  "task_type": "infra",
-  "summary": "Added a Terraform CloudWatch alarm that fires when queue depth stays above 1000 for ten one-minute periods and notifies the existing alerts SNS topic; validate passes and the plan adds one resource.",
-  "facts": [
-   "alarm on queue depth above 1000",
-   "ten consecutive one-minute periods",
-   "published to the existing alerts topic",
-   "terraform validate passes",
-   "plan adds one resource"
-  ],
-  "specific": [
-   "CloudWatch metric alarm",
-   "evaluation periods to avoid paging on spikes"
-  ],
-  "decisions": [
-   {
-    "choice": "require ten consecutive periods above the threshold",
-    "reason": "a single breach would page on short spikes"
-   }
-  ],
-  "skills": [
-   "Terraform",
-   "AWS CloudWatch",
-   "Amazon SNS"
-  ],
-  "not_skills": [
-   "Docker",
-   "React",
-   "Python"
-  ]
- }
 }

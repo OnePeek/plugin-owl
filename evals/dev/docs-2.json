@@ -1,0 +1,72 @@
+{
+ "id": "docs-2",
+ "type": "docs",
+ "cwd": "/work/platform-docs",
+ "steps": [
+  {
+   "u": "We changed how deploys work (blue green instead of rolling). Update the runbook so on-call knows how to roll back."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/platform-docs/runbooks/deploy.md"
+   },
+   "r": "Deploys roll one pod at a time. To roll back run `helm rollback`."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/platform-docs/adr/0031-blue-green.md"
+   },
+   "r": "Two identical environments; traffic switched at the load balancer; the old environment stays warm for 30 minutes."
+  },
+  {
+   "a": "Rollback is now a traffic switch back to the warm environment, not a helm rollback, and it only works for 30 minutes; after that the old environment is gone and a redeploy of the previous version is needed. The runbook must say both."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/platform-docs/runbooks/deploy.md",
+    "content": "Blue green deploy. Rollback within 30 minutes: switch traffic back at the load balancer. After 30 minutes: redeploy the previous version. Check the health dashboard after switching.\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "markdownlint runbooks/deploy.md"
+   },
+   "r": "ok"
+  }
+ ],
+ "reference": {
+  "task_type": "docs",
+  "summary": "Rewrote the deploy runbook for the move from rolling to blue green deployments: rollback is now a traffic switch to the warm environment within 30 minutes, with a redeploy of the previous version after that.",
+  "facts": [
+   "runbook update for blue green",
+   "rollback is a traffic switch",
+   "old environment stays warm 30 minutes",
+   "after that redeploy previous version",
+   "markdown lint passes"
+  ],
+  "specific": [
+   "blue green deployment rollback"
+  ],
+  "decisions": [
+   {
+    "choice": "document the 30 minute window and the redeploy fallback",
+    "reason": "the warm environment disappears after 30 minutes so a switch back no longer works"
+   }
+  ],
+  "skills": [
+   "technical writing",
+   "runbooks",
+   "blue green deployment"
+  ],
+  "not_skills": [
+   "Python",
+   "SQL",
+   "React"
+  ]
+ }
+}

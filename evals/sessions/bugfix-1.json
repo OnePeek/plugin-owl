@@ -1,107 +1,104 @@
 {
- "id": "bugfix-1",
- "type": "bugfix",
- "cwd": "/work/storefront",
- "steps": [
-  {
-   "u": "Prices on the product page are sometimes stale right after our nightly bulk price update. Find out why and fix it."
-  },
-  {
-   "a": "I'll look at how the price cache is filled and when it is invalidated."
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/storefront/src/pricing/cache.ts"
-   },
-   "r": "export async function getPrice(id){ const hit=await redis.get('price:'+id); if(hit) return hit; const p=await db.price(id); await redis.set('price:'+id,p,'EX',3600); return p }\nexport async function invalidate(ids){ await redis.del(ids.map(i=>'price:'+i)) }"
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/storefront/src/jobs/bulkPriceUpdate.ts"
-   },
-   "r": "await db.tx(async t=>{ for (const u of updates) await t.setPrice(u.id,u.price) }); await invalidate(updates.map(u=>u.id))"
-  },
-  {
-   "a": "Found it: invalidate runs right after the transaction, but a reader that missed the cache just before the commit can refill the key with the old price after the delete. That is a classic race between invalidation and refill."
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/storefront/src/pricing/cache.ts",
-    "old_string": "const hit=await redis.get('price:'+id);",
-    "new_string": "const ver=await redis.get('pricever:'+id)||'0';\n  const hit=await redis.get('price:'+id+':'+ver);"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/storefront/src/pricing/cache.ts",
-    "old_string": "export async function invalidate(ids){ await redis.del(ids.map(i=>'price:'+i)) }",
-    "new_string": "export async function invalidate(ids){ await Promise.all(ids.map(i=>redis.incr('pricever:'+i))) }"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm test -- pricing"
-   },
-   "r": "FAIL cache.test.ts expected version key",
-   "err": true
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/storefront/src/pricing/cache.test.ts",
-    "old_string": "expect(await redis.get('price:1')).toBe('10')",
-    "new_string": "expect(await redis.get('price:1:0')).toBe('10')"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm test -- pricing"
-   },
-   "r": "12 passed"
-  },
-  {
-   "a": "Fixed: entries are now keyed by a version counter that invalidation increments, so a late refill writes under the old version and is never read."
+  "id": "bugfix-1",
+  "type": "bugfix",
+  "cwd": "/home/dev/src/fleetroute",
+  "steps": [
+    {
+      "u": "Drivers in the Phoenix and Denver depots are seeing delivery ETAs an hour off since the clocks changed on Sunday. The ETA code is in internal/eta. Can you fix it?"
+    },
+    {
+      "t": "Grep",
+      "i": {
+        "pattern": "FixedZone|UTCOffset",
+        "path": "internal/eta"
+      },
+      "r": "internal/eta/window.go:41:\tloc := time.FixedZone(depot.TZName, depot.UTCOffsetSeconds)\ninternal/eta/window_test.go:18:\t\tdepot: Depot{TZName: \"MST\", UTCOffsetSeconds: -7 * 3600},"
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/dev/src/fleetroute/internal/eta/window.go"
+      },
+      "r": "35 func LocalWindow(depot Depot, eta time.Time, slack time.Duration) Window {\n36 \t// depot.UTCOffsetSeconds is captured when the depot is created\n...\n41 \tloc := time.FixedZone(depot.TZName, depot.UTCOffsetSeconds)\n42 \tstart := eta.Add(-slack).In(loc)\n43 \tend := eta.Add(slack).In(loc)\n44 \treturn Window{Start: start, End: end}\n45 }"
+    },
+    {
+      "a": "The window is built with a fixed UTC offset that was captured when the depot row was created, so any depot that observes daylight saving time drifts by an hour after a transition. Two options: keep storing offsets and recompute them on a schedule, or store the IANA zone name (America/Denver) and let time.LoadLocation resolve the offset for each instant. Recomputing offsets still breaks for ETAs that straddle a transition, so I'll switch to IANA zones; the depots table already has an iana_zone column that is populated."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/dev/src/fleetroute/internal/eta/window.go",
+        "old_string": "\tloc := time.FixedZone(depot.TZName, depot.UTCOffsetSeconds)",
+        "new_string": "\tloc, err := zones.Load(depot.IANAZone) // cached time.LoadLocation\n\tif err != nil {\n\t\treturn Window{}, fmt.Errorf(\"depot %s: bad zone %q: %w\", depot.ID, depot.IANAZone, err)\n\t}"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/home/dev/src/fleetroute/internal/eta/zones/zones.go",
+        "content": "package zones\n\nimport (\n\t\"sync\"\n\t\"time\"\n)\n\nvar cache sync.Map\n\nfunc Load(name string) (*time.Location, error) {\n\tif v, ok := cache.Load(name); ok {\n\t\treturn v.(*time.Location), nil\n\t}\n\tloc, err := time.LoadLocation(name)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tcache.Store(name, loc)\n\treturn loc, nil\n}\n"
+      },
+      "r": "File created."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/dev/src/fleetroute/internal/eta/window_test.go",
+        "old_string": "\t\tdepot: Depot{TZName: \"MST\", UTCOffsetSeconds: -7 * 3600},",
+        "new_string": "\t\tdepot: Depot{IANAZone: \"America/Denver\"},\n\t\teta:   time.Date(2026, 11, 2, 15, 0, 0, 0, time.UTC), // day after fall-back\n\t\twantStartLocal: \"07:30 MST\","
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "go test ./internal/eta/... -run 'Window|DST' -v"
+      },
+      "r": "=== RUN   TestLocalWindow/denver_after_fallback\n=== RUN   TestLocalWindow/phoenix_no_dst\n=== RUN   TestLocalWindow/straddles_transition\n--- PASS: TestLocalWindow (0.00s)\n=== RUN   TestZonesLoadCaches\n--- PASS: TestZonesLoadCaches (0.00s)\nPASS\nok  \tfleetroute/internal/eta\t0.214s"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "go vet ./... && go test ./... 2>&1 | tail -4"
+      },
+      "r": "ok  \tfleetroute/internal/dispatch\t1.902s\nok  \tfleetroute/internal/eta\t0.208s\nok  \tfleetroute/internal/eta/zones\t0.011s\nok  \tfleetroute/internal/store\t3.441s"
+    },
+    {
+      "a": "Fixed. LocalWindow now resolves the depot's IANA zone (cached) instead of a stored fixed offset, so windows follow DST transitions, and Arizona depots without DST still work. Added test cases for the day after fall-back, a no-DST zone and a window straddling the transition; the full suite and go vet pass. The UTCOffsetSeconds column is now unused and can be dropped in a later migration."
+    }
+  ],
+  "reference": {
+    "task_type": "bugfix",
+    "summary": "Fixed delivery ETA windows that were an hour off after the daylight saving change by replacing a stored fixed UTC offset with IANA time zone lookup (cached), and added tests for the transition day, a no-DST zone and a window spanning the change; the full Go suite passes.",
+    "facts": [
+      "ETA windows used a fixed UTC offset captured at depot creation",
+      "The fix resolves the depot's IANA zone with time.LoadLocation behind a cache",
+      "Tests cover the day after fall-back, a zone without DST and a window straddling the transition",
+      "go vet and the full test suite pass",
+      "The old offset column is left unused for a later cleanup"
+    ],
+    "specific": [
+      "daylight saving time zone bug",
+      "IANA time zone resolution instead of fixed offsets"
+    ],
+    "decisions": [
+      {
+        "choice": "Store and use IANA zone names instead of recomputing fixed offsets",
+        "reason": "recomputed offsets still break for ETAs that straddle a transition"
+      }
+    ],
+    "skills": [
+      "Go",
+      "time zone handling",
+      "unit testing",
+      "root cause analysis"
+    ],
+    "not_skills": [
+      "database migration",
+      "frontend development",
+      "performance profiling",
+      "Docker"
+    ]
   }
- ],
- "reference": {
-  "task_type": "bugfix",
-  "summary": "Fixed stale prices after bulk updates, caused by a race where a reader refilled the cache with the old price after invalidation; cache entries are now versioned so invalidation bumps a counter instead of deleting keys.",
-  "facts": [
-   "stale prices after a nightly bulk update",
-   "race between cache invalidation and refill",
-   "cache keys now carry a version that invalidation increments",
-   "pricing tests pass at the end",
-   "a test expectation was updated for the versioned key"
-  ],
-  "specific": [
-   "race condition between invalidation and refill",
-   "cache versioning"
-  ],
-  "decisions": [
-   {
-    "choice": "version the cache key instead of deleting it on invalidation",
-    "reason": "a late refill with the old value can no longer overwrite fresh data because it lands under the old version"
-   }
-  ],
-  "skills": [
-   "Redis",
-   "TypeScript",
-   "cache invalidation",
-   "race condition debugging"
-  ],
-  "not_skills": [
-   "Docker",
-   "Kubernetes",
-   "GraphQL"
-  ]
- }
 }

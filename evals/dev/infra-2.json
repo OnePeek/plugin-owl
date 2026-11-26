@@ -1,0 +1,81 @@
+{
+ "id": "infra-2",
+ "type": "infra",
+ "cwd": "/work/infra-live",
+ "steps": [
+  {
+   "u": "Add a CloudWatch alarm and SNS email for when the queue depth stays above 1000 for 10 minutes. We use Terraform."
+  },
+  {
+   "t": "Glob",
+   "i": {
+    "pattern": "modules/**/*.tf"
+   },
+   "r": "modules/queue/main.tf\nmodules/alerts/main.tf"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/infra-live/modules/alerts/main.tf"
+   },
+   "r": "resource \"aws_sns_topic\" \"alerts\" {...}"
+  },
+  {
+   "a": "There is already an alerts topic, so the alarm should publish to it rather than creating a second topic. A single breach would page on spikes, so I will require 10 consecutive one-minute periods above the threshold."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/infra-live/modules/queue/main.tf",
+    "old_string": "# alarms",
+    "new_string": "resource \"aws_cloudwatch_metric_alarm\" \"depth\" {\n  metric_name = \"ApproximateNumberOfMessagesVisible\"\n  threshold = 1000\n  evaluation_periods = 10\n  period = 60\n  comparison_operator = \"GreaterThanThreshold\"\n  alarm_actions = [var.alerts_topic_arn]\n}"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "terraform fmt -check && terraform validate"
+   },
+   "r": "Success! The configuration is valid."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "terraform plan -out plan.out"
+   },
+   "r": "Plan: 1 to add, 0 to change, 0 to destroy."
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Added a Terraform CloudWatch alarm that fires when queue depth stays above 1000 for ten one-minute periods and notifies the existing alerts SNS topic; validate passes and the plan adds one resource.",
+  "facts": [
+   "alarm on queue depth above 1000",
+   "ten consecutive one-minute periods",
+   "published to the existing alerts topic",
+   "terraform validate passes",
+   "plan adds one resource"
+  ],
+  "specific": [
+   "CloudWatch metric alarm",
+   "evaluation periods to avoid paging on spikes"
+  ],
+  "decisions": [
+   {
+    "choice": "require ten consecutive periods above the threshold",
+    "reason": "a single breach would page on short spikes"
+   }
+  ],
+  "skills": [
+   "Terraform",
+   "AWS CloudWatch",
+   "Amazon SNS"
+  ],
+  "not_skills": [
+   "Docker",
+   "React",
+   "Python"
+  ]
+ }
+}

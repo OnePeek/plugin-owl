@@ -1,99 +1,96 @@
 {
- "id": "feature-1",
- "type": "feature",
- "cwd": "/work/helpdesk",
- "steps": [
-  {
-   "u": "Add CSV export to the tickets list. It should respect the current filters and handle 100k rows without blowing up memory."
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/helpdesk/src/routes/tickets.ts"
-   },
-   "r": "router.get('/tickets', async (req,res)=>{ const rows = await repo.list(req.query); res.json(rows) })"
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/helpdesk/src/repo/tickets.ts"
-   },
-   "r": "list(filters){ return db('tickets').where(build(filters)) }"
-  },
-  {
-   "a": "Loading everything into an array would not survive 100k rows. I will stream rows from the database cursor straight into the response through a CSV stringifier."
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm install csv-stringify"
-   },
-   "r": "added 1 package"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/helpdesk/src/repo/tickets.ts",
-    "old_string": "list(filters){ return db('tickets').where(build(filters)) }",
-    "new_string": "list(filters){ return db('tickets').where(build(filters)) }\nstream(filters){ return db('tickets').where(build(filters)).stream() }"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/helpdesk/src/routes/tickets.ts",
-    "old_string": "router.get('/tickets'",
-    "new_string": "router.get('/tickets.csv', (req,res)=>{ res.setHeader('Content-Type','text/csv'); pipeline(repo.stream(req.query), stringify({header:true}), res, ()=>{}) })\nrouter.get('/tickets'"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/helpdesk/src/routes/tickets.csv.test.ts",
-    "content": "it('streams 100k rows with flat memory', async () => { /* ... */ })\nit('applies the status filter', async () => { /* ... */ })\n"
-   },
-   "r": "created"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm test -- tickets.csv"
-   },
-   "r": "2 passed"
+  "id": "feature-1",
+  "type": "feature",
+  "cwd": "/srv/app/quizly",
+  "steps": [
+    {
+      "u": "Teachers want a 'Download grades as CSV' button on the class gradebook. Backend is the Express app in server/. Some districts have classes of 5,000+ students across all sections, so keep that in mind."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/srv/app/quizly/server/routes/gradebook.ts"
+      },
+      "r": "1 import { Router } from 'express';\n2 import { requireTeacherOf } from '../auth/guards';\n3 import { gradeRepo } from '../repos/grades';\n4 export const gradebook = Router();\n5 gradebook.get('/classes/:id/grades', requireTeacherOf('id'), async (req, res) => {\n6   res.json(await gradeRepo.listForClass(req.params.id));\n7 });"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "psql \"$DATABASE_URL\" -c \"select student_email, quiz_title, score from grade_rows where class_id='c_88' limit 3\""
+      },
+      "r": " student_email          | quiz_title       | score\n------------------------+------------------+-------\n dana.okafor@lincolnhs.example.org | Fractions 1 | 87\n li.wei@lincolnhs.example.org      | Fractions 1 | 92\n sam.ruiz@lincolnhs.example.org    | Fractions 1 | 74\n(3 rows)"
+    },
+    {
+      "a": "Two ways to build it: load all rows and build the CSV string in memory, or stream rows from a Postgres cursor through a CSV transform into the response. For a 5,000-student class with ~40 quizzes that's ~200k rows, which would hold a lot in memory per request, so I'll stream with pg-query-stream and csv-stringify."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/srv/app/quizly/server/routes/gradebook.ts",
+        "old_string": "  res.json(await gradeRepo.listForClass(req.params.id));\n});",
+        "new_string": "  res.json(await gradeRepo.listForClass(req.params.id));\n});\n\ngradebook.get('/classes/:id/grades.csv', requireTeacherOf('id'), async (req, res, next) => {\n  res.setHeader('Content-Type', 'text/csv; charset=utf-8');\n  res.setHeader('Content-Disposition', `attachment; filename=\"grades-${req.params.id}.csv\"`);\n  const client = await pool.connect();\n  const rows = client.query(new QueryStream(GRADES_SQL, [req.params.id], { batchSize: 1000 }));\n  pipeline(rows, stringify({ header: true, columns: ['student', 'email', 'quiz', 'score', 'submitted_at'] }), res, (err) => {\n    client.release();\n    if (err) next(err);\n  });\n});"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/srv/app/quizly/web/src/gradebook/Toolbar.tsx",
+        "old_string": "<Button onClick={onRefresh}>Refresh</Button>",
+        "new_string": "<Button onClick={onRefresh}>Refresh</Button>\n<Button as=\"a\" href={`/api/classes/${classId}/grades.csv`} download variant=\"secondary\">Download CSV</Button>"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/srv/app/quizly/server/routes/__tests__/gradebook.csv.test.ts",
+        "content": "it('streams a header and one row per grade', async () => {\n  await seedClass('c_t', { students: 3, quizzes: 2 });\n  const res = await request(app).get('/classes/c_t/grades.csv').set(teacherAuth('c_t'));\n  expect(res.headers['content-type']).toMatch(/text\\/csv/);\n  expect(res.text.trim().split('\\n')).toHaveLength(7);\n});\nit('rejects teachers of other classes', async () => {\n  const res = await request(app).get('/classes/c_t/grades.csv').set(teacherAuth('c_other'));\n  expect(res.status).toBe(403);\n});\n"
+      },
+      "r": "File created."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "npx vitest run server/routes/__tests__/gradebook.csv.test.ts && node scripts/bench-csv.mjs --students 5000 --quizzes 40"
+      },
+      "r": " \u2713 server/routes/__tests__/gradebook.csv.test.ts (2 tests) 412ms\n Test Files  1 passed (1)\n      Tests  2 passed (2)\nrows=200000 time=3.8s peak_rss_delta=31MB"
+    },
+    {
+      "a": "Added a streaming CSV endpoint (Postgres cursor in batches of 1,000 piped through csv-stringify, connection released on finish or error) behind the existing teacher-of-class guard, plus a Download CSV button in the gradebook toolbar. Tests cover the row count and the 403 for other teachers; a 200k-row benchmark finished in 3.8 s with about 31 MB extra memory."
+    }
+  ],
+  "reference": {
+    "task_type": "feature",
+    "summary": "Added a gradebook CSV download: an Express endpoint that streams rows from a Postgres cursor through a CSV stringifier to the response, guarded by the existing teacher authorisation, plus a toolbar button. Tests for output and authorisation pass and a 200k-row benchmark ran in under 4 seconds with modest memory.",
+    "facts": [
+      "The endpoint streams rows with a Postgres query stream in batches of 1,000 through csv-stringify",
+      "It reuses the teacher-of-class guard and a test checks other teachers get 403",
+      "A Download CSV button was added to the gradebook toolbar",
+      "A benchmark of 200,000 rows took about 3.8 s with about 31 MB extra memory"
+    ],
+    "specific": [
+      "streaming CSV export",
+      "database cursor streaming"
+    ],
+    "decisions": [
+      {
+        "choice": "Stream rows from a cursor instead of building the CSV in memory",
+        "reason": "large classes produce about 200k rows, too much to hold per request"
+      }
+    ],
+    "skills": [
+      "TypeScript",
+      "Express",
+      "PostgreSQL",
+      "Node streams",
+      "React"
+    ],
+    "not_skills": [
+      "Docker",
+      "caching",
+      "database migration",
+      "load balancing"
+    ]
   }
- ],
- "reference": {
-  "task_type": "feature",
-  "summary": "Added a CSV export for the tickets list that honours the active filters and streams rows from a database cursor through a CSV stringifier so 100k rows do not load into memory.",
-  "facts": [
-   "CSV export of tickets",
-   "respects the current filters",
-   "streams from a database cursor",
-   "a CSV library was added",
-   "tests for streaming and filtering pass"
-  ],
-  "specific": [
-   "streaming export",
-   "database cursor"
-  ],
-  "decisions": [
-   {
-    "choice": "stream rows from the database cursor instead of building an array",
-    "reason": "100k rows would not fit comfortably in memory"
-   }
-  ],
-  "skills": [
-   "Node.js",
-   "streams",
-   "CSV",
-   "SQL"
-  ],
-  "not_skills": [
-   "Docker",
-   "Kubernetes",
-   "Redis"
-  ]
- }
 }

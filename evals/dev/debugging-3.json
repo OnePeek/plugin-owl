@@ -1,0 +1,70 @@
+{
+ "id": "debugging-3",
+ "type": "debugging",
+ "cwd": "/work/media-pipeline",
+ "steps": [
+  {
+   "u": "The video thumbnail job silently produces black images for some uploads. No errors in the logs and I do not know where to start. Find out why."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "ffprobe -v error -show_streams sample-ok.mp4 | head -12"
+   },
+   "r": "codec_name=h264\npix_fmt=yuv420p\ncolor_transfer=bt709"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "ffprobe -v error -show_streams sample-bad.mov | head -12"
+   },
+   "r": "codec_name=hevc\npix_fmt=yuv420p10le\ncolor_transfer=arib-std-b67"
+  },
+  {
+   "a": "The black ones are 10-bit HEVC with an HLG transfer, that is HDR; the good one is plain 8-bit SDR. Our command extracts a frame without tone mapping, so HDR values may collapse to near black in an 8-bit PNG."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "ffmpeg -i sample-bad.mov -frames:v 1 plain.png && python3 mean_brightness.py plain.png"
+   },
+   "r": "mean brightness 3 of 255"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "ffmpeg -i sample-bad.mov -vf zscale=t=linear,tonemap=hable,zscale=t=bt709,format=yuv420p -frames:v 1 tonemapped.png && python3 mean_brightness.py tonemapped.png"
+   },
+   "r": "mean brightness 96 of 255"
+  },
+  {
+   "a": "Confirmed: without tone mapping the frame is almost black (brightness 3), with a tone mapping filter chain it is normal (96). The thumbnail code needs to detect HDR and tone map. I have not changed the code yet."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Diagnosed black thumbnails as 10-bit HDR HEVC video extracted without tone mapping: ffprobe separated the HDR files from SDR ones and a tone mapped extraction raised mean brightness from 3 to 96; the code was not changed in this session.",
+  "facts": [
+   "black thumbnails for some uploads, no log errors",
+   "bad files are 10-bit HEVC with HLG transfer",
+   "good file is SDR",
+   "extraction without tone mapping gives brightness 3",
+   "with tone mapping brightness 96",
+   "code not changed yet"
+  ],
+  "specific": [
+   "HDR to SDR tone mapping",
+   "ffprobe inspection"
+  ],
+  "decisions": [],
+  "skills": [
+   "FFmpeg",
+   "video processing"
+  ],
+  "not_skills": [
+   "Docker",
+   "React",
+   "SQL"
+  ]
+ }
+}

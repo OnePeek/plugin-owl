@@ -1,70 +1,81 @@
 {
- "id": "debugging-3",
- "type": "debugging",
- "cwd": "/work/media-pipeline",
- "steps": [
-  {
-   "u": "The video thumbnail job silently produces black images for some uploads. No errors in the logs and I do not know where to start. Find out why."
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "ffprobe -v error -show_streams sample-ok.mp4 | head -12"
-   },
-   "r": "codec_name=h264\npix_fmt=yuv420p\ncolor_transfer=bt709"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "ffprobe -v error -show_streams sample-bad.mov | head -12"
-   },
-   "r": "codec_name=hevc\npix_fmt=yuv420p10le\ncolor_transfer=arib-std-b67"
-  },
-  {
-   "a": "The black ones are 10-bit HEVC with an HLG transfer, that is HDR; the good one is plain 8-bit SDR. Our command extracts a frame without tone mapping, so HDR values may collapse to near black in an 8-bit PNG."
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "ffmpeg -i sample-bad.mov -frames:v 1 plain.png && python3 mean_brightness.py plain.png"
-   },
-   "r": "mean brightness 3 of 255"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "ffmpeg -i sample-bad.mov -vf zscale=t=linear,tonemap=hable,zscale=t=bt709,format=yuv420p -frames:v 1 tonemapped.png && python3 mean_brightness.py tonemapped.png"
-   },
-   "r": "mean brightness 96 of 255"
-  },
-  {
-   "a": "Confirmed: without tone mapping the frame is almost black (brightness 3), with a tone mapping filter chain it is normal (96). The thumbnail code needs to detect HDR and tone map. I have not changed the code yet."
+  "id": "debugging-3",
+  "type": "debugging",
+  "cwd": "/home/ops/edu-portal",
+  "steps": [
+    {
+      "u": "Students hit random 502s on the assignment upload page, maybe 0.3% of requests. Priya Natarajan opened OPS-3317 about it. nginx in front of gunicorn. Can you find the cause?"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "ssh web-lb-1.campus.eduportal.internal \"grep ' 502 ' /var/log/nginx/access.log | tail -200 | awk '{print \\$7}' | sort | uniq -c | sort -rn | head -4\""
+      },
+      "r": "    71 /api/assignments/upload\n    48 /api/submissions\n    44 /api/courses/feed\n    37 /api/me"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "ssh web-lb-1.campus.eduportal.internal \"grep upstream /var/log/nginx/error.log | tail -3\""
+      },
+      "r": "2026/11/19 14:02:11 [error] 1180#1180: *88213 upstream prematurely closed connection while reading response header from upstream, client: 10.20.4.77, server: portal, request: \"POST /api/submissions HTTP/1.1\", upstream: \"http://10.20.8.15:8000/api/submissions\"\n2026/11/19 14:02:40 [error] 1180#1180: *88302 upstream prematurely closed connection while reading response header from upstream ..."
+    },
+    {
+      "a": "It isn't upload-specific: every route gets them in proportion to traffic, and the error is 'upstream prematurely closed connection'. That points to connection reuse rather than slow handlers."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/ops/edu-portal/deploy/nginx/portal.conf",
+        "offset": 1,
+        "limit": 20
+      },
+      "r": "1 upstream app {\n2     server 10.20.8.15:8000;\n3     server 10.20.8.16:8000;\n4     keepalive 32;\n5     keepalive_timeout 75s;\n6 }\n...\n14    proxy_http_version 1.1;\n15    proxy_set_header Connection \"\";"
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/ops/edu-portal/deploy/gunicorn.conf.py"
+      },
+      "r": "1 bind = \"0.0.0.0:8000\"\n2 workers = 8\n3 worker_class = \"gthread\"\n4 threads = 4\n5 keepalive = 5\n6 timeout = 60"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "ssh web-lb-1.campus.eduportal.internal \"awk '\\$9==502 {print \\$NF}' /var/log/nginx/access.log | tail -500 | sort -n | awk '{a[NR]=\\$1} END {print \\\"p50 upstream_connect_reuse_age=\\\" a[int(NR/2)]}'\""
+      },
+      "r": "p50 upstream_connect_reuse_age=5.02"
+    },
+    {
+      "a": "Cause found. nginx keeps idle upstream connections for 75 s, but gunicorn closes idle keep-alive connections after 5 s. When nginx reuses a connection right as gunicorn closes it, the request is sent on a socket the backend is tearing down and nginx returns 502. The failing requests cluster at a reuse age of about 5 s, which matches. The fix is to make the upstream side outlive nginx: set gunicorn keepalive above nginx's keepalive_timeout (e.g. keepalive = 80) or lower nginx keepalive_timeout to below 5 s. POSTs aren't retried by nginx by default, which is why uploads feel it most. I haven't changed the configs, since both hosts are managed by the ops team's Ansible repo."
+    }
+  ],
+  "reference": {
+    "task_type": "debugging",
+    "summary": "Diagnosed intermittent 502 errors behind an nginx reverse proxy: the proxy kept idle upstream connections for 75 seconds while gunicorn closed idle keep-alive connections after 5 seconds, so reused connections were sometimes closed mid-request. Failures clustered at a 5-second reuse age; matching the timeouts was recommended but no config was changed.",
+    "facts": [
+      "About 0.3% of requests returned 502 across all routes, not just uploads",
+      "nginx logged upstream prematurely closed connection",
+      "nginx upstream keepalive_timeout was 75 s and gunicorn keepalive was 5 s",
+      "Failing requests clustered at a connection reuse age of about 5 s",
+      "The recommended fix (gunicorn keepalive above nginx's timeout) was not applied"
+    ],
+    "specific": [
+      "keep-alive timeout mismatch",
+      "reverse proxy 502 diagnosis"
+    ],
+    "decisions": [],
+    "skills": [
+      "nginx",
+      "gunicorn configuration",
+      "log analysis",
+      "HTTP connection management"
+    ],
+    "not_skills": [
+      "application code fix",
+      "load testing",
+      "database debugging",
+      "Docker"
+    ]
   }
- ],
- "reference": {
-  "task_type": "debugging",
-  "summary": "Diagnosed black thumbnails as 10-bit HDR HEVC video extracted without tone mapping: ffprobe separated the HDR files from SDR ones and a tone mapped extraction raised mean brightness from 3 to 96; the code was not changed in this session.",
-  "facts": [
-   "black thumbnails for some uploads, no log errors",
-   "bad files are 10-bit HEVC with HLG transfer",
-   "good file is SDR",
-   "extraction without tone mapping gives brightness 3",
-   "with tone mapping brightness 96",
-   "code not changed yet"
-  ],
-  "specific": [
-   "HDR to SDR tone mapping",
-   "ffprobe inspection"
-  ],
-  "decisions": [],
-  "skills": [
-   "FFmpeg",
-   "video processing"
-  ],
-  "not_skills": [
-   "Docker",
-   "React",
-   "SQL"
-  ]
- }
 }

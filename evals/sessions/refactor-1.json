@@ -1,100 +1,98 @@
 {
- "id": "refactor-1",
- "type": "refactor",
- "cwd": "/work/billing",
- "steps": [
-  {
-   "u": "The PaymentService class is 1,200 lines and does everything. Split it up without changing behaviour."
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/billing/src/PaymentService.ts"
-   },
-   "r": "class PaymentService { charge(){...} refund(){...} sendReceipt(){...} calcTax(){...} syncLedger(){...} ... }"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm test"
-   },
-   "r": "148 passed"
-  },
-  {
-   "a": "Tests are green before I start, so I can use them as the safety net. Tax calculation and receipts have no shared state with charging, so they extract cleanly; ledger sync shares the transaction object, so I will pass it in rather than reach for a global."
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/billing/src/tax/TaxCalculator.ts",
-    "content": "export class TaxCalculator { calc(order){} }\n"
-   },
-   "r": "created"
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/billing/src/receipts/ReceiptSender.ts",
-    "content": "export class ReceiptSender { send(payment){} }\n"
-   },
-   "r": "created"
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/billing/src/ledger/LedgerSync.ts",
-    "content": "export class LedgerSync { sync(tx, payment){} }\n"
-   },
-   "r": "created"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/billing/src/PaymentService.ts",
-    "old_string": "calcTax(){...} sendReceipt(){...} syncLedger(){...}",
-    "new_string": "constructor(private tax: TaxCalculator, private receipts: ReceiptSender, private ledger: LedgerSync){}"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm test"
-   },
-   "r": "148 passed"
-  },
-  {
-   "a": "Same 148 tests pass; PaymentService is now about 400 lines and delegates to three collaborators injected through the constructor."
+  "id": "refactor-1",
+  "type": "refactor",
+  "cwd": "/workspace/paybridge-core",
+  "steps": [
+    {
+      "u": "FeeCalculator.calculate is a 300-line switch over payment method and keeps growing. Refactor it so adding a method doesn't mean touching that switch. No behaviour change."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/workspace/paybridge-core/src/main/java/com/paybridge/fees/FeeCalculator.java",
+        "offset": 20,
+        "limit": 40
+      },
+      "r": "20 public Money calculate(Payment p) {\n21   switch (p.method()) {\n22     case CARD: {\n23       Money pct = p.amount().times(new BigDecimal(\"0.029\"));\n24       return pct.plus(Money.of(\"0.30\", p.currency())).max(minFee(p));\n25     }\n26     case SEPA: return Money.of(\"0.35\", p.currency());\n27     case ACH: return p.amount().times(new BigDecimal(\"0.008\")).min(Money.of(\"5.00\", \"USD\"));\n28     case WALLET: { ... cross-border surcharge ... }\n...\n318   }\n"
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "./mvnw -q test -Dtest='FeeCalculator*' 2>&1 | tail -3"
+      },
+      "r": "[INFO] Tests run: 64, Failures: 0, Errors: 0, Skipped: 0\n[INFO] BUILD SUCCESS"
+    },
+    {
+      "a": "There are 64 characterization tests, good. I considered an enum with an abstract method per constant, but several methods need injected collaborators (the FX rate service for WALLET, the merchant tier repo for CARD), which enums can't take cleanly. I'll use a FeeStrategy interface with one Spring bean per method, collected into an EnumMap keyed by the method each bean declares."
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/workspace/paybridge-core/src/main/java/com/paybridge/fees/FeeStrategy.java",
+        "content": "package com.paybridge.fees;\n\npublic interface FeeStrategy {\n    PaymentMethod method();\n    Money fee(Payment payment);\n}\n"
+      },
+      "r": "File created."
+    },
+    {
+      "t": "Write",
+      "i": {
+        "file_path": "/workspace/paybridge-core/src/main/java/com/paybridge/fees/strategies/CardFee.java",
+        "content": "@Component\nclass CardFee implements FeeStrategy {\n    private final MerchantTierRepository tiers;\n    CardFee(MerchantTierRepository tiers) { this.tiers = tiers; }\n    public PaymentMethod method() { return PaymentMethod.CARD; }\n    public Money fee(Payment p) {\n        Money pct = p.amount().times(new BigDecimal(\"0.029\"));\n        return pct.plus(Money.of(\"0.30\", p.currency())).max(tiers.minFee(p.merchantId(), p.currency()));\n    }\n}\n"
+      },
+      "r": "File created."
+    },
+    {
+      "a": "Created SepaFee, AchFee, WalletFee and BnplFee the same way, moving each case body verbatim."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/workspace/paybridge-core/src/main/java/com/paybridge/fees/FeeCalculator.java",
+        "old_string": "public Money calculate(Payment p) {\n  switch (p.method()) {",
+        "new_string": "private final Map<PaymentMethod, FeeStrategy> strategies;\n\npublic FeeCalculator(List<FeeStrategy> all) {\n  this.strategies = new EnumMap<>(PaymentMethod.class);\n  for (FeeStrategy s : all) {\n    if (strategies.put(s.method(), s) != null) throw new IllegalStateException(\"duplicate fee strategy for \" + s.method());\n  }\n}\n\npublic Money calculate(Payment p) {\n  FeeStrategy s = strategies.get(p.method());\n  if (s == null) throw new UnsupportedPaymentMethodException(p.method());\n  return s.fee(p);\n}\n// old switch removed"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "./mvnw -q test 2>&1 | tail -4"
+      },
+      "r": "[INFO] Tests run: 64, Failures: 0, Errors: 0, Skipped: 0 -- in com.paybridge.fees.FeeCalculatorTest\n[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0 -- in com.paybridge.fees.FeeStrategyWiringTest\n[INFO] Tests run: 1288, Failures: 0, Errors: 0, Skipped: 0\n[INFO] BUILD SUCCESS"
+    },
+    {
+      "a": "Refactor done: each payment method's fee rule is now its own FeeStrategy bean, and FeeCalculator only dispatches through an EnumMap, failing at startup on duplicates and at call time on unknown methods. All 64 existing fee tests pass unchanged and the full build is green (1,288 tests)."
+    }
+  ],
+  "reference": {
+    "task_type": "refactor",
+    "summary": "Replaced a 300-line switch in a payments fee calculator with the strategy pattern: one Spring-managed strategy per payment method, dispatched through an enum map that rejects duplicates at startup. Behaviour was preserved, with all 64 existing fee tests and the full suite passing.",
+    "facts": [
+      "The calculator had a long switch over payment methods",
+      "Each case body moved into its own FeeStrategy implementation registered as a Spring bean",
+      "The calculator builds an EnumMap and throws on duplicate or unknown methods",
+      "All 64 fee tests and the full build of 1,288 tests pass"
+    ],
+    "specific": [
+      "strategy pattern",
+      "replacing a switch statement with polymorphism"
+    ],
+    "decisions": [
+      {
+        "choice": "Use a strategy interface with Spring beans instead of an enum with per-constant methods",
+        "reason": "some strategies need injected collaborators that enums cannot take cleanly"
+      }
+    ],
+    "skills": [
+      "Java",
+      "Spring dependency injection",
+      "refactoring with characterization tests"
+    ],
+    "not_skills": [
+      "database migration",
+      "performance optimisation",
+      "frontend development",
+      "concurrency"
+    ]
   }
- ],
- "reference": {
-  "task_type": "refactor",
-  "summary": "Split a 1,200 line payment service into tax, receipt and ledger collaborators injected through the constructor, keeping behaviour identical as shown by the same 148 passing tests before and after.",
-  "facts": [
-   "payment service split",
-   "tax receipts and ledger extracted",
-   "constructor injection",
-   "148 tests passed before and after"
-  ],
-  "specific": [
-   "extract class",
-   "dependency injection"
-  ],
-  "decisions": [
-   {
-    "choice": "pass the transaction into the ledger collaborator instead of using shared global state",
-    "reason": "ledger sync shares the transaction object with charging"
-   }
-  ],
-  "skills": [
-   "TypeScript",
-   "refactoring",
-   "dependency injection"
-  ],
-  "not_skills": [
-   "Redis",
-   "Docker",
-   "GraphQL"
-  ]
- }
 }

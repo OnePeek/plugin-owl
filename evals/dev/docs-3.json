@@ -1,0 +1,88 @@
+{
+ "id": "docs-3",
+ "type": "docs",
+ "cwd": "/work/open-source-lib",
+ "steps": [
+  {
+   "u": "Add docstrings to the public functions in the parser module and generate the API docs."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "^def [a-z]"
+   },
+   "r": "parser.py:12: def parse(text, strict=False)\nparser.py:58: def tokens(text)\nparser.py:97: def validate(tree)"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/open-source-lib/parser.py"
+   },
+   "r": "def parse(text, strict=False):\n    ...  # raises ParseError on invalid input when strict"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/open-source-lib/parser.py",
+    "old_string": "def parse(text, strict=False):",
+    "new_string": "def parse(text, strict=False):\n    \"\"\"Parse text into a tree. Raises ParseError on invalid input when strict is true.\"\"\""
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/open-source-lib/parser.py",
+    "old_string": "def tokens(text):",
+    "new_string": "def tokens(text):\n    \"\"\"Yield tokens lazily.\"\"\""
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/open-source-lib/parser.py",
+    "old_string": "def validate(tree):",
+    "new_string": "def validate(tree):\n    \"\"\"Return a list of problems found in a tree.\"\"\""
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "sphinx-build -W docs docs/_build"
+   },
+   "r": "build succeeded."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python -m doctest parser.py"
+   },
+   "r": ""
+  }
+ ],
+ "reference": {
+  "task_type": "docs",
+  "summary": "Added docstrings to the three public functions of the parser module and built the API documentation with Sphinx with warnings treated as errors; doctests pass.",
+  "facts": [
+   "docstrings for three public functions",
+   "Sphinx build with warnings as errors succeeded",
+   "doctests run"
+  ],
+  "specific": [
+   "docstrings and generated API reference"
+  ],
+  "decisions": [],
+  "skills": [
+   "Python",
+   "Sphinx",
+   "documentation"
+  ],
+  "not_skills": [
+   "Docker",
+   "React",
+   "Terraform"
+  ]
+ }
+}

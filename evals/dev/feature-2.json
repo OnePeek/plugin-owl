@@ -1,0 +1,90 @@
+{
+ "id": "feature-2",
+ "type": "feature",
+ "cwd": "/work/dashboard-web",
+ "steps": [
+  {
+   "u": "Add a dark mode toggle to the dashboard. It should follow the OS setting by default and remember the person's choice."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/dashboard-web/src/theme/tokens.css"
+   },
+   "r": ":root{ --bg:#fff; --fg:#111; --accent:#5b3df5 }"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/dashboard-web/src/theme/dark.css",
+    "content": ":root[data-theme='dark']{ --bg:#111; --fg:#eee; --accent:#8f7bff }\n@media (prefers-color-scheme: dark){ :root:not([data-theme='light']){ --bg:#111; --fg:#eee; --accent:#8f7bff } }\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/dashboard-web/src/theme/useTheme.ts",
+    "content": "export function useTheme(){ const [t,setT]=useState(localStorage.getItem('theme')); useEffect(()=>{ if(t) document.documentElement.dataset.theme=t; else delete document.documentElement.dataset.theme },[t]); return [t,setT] }\n"
+   },
+   "r": "created"
+  },
+  {
+   "a": "Using a data attribute with a prefers-color-scheme fallback means the OS setting applies until the person chooses, and the choice only needs one stored value."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/dashboard-web/src/layout/Header.tsx",
+    "old_string": "<Avatar />",
+    "new_string": "<ThemeToggle /><Avatar />"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm run lint"
+   },
+   "r": "no problems"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm test"
+   },
+   "r": "31 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "feature",
+  "summary": "Added a dark mode toggle to the dashboard that follows the operating system preference by default and stores an explicit choice, implemented with CSS variables switched by a data attribute.",
+  "facts": [
+   "dark mode toggle",
+   "follows OS setting by default",
+   "choice remembered in local storage",
+   "CSS variables with a data attribute",
+   "lint and tests pass"
+  ],
+  "specific": [
+   "CSS custom properties theming",
+   "prefers-color-scheme"
+  ],
+  "decisions": [
+   {
+    "choice": "switch theme with a data attribute plus a prefers-color-scheme fallback",
+    "reason": "the OS setting applies until the person chooses and only one value needs storing"
+   }
+  ],
+  "skills": [
+   "React",
+   "CSS",
+   "TypeScript"
+  ],
+  "not_skills": [
+   "Docker",
+   "SQL",
+   "Redis"
+  ]
+ }
+}

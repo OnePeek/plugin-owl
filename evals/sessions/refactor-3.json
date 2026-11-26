@@ -1,100 +1,70 @@
 {
- "id": "refactor-3",
- "type": "refactor",
- "cwd": "/work/etl-service",
- "steps": [
-  {
-   "u": "Our three importers each copy-paste the same retry-with-backoff code. Pull it into one helper."
-  },
-  {
-   "t": "Grep",
-   "i": {
-    "pattern": "attempt <"
-   },
-   "r": "import/shopify.py:41\nimport/stripe.py:38\nimport/hubspot.py:52"
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/etl-service/import/stripe.py"
-   },
-   "r": "for attempt in range(5):\n    try: return call()\n    except Timeout: time.sleep(2**attempt)\nraise"
-  },
-  {
-   "a": "The three copies differ slightly: one retries on HTTP 429 as well, and one has no jitter. A shared helper should take the retryable exceptions as a parameter and add jitter, otherwise concurrent workers retry in lockstep."
-  },
-  {
-   "t": "Write",
-   "i": {
-    "file_path": "/work/etl-service/common/retry.py",
-    "content": "def retry(call, retry_on=(Timeout,), attempts=5, base=1.0):\n    for n in range(attempts):\n        try: return call()\n        except retry_on:\n            time.sleep(base * 2**n * random.uniform(0.5, 1.5))\n    raise\n"
-   },
-   "r": "created"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/etl-service/import/stripe.py",
-    "old_string": "for attempt in range(5):\n    try: return call()\n    except Timeout: time.sleep(2**attempt)\nraise",
-    "new_string": "return retry(call)"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/etl-service/import/shopify.py",
-    "old_string": "for attempt in range(5): ...",
-    "new_string": "return retry(call, retry_on=(Timeout, RateLimited))"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/etl-service/import/hubspot.py",
-    "old_string": "for attempt in range(5): ...",
-    "new_string": "return retry(call)"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "pytest tests/import -q"
-   },
-   "r": "27 passed"
+  "id": "refactor-3",
+  "type": "refactor",
+  "cwd": "/home/kai/projects/stagehand-web",
+  "steps": [
+    {
+      "u": "Convert NotificationSettings and its child ChannelRow from class components to function components with hooks. Keep the props API the same."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/kai/projects/stagehand-web/src/settings/NotificationSettings.tsx"
+      },
+      "r": "12 export class NotificationSettings extends React.Component<Props, State> {\n13   state: State = { channels: [], saving: false };\n14   componentDidMount() { this.load(); }\n15   componentDidUpdate(prev: Props) { if (prev.userId !== this.props.userId) this.load(); }\n16   async load() { this.setState({ channels: await api.channels(this.props.userId) }); }\n17   toggle = (id: string) => this.setState(s => ({ channels: s.channels.map(c => c.id === id ? { ...c, on: !c.on } : c) }));\n...\n30   render() { return this.state.channels.map(c => <ChannelRow key={c.id} channel={c} onToggle={this.toggle} />); }\n31 }"
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/kai/projects/stagehand-web/src/settings/NotificationSettings.tsx",
+        "old_string": "export class NotificationSettings extends React.Component<Props, State> {\n  state: State = { channels: [], saving: false };\n  componentDidMount() { this.load(); }\n  componentDidUpdate(prev: Props) { if (prev.userId !== this.props.userId) this.load(); }",
+        "new_string": "export function NotificationSettings({ userId, onSaved }: Props) {\n  const [channels, setChannels] = useState<Channel[]>([]);\n  const [saving, setSaving] = useState(false);\n  useEffect(() => {\n    let cancelled = false;\n    api.channels(userId).then(cs => { if (!cancelled) setChannels(cs); });\n    return () => { cancelled = true; };\n  }, [userId]);\n  const toggle = useCallback((id: string) => setChannels(cs => cs.map(c => c.id === id ? { ...c, on: !c.on } : c)), []);"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/kai/projects/stagehand-web/src/settings/ChannelRow.tsx",
+        "old_string": "export class ChannelRow extends React.PureComponent<RowProps> {\n  render() {\n    const { channel, onToggle } = this.props;",
+        "new_string": "export const ChannelRow = React.memo(function ChannelRow({ channel, onToggle }: RowProps) {"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "npx tsc --noEmit && npx eslint src/settings && npx jest src/settings"
+      },
+      "r": "PASS src/settings/__tests__/NotificationSettings.test.tsx\nPASS src/settings/__tests__/ChannelRow.test.tsx\n\nTests:       11 passed, 11 total\nTime:        2.84s"
+    },
+    {
+      "a": "Both components are now function components: state via useState, the load on mount and on userId change via a useEffect with a cancellation flag, toggle via useCallback, and ChannelRow wrapped in React.memo to keep the PureComponent behaviour. Props are unchanged; typecheck, lint and the 11 existing tests pass."
+    }
+  ],
+  "reference": {
+    "task_type": "refactor",
+    "summary": "Converted two React settings components from class components to function components using useState, useEffect with a cancellation guard, useCallback and React.memo, keeping the props API unchanged. Type checking, lint and the existing 11 tests pass.",
+    "facts": [
+      "Lifecycle methods were replaced by a useEffect keyed on the user id with a cancellation flag",
+      "The child row uses React.memo in place of PureComponent",
+      "The props API stayed the same",
+      "Typecheck, lint and 11 tests pass"
+    ],
+    "specific": [
+      "class components to hooks conversion"
+    ],
+    "decisions": [],
+    "skills": [
+      "React hooks",
+      "TypeScript",
+      "Jest"
+    ],
+    "not_skills": [
+      "state management library migration",
+      "backend API changes",
+      "accessibility audit",
+      "performance profiling"
+    ]
   }
- ],
- "reference": {
-  "task_type": "refactor",
-  "summary": "Replaced three copy-pasted retry loops in the importers with one shared retry helper that takes the retryable exceptions as a parameter and adds jitter to the backoff; the import tests still pass.",
-  "facts": [
-   "three importers had duplicated retry code",
-   "one helper",
-   "retryable exceptions are a parameter",
-   "jitter added",
-   "tests pass"
-  ],
-  "specific": [
-   "exponential backoff with jitter",
-   "extract shared helper"
-  ],
-  "decisions": [
-   {
-    "choice": "add jitter and make retryable exceptions a parameter",
-    "reason": "concurrent workers would otherwise retry in lockstep and one importer also retries on rate limits"
-   }
-  ],
-  "skills": [
-   "Python",
-   "pytest",
-   "retry with backoff"
-  ],
-  "not_skills": [
-   "Docker",
-   "React",
-   "Kubernetes"
-  ]
- }
 }

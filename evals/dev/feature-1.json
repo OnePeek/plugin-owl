@@ -1,0 +1,99 @@
+{
+ "id": "feature-1",
+ "type": "feature",
+ "cwd": "/work/helpdesk",
+ "steps": [
+  {
+   "u": "Add CSV export to the tickets list. It should respect the current filters and handle 100k rows without blowing up memory."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/helpdesk/src/routes/tickets.ts"
+   },
+   "r": "router.get('/tickets', async (req,res)=>{ const rows = await repo.list(req.query); res.json(rows) })"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/helpdesk/src/repo/tickets.ts"
+   },
+   "r": "list(filters){ return db('tickets').where(build(filters)) }"
+  },
+  {
+   "a": "Loading everything into an array would not survive 100k rows. I will stream rows from the database cursor straight into the response through a CSV stringifier."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm install csv-stringify"
+   },
+   "r": "added 1 package"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/helpdesk/src/repo/tickets.ts",
+    "old_string": "list(filters){ return db('tickets').where(build(filters)) }",
+    "new_string": "list(filters){ return db('tickets').where(build(filters)) }\nstream(filters){ return db('tickets').where(build(filters)).stream() }"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/helpdesk/src/routes/tickets.ts",
+    "old_string": "router.get('/tickets'",
+    "new_string": "router.get('/tickets.csv', (req,res)=>{ res.setHeader('Content-Type','text/csv'); pipeline(repo.stream(req.query), stringify({header:true}), res, ()=>{}) })\nrouter.get('/tickets'"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/helpdesk/src/routes/tickets.csv.test.ts",
+    "content": "it('streams 100k rows with flat memory', async () => { /* ... */ })\nit('applies the status filter', async () => { /* ... */ })\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm test -- tickets.csv"
+   },
+   "r": "2 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "feature",
+  "summary": "Added a CSV export for the tickets list that honours the active filters and streams rows from a database cursor through a CSV stringifier so 100k rows do not load into memory.",
+  "facts": [
+   "CSV export of tickets",
+   "respects the current filters",
+   "streams from a database cursor",
+   "a CSV library was added",
+   "tests for streaming and filtering pass"
+  ],
+  "specific": [
+   "streaming export",
+   "database cursor"
+  ],
+  "decisions": [
+   {
+    "choice": "stream rows from the database cursor instead of building an array",
+    "reason": "100k rows would not fit comfortably in memory"
+   }
+  ],
+  "skills": [
+   "Node.js",
+   "streams",
+   "CSV",
+   "SQL"
+  ],
+  "not_skills": [
+   "Docker",
+   "Kubernetes",
+   "Redis"
+  ]
+ }
+}

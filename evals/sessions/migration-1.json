@@ -1,109 +1,124 @@
 {
- "id": "migration-1",
- "type": "migration",
- "cwd": "/work/portal",
- "steps": [
-  {
-   "u": "Migrate the portal from Express 4 to Fastify. Keep the routes and behaviour."
-  },
-  {
-   "t": "Glob",
-   "i": {
-    "pattern": "src/routes/*.ts"
-   },
-   "r": "src/routes/users.ts\nsrc/routes/orders.ts\nsrc/routes/health.ts"
-  },
-  {
-   "t": "Read",
-   "i": {
-    "file_path": "/work/portal/src/routes/users.ts"
-   },
-   "r": "router.get('/users/:id', auth, async (req,res)=>{ res.json(await users.get(req.params.id)) })"
-  },
-  {
-   "a": "Express middleware like auth maps to Fastify hooks, and handlers return values instead of calling res.json. I will migrate route by route behind the existing integration tests."
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm install fastify@5 @fastify/cors"
-   },
-   "r": "added 41 packages"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/portal/src/routes/users.ts",
-    "old_string": "router.get('/users/:id', auth, async (req,res)=>{ res.json(await users.get(req.params.id)) })",
-    "new_string": "app.get('/users/:id', { preHandler: auth }, async (req) => users.get(req.params.id))"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/portal/src/routes/orders.ts",
-    "old_string": "router.post('/orders', auth, validate(schema), handler)",
-    "new_string": "app.post('/orders', { preHandler: auth, schema: { body: schema } }, handler)"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm run test:integration"
-   },
-   "r": "37 passed, 2 failed: health returns 204 expected 200",
-   "err": true
-  },
-  {
-   "t": "Edit",
-   "i": {
-    "file_path": "/work/portal/src/routes/health.ts",
-    "old_string": "return reply.send()",
-    "new_string": "return reply.code(200).send({ ok: true })"
-   },
-   "r": "edited"
-  },
-  {
-   "t": "Bash",
-   "i": {
-    "command": "npm run test:integration"
-   },
-   "r": "39 passed"
+  "id": "migration-1",
+  "type": "migration",
+  "cwd": "/home/build/dockyard-planner",
+  "steps": [
+    {
+      "u": "Move dockyard-planner from Python 3.8 to 3.12 (3.8 is EOL). Get the tests green on 3.12."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "uv venv -p 3.12 .venv312 && . .venv312/bin/activate && uv pip install -r requirements.txt 2>&1 | tail -4"
+      },
+      "r": "error: Failed to build `numpy==1.21.6`\n  Caused by: ModuleNotFoundError: No module named 'distutils'\n  hint: numpy 1.21.6 does not support Python 3.12",
+      "err": true
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/home/build/dockyard-planner/requirements.txt"
+      },
+      "r": "numpy==1.21.6\npandas==1.3.5\nortools==9.3.10497\npydantic==1.10.13\nrequests==2.31.0\npytest==7.1.2"
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/build/dockyard-planner/requirements.txt",
+        "old_string": "numpy==1.21.6\npandas==1.3.5\nortools==9.3.10497\npydantic==1.10.13\nrequests==2.31.0\npytest==7.1.2",
+        "new_string": "numpy==1.26.4\npandas==2.2.3\nortools==9.10.4067\npydantic==1.10.18\nrequests==2.32.3\npytest==8.3.3"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": ". .venv312/bin/activate && uv pip install -r requirements.txt -q && pytest -q 2>&1 | tail -8"
+      },
+      "r": "ERROR collecting planner/version_check.py\nplanner/version_check.py:2: in <module>\n    from distutils.version import LooseVersion\nE   ModuleNotFoundError: No module named 'distutils'\nFAILED planner/berths.py::test_assign - AttributeError: 'DataFrame' object has no attribute 'append'\nFAILED planner/report.py::test_weekly - FutureWarning turned error: Series.__getitem__ treating keys as positions is deprecated\n2 failed, 131 passed, 1 error in 14.22s"
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/build/dockyard-planner/planner/version_check.py",
+        "old_string": "from distutils.version import LooseVersion",
+        "new_string": "from packaging.version import Version as LooseVersion"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/build/dockyard-planner/planner/berths.py",
+        "old_string": "        schedule = schedule.append(row, ignore_index=True)",
+        "new_string": "        rows.append(row)\n    schedule = pd.concat([schedule, pd.DataFrame(rows)], ignore_index=True)"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/build/dockyard-planner/planner/report.py",
+        "old_string": "    peak = counts[0]",
+        "new_string": "    peak = counts.iloc[0]"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "echo 'packaging==24.1' >> requirements.txt && . .venv312/bin/activate && uv pip install -r requirements.txt -q && pytest -q -W error::DeprecationWarning 2>&1 | tail -2"
+      },
+      "r": "134 passed in 12.87s"
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/build/dockyard-planner/Dockerfile",
+        "old_string": "FROM python:3.8-slim",
+        "new_string": "FROM python:3.12-slim"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/home/build/dockyard-planner/.github/workflows/test.yml",
+        "old_string": "python-version: '3.8'",
+        "new_string": "python-version: '3.12'"
+      },
+      "r": "File edited."
+    },
+    {
+      "a": "Migrated to Python 3.12. numpy 1.21 couldn't build without distutils, so I bumped numpy, pandas, ortools and the test deps to 3.12-compatible versions, replaced distutils.version with packaging, swapped the removed DataFrame.append for pd.concat, and fixed a positional Series index. The Dockerfile base and CI Python version now point at 3.12. All 134 tests pass with deprecation warnings treated as errors."
+    }
+  ],
+  "reference": {
+    "task_type": "migration",
+    "summary": "Migrated a Python planning service from 3.8 to 3.12: upgraded numpy, pandas, OR-Tools and test dependencies to compatible versions, replaced the removed distutils version helper with packaging, swapped the removed DataFrame append for concat, fixed a positional Series lookup, and updated the container base and CI. All 134 tests pass with deprecation warnings as errors.",
+    "facts": [
+      "The first install failed because numpy 1.21 needs distutils, which 3.12 removed",
+      "numpy, pandas, ortools, pydantic, requests and pytest were bumped",
+      "distutils LooseVersion was replaced with packaging Version",
+      "DataFrame.append was replaced with pd.concat and a Series lookup changed to iloc",
+      "Dockerfile and CI now use 3.12; 134 tests pass"
+    ],
+    "specific": [
+      "Python version upgrade",
+      "removed standard library and pandas API migration"
+    ],
+    "decisions": [],
+    "skills": [
+      "Python",
+      "dependency management",
+      "pandas",
+      "CI configuration"
+    ],
+    "not_skills": [
+      "database migration",
+      "rewriting in another language",
+      "performance tuning",
+      "Kubernetes"
+    ]
   }
- ],
- "reference": {
-  "task_type": "migration",
-  "summary": "Migrated the portal routes from Express to Fastify, mapping middleware to preHandler hooks and request validation to Fastify schemas, with the integration suite guarding behaviour and one health check status difference fixed.",
-  "facts": [
-   "Express to Fastify",
-   "middleware became hooks",
-   "validation moved to schemas",
-   "integration tests used as safety net",
-   "health endpoint status code fixed",
-   "39 tests pass"
-  ],
-  "specific": [
-   "framework migration",
-   "middleware to hooks mapping"
-  ],
-  "decisions": [
-   {
-    "choice": "migrate route by route behind the existing integration tests",
-    "reason": "behaviour must stay the same and the tests detect differences such as the health status"
-   }
-  ],
-  "skills": [
-   "Node.js",
-   "Fastify",
-   "Express",
-   "TypeScript"
-  ],
-  "not_skills": [
-   "Docker",
-   "SQL",
-   "Terraform"
-  ]
- }
 }
