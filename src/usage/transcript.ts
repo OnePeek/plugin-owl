@@ -1,3 +1,5 @@
+import { checkText } from "../clean/filter.js";
+
 // Measured signals (rule A3): exact numbers computed by plug-in code from Claude Code's own local transcript. Pure:
 // text in, numbers out. No model is ever involved, and nothing here is a quote from the transcript.
 
@@ -198,7 +200,7 @@ export function parseTranscript(raw: string): Parsed {
       seenMsg.add(mid);
       turns++;
       const model = typeof msg.model === "string" ? msg.model : "";
-      if (model !== "" && model !== "<synthetic>" && /^[A-Za-z0-9._:-]{1,64}$/.test(model)) models.set(model, (models.get(model) ?? 0) + 1);
+      if (model !== "" && model !== "<synthetic>" && /^[A-Za-z0-9._:-]{1,64}$/.test(model) && checkText(model).length === 0) models.set(model, (models.get(model) ?? 0) + 1);
     }
     const blocks = Array.isArray(msg.content) ? (msg.content as Record<string, unknown>[]) : [];
     for (const b of blocks) {

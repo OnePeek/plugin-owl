@@ -36,13 +36,28 @@ jobs:
     uses: OnePeek/.github/.github/workflows/secret-scan.yml@42b86884d6736032de163b0336dee75fccbef25a # v1.32.4
     with:
       runner: public-hosted
+  node:
+    # Build, typecheck, lint and tests: the privacy suite, the 50-transcript injection set (deterministic half), the hook
+    # latency test and the eval harness self-checks (LLD §15). The real-model eval is `npm run eval`, run by the release job.
+    name: node
+    runs-on: ubuntu-latest # this repo is public: GitHub-hosted (F694)
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
   ready:
     # `ci / ready`, the one summary row the merge tool reads (PIPE-SIMPLE v2 D6): every other job of this workflow
     # passed, or was skipped by its own `if:` and is listed under skippable. A job skipped because one it needs failed
     # fails here too. Table: job | result | how to reproduce locally (OnePeek/.github scripts/ready.py).
     name: ci
     if: ${{ always() }}
-    needs: [fast, secrets]
+    needs: [fast, secrets, node]
     permissions:
       contents: read
     uses: OnePeek/.github/.github/workflows/ready.yml@42b86884d6736032de163b0336dee75fccbef25a # v1.32.4
@@ -51,5 +66,6 @@ jobs:
       runner: public-hosted # public repo: GitHub-hosted (an unset runner means our runners, which never take it)
       skippable: secrets
       reproduce: |
+        node: npm ci && npm run check
         fast: vanguard local-ci <worktree> --jobs fast
         secrets: gitleaks git (lefthook pre-commit runs it)
