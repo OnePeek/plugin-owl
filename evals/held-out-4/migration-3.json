@@ -1,0 +1,82 @@
+{
+ "id": "migration-3",
+ "type": "migration",
+ "cwd": "/work/orders-dash",
+ "steps": [
+  {
+   "u": "Upgrade Spring Boot from 2.7 to 3.2. The build fails."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew build 2>&1 | grep -E 'error:|cannot find' | head -5"
+   },
+   "r": "error: package javax.servlet does not exist\nerror: package javax.persistence does not exist"
+  },
+  {
+   "a": "Spring Boot 3 moved from the javax namespace to jakarta, so every import needs rewriting. I'll use the OpenRewrite migration recipe rather than editing by hand, since there are 140 files."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew rewriteRun -Drewrite.activeRecipe=org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_2"
+   },
+   "r": "Changed 143 files"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew build 2>&1 | tail -6"
+   },
+   "r": "error: Hibernate: 'hibernate.dialect' is no longer ... \nBUILD FAILED"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/orders-dash/src/main/resources/application.yml",
+    "old_string": "dialect: org.hibernate.dialect.PostgreSQL94Dialect",
+    "new_string": "dialect: org.hibernate.dialect.PostgreSQLDialect"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew build 2>&1 | tail -3"
+   },
+   "r": "BUILD SUCCESSFUL\n212 tests completed"
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Upgraded a Spring Boot application from 2.7 to 3.2: used an automated OpenRewrite recipe to move 143 files from javax to jakarta imports, then replaced a removed Hibernate dialect setting. The build succeeds and all 212 tests pass.",
+  "facts": [
+   "javax to jakarta namespace change",
+   "OpenRewrite recipe changed 143 files",
+   "removed Hibernate dialect replaced",
+   "build succeeds",
+   "212 tests pass"
+  ],
+  "specific": [
+   "javax to jakarta migration",
+   "automated codemod"
+  ],
+  "decisions": [
+   {
+    "choice": "use the OpenRewrite recipe instead of editing imports by hand",
+    "reason": "there were about 140 files to change"
+   }
+  ],
+  "skills": [
+   "Spring Boot",
+   "Gradle",
+   "OpenRewrite",
+   "Hibernate"
+  ],
+  "not_skills": [
+   "Kotlin",
+   "Docker",
+   "Maven"
+  ]
+ }
+}

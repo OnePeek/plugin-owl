@@ -1,0 +1,64 @@
+{
+ "id": "tests-2",
+ "type": "tests",
+ "cwd": "/work/checkout-e2e",
+ "steps": [
+  {
+   "u": "Our Playwright test 'applies coupon' is flaky, fails about 1 in 5 in CI. Make it stable."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/checkout-e2e/tests/coupon.spec.ts"
+   },
+   "r": "await page.fill('#coupon', 'SAVE10')\nawait page.click('text=Apply')\nawait page.waitForTimeout(500)\nexpect(await page.textContent('.total')).toBe('$90.00')"
+  },
+  {
+   "a": "The fixed 500 ms wait races with the coupon request: on a slow CI runner the total hasn't updated yet. Waiting on the actual response, or using an auto-retrying assertion, removes the timing guess."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/checkout-e2e/tests/coupon.spec.ts",
+    "old_string": "await page.click('text=Apply')\nawait page.waitForTimeout(500)\nexpect(await page.textContent('.total')).toBe('$90.00')",
+    "new_string": "await page.click('text=Apply')\nawait expect(page.locator('.total')).toHaveText('$90.00')"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx playwright test coupon --repeat-each=30"
+   },
+   "r": "30 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Stabilised a flaky Playwright coupon test by replacing a fixed 500 ms wait with an auto-retrying assertion on the total; it passed 30 repeated runs.",
+  "facts": [
+   "fixed wait raced with the coupon request",
+   "replaced by toHaveText auto-retrying assertion",
+   "30 repeated runs pass"
+  ],
+  "specific": [
+   "flaky test from fixed sleep",
+   "auto-retrying assertions"
+  ],
+  "decisions": [
+   {
+    "choice": "use an auto-retrying assertion instead of a fixed wait",
+    "reason": "the fixed wait raced with the coupon request on slow runners"
+   }
+  ],
+  "skills": [
+   "Playwright",
+   "TypeScript"
+  ],
+  "not_skills": [
+   "Cypress",
+   "Docker",
+   "CI configuration"
+  ]
+ }
+}

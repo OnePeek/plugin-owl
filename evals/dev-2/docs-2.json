@@ -1,0 +1,101 @@
+{
+  "id": "docs-2",
+  "type": "docs",
+  "cwd": "/srv/work/telecare-api",
+  "steps": [
+    {
+      "u": "Our appointments endpoints in openapi/telecare.yaml have no descriptions or error docs, and partners keep emailing support asking what 409 means. Document them properly."
+    },
+    {
+      "t": "Read",
+      "i": {
+        "file_path": "/srv/work/telecare-api/openapi/telecare.yaml",
+        "offset": 40,
+        "limit": 40
+      },
+      "r": "40   /appointments:\n41     post:\n42       operationId: createAppointment\n43       requestBody: { $ref: '#/components/requestBodies/NewAppointment' }\n44       responses:\n45         '201': { $ref: '#/components/responses/Appointment' }\n46   /appointments/{id}:\n47     patch:\n48       operationId: rescheduleAppointment\n49       responses:\n50         '200': { $ref: '#/components/responses/Appointment' }\n51     delete:\n52       operationId: cancelAppointment\n53       responses:\n54         '204': {}"
+    },
+    {
+      "t": "Grep",
+      "i": {
+        "pattern": "raise (Conflict|Unprocessable|NotFound|Forbidden)\\w*\\(",
+        "path": "app/appointments",
+        "output_mode": "content"
+      },
+      "r": "app/appointments/service.py:71:        raise ConflictError(\"slot_taken\")\napp/appointments/service.py:88:        raise ConflictError(\"clinician_unavailable\")\napp/appointments/service.py:103:        raise UnprocessableError(\"outside_booking_window\")\napp/appointments/service.py:119:        raise ConflictError(\"already_cancelled\")\napp/appointments/service.py:122:        raise ForbiddenError(\"cancellation_cutoff\")\napp/appointments/views.py:30:        raise NotFoundError(\"appointment_not_found\")"
+    },
+    {
+      "a": "The 409s carry three different codes (slot_taken, clinician_unavailable, already_cancelled), which explains the support emails. All three endpoints share the same error envelope, so I'll define the error schema and one response per status under components and reference them, rather than repeating the error descriptions inline on every operation; that way a new error code is documented in one place."
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/srv/work/telecare-api/openapi/telecare.yaml",
+        "old_string": "  responses:\n    Appointment:",
+        "new_string": "  schemas:\n    Error:\n      type: object\n      required: [code, message]\n      properties:\n        code:\n          type: string\n          description: Stable machine-readable error code. Branch on this, not on message.\n          enum: [slot_taken, clinician_unavailable, already_cancelled, outside_booking_window, cancellation_cutoff, appointment_not_found]\n        message: { type: string, description: Human-readable explanation; may change. }\n  responses:\n    Conflict:\n      description: |\n        The request conflicts with current state. `code` is one of:\n        - `slot_taken`: another patient booked this slot first. Fetch fresh availability and retry with a different slot.\n        - `clinician_unavailable`: the clinician has blocked this time (leave, other duty).\n        - `already_cancelled`: the appointment was already cancelled; no action needed.\n      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }\n    Unprocessable:\n      description: '`outside_booking_window`: start time is less than 2 hours or more than 90 days from now.'\n      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }\n    Forbidden:\n      description: '`cancellation_cutoff`: cancellations within 12 hours of the start must go through the clinic.'\n      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }\n    NotFound:\n      description: '`appointment_not_found`'\n      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }\n    Appointment:"
+      },
+      "r": "File edited."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "grep -n 'BOOKING_WINDOW\\|CANCEL_CUTOFF' app/appointments/rules.py"
+      },
+      "r": "6:BOOKING_WINDOW_MIN = timedelta(hours=2)\n7:BOOKING_WINDOW_MAX = timedelta(days=90)\n9:CANCEL_CUTOFF = timedelta(hours=12)"
+    },
+    {
+      "t": "Edit",
+      "i": {
+        "file_path": "/srv/work/telecare-api/openapi/telecare.yaml",
+        "old_string": "      operationId: createAppointment\n      requestBody: { $ref: '#/components/requestBodies/NewAppointment' }\n      responses:\n        '201': { $ref: '#/components/responses/Appointment' }",
+        "new_string": "      operationId: createAppointment\n      summary: Book an appointment\n      description: Books a video consultation in an open slot. Slots are held only at the moment of booking, so a slot shown as free may be taken by the time you call this.\n      requestBody: { $ref: '#/components/requestBodies/NewAppointment' }\n      responses:\n        '201': { $ref: '#/components/responses/Appointment' }\n        '409': { $ref: '#/components/responses/Conflict' }\n        '422': { $ref: '#/components/responses/Unprocessable' }"
+      },
+      "r": "File edited."
+    },
+    {
+      "a": "Added summaries, descriptions and error responses to rescheduleAppointment (409, 422, 404) and cancelAppointment (409, 403, 404) the same way."
+    },
+    {
+      "t": "Bash",
+      "i": {
+        "command": "npx @redocly/cli lint openapi/telecare.yaml"
+      },
+      "r": "validating openapi/telecare.yaml...\nopenapi/telecare.yaml: validated in 61ms\n\nWoohoo! Your API description is valid. \ud83c\udf89"
+    },
+    {
+      "a": "Documented the three appointment operations: summaries and descriptions, plus a shared Error schema with an enum of codes and shared Conflict, Unprocessable, Forbidden and NotFound responses that explain each code and what the caller should do. The 2-hour/90-day booking window and 12-hour cancellation cutoff were taken from the rules module. Redocly lint passes."
+    }
+  ],
+  "reference": {
+    "task_type": "docs",
+    "summary": "Documented appointment endpoints in an OpenAPI spec for partner integrators: added summaries and descriptions, a shared error schema with an enumerated code field, and reusable error responses explaining each conflict, validation, permission and not-found code with caller guidance, using limits read from the service code. The spec passes lint.",
+    "facts": [
+      "The 409 status carried three different codes, which caused partner confusion",
+      "A shared Error schema and reusable responses were added under components",
+      "The booking window (2 hours to 90 days) and 12-hour cancellation cutoff were taken from the rules module",
+      "All three operations got summaries, descriptions and error responses",
+      "Redocly lint passes"
+    ],
+    "specific": [
+      "OpenAPI error documentation",
+      "reusable response components"
+    ],
+    "decisions": [
+      {
+        "choice": "Define shared error responses under components instead of documenting errors inline per operation",
+        "reason": "all endpoints share one error envelope, so new codes are documented in one place"
+      }
+    ],
+    "skills": [
+      "technical writing",
+      "OpenAPI",
+      "reading service code for behaviour"
+    ],
+    "not_skills": [
+      "implementing API changes",
+      "SDK generation",
+      "load testing",
+      "database migration"
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+{
+ "id": "infra-3",
+ "type": "infra",
+ "cwd": "/home/dev/src/lumen-ml",
+ "steps": [
+  {
+   "u": "The inference image is 2.1 GB and slow to pull on the GPU nodes. Can you shrink the Dockerfile?"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/lumen-ml/docker/inference.Dockerfile"
+   },
+   "r": "FROM python:3.11\nWORKDIR /app\nCOPY . .\nRUN apt-get update && apt-get install -y build-essential git\nRUN pip install -r requirements.txt\nCMD [\"uvicorn\", \"lumen.serve:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"]"
+  },
+  {
+   "a": "Issues: the full python:3.11 base, build tools left in the final image, pip cache kept, and `COPY . .` before installing, so every code change invalidates the dependency layer and drags in tests and notebooks. I'll use a multi-stage build: compile wheels in a builder stage, install them into a slim runtime, and add a .dockerignore."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/lumen-ml/docker/inference.Dockerfile",
+    "content": "# syntax=docker/dockerfile:1.7\nFROM python:3.11-slim AS builder\nRUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*\nWORKDIR /build\nCOPY requirements.txt .\nRUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt\n\nFROM python:3.11-slim\nRUN useradd --create-home --uid 10001 app\nWORKDIR /app\nCOPY --from=builder /wheels /wheels\nRUN pip install --no-cache-dir /wheels/* && rm -rf /wheels\nCOPY lumen/ lumen/\nUSER app\nEXPOSE 8080\nCMD [\"uvicorn\", \"lumen.serve:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"]\n"
+   },
+   "r": "File created successfully at: /home/dev/src/lumen-ml/docker/inference.Dockerfile"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/lumen-ml/.dockerignore",
+    "content": ".git\n**/__pycache__\nnotebooks/\ntests/\ndata/\n*.ipynb\n.venv/\n"
+   },
+   "r": "File created successfully at: /home/dev/src/lumen-ml/.dockerignore"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "docker build -f docker/inference.Dockerfile -t lumen-inference:slim . 2>&1 | tail -3 && docker images lumen-inference"
+   },
+   "r": "#14 exporting layers 6.8s done\n#14 naming to docker.io/library/lumen-inference:slim done\nREPOSITORY        TAG      IMAGE ID       CREATED          SIZE\nlumen-inference   slim     3f1c0a9d2b7e   5 seconds ago    642MB\nlumen-inference   latest   b81e44c09a12   3 weeks ago      2.1GB"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "docker run -d --rm -p 8080:8080 --name lumen-smoke lumen-inference:slim && sleep 4 && curl -s localhost:8080/healthz; docker stop lumen-smoke"
+   },
+   "r": "e4b2c1f9a0d3\n{\"status\":\"ok\",\"model\":\"loaded\"}lumen-smoke"
+  },
+  {
+   "a": "The image went from 2.1 GB to 642 MB using a multi-stage build (wheels built in a builder stage, slim runtime, no build tools or pip cache), a .dockerignore, and a non-root user. The container starts and /healthz returns ok."
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Shrank a Python inference service's Docker image from 2.1 GB to 642 MB with a multi-stage build: wheels are compiled in a builder stage and installed into a slim Python base without build tools or pip cache, plus a dockerignore and a non-root user. The image builds and a health check smoke test returns ok.",
+  "facts": [
+   "Original image used the full python:3.11 base and was 2.1 GB",
+   "Multi-stage build: pip wheel in builder, install wheels in a slim runtime",
+   "Added .dockerignore excluding notebooks, tests, data and VCS metadata",
+   "Runs as non-root user uid 10001",
+   "New image 642 MB; container smoke test /healthz ok"
+  ],
+  "specific": [
+   "multi-stage Docker build for image size reduction",
+   "layer caching order"
+  ],
+  "decisions": [
+   {
+    "choice": "use a multi-stage build with prebuilt wheels",
+    "reason": "it keeps build tools out of the final image while still compiling dependencies"
+   }
+  ],
+  "skills": [
+   "Docker",
+   "Python packaging",
+   "container hardening"
+  ],
+  "not_skills": [
+   "Kubernetes manifests",
+   "GPU driver configuration",
+   "CI pipeline changes",
+   "model optimisation"
+  ]
+ }
+}

@@ -1,0 +1,52 @@
+{
+ "id": "review-2",
+ "type": "review",
+ "cwd": "/work/pricing-rules",
+ "steps": [
+  {
+   "u": "Can you review my change to the discount calculator? I think it's right but I want a second pair of eyes."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "git diff main -- src/discount.py"
+   },
+   "r": "-    return price * (1 - pct / 100)\n+    return round(price * (1 - pct / 100), 2)\n+def stack(price, pcts):\n+    for p in pcts:\n+        price = apply(price, p)\n+    return price"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python -c \"from src.discount import stack; print(stack(100.0,[10,10]), stack(100.0,[20]))\""
+   },
+   "r": "81.0 80.0"
+  },
+  {
+   "a": "Logic looks right: two 10% discounts give 81.00, which is multiplicative stacking, not 20% off. That may not be what the business rule wants, and the PR description doesn't say. Rounding inside the loop can also lose a cent on long stacks; rounding once at the end is safer. There are no tests for stack() in the diff. Nothing is blocking, but I'd ask which stacking rule is intended and add a test for it. I made no changes."
+  }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed a discount calculator change: stacking discounts multiplies them, so two 10% discounts give 81, which may not be the intended rule, and rounding on every step can lose a cent. It asked for the business rule to be confirmed and a test for the stacking function. Nothing was changed.",
+  "facts": [
+   "two 10 percent discounts give 81.0",
+   "multiplicative stacking",
+   "rounding happens inside the loop",
+   "no tests for stack",
+   "no edits made"
+  ],
+  "specific": [
+   "discount stacking semantics",
+   "rounding in loops"
+  ],
+  "decisions": [],
+  "skills": [
+   "Python",
+   "code review"
+  ],
+  "not_skills": [
+   "SQL",
+   "Docker",
+   "pytest fixtures"
+  ]
+ }
+}

@@ -1,0 +1,74 @@
+{
+ "id": "debugging-3",
+ "type": "debugging",
+ "cwd": "/work/game-server",
+ "steps": [
+  {
+   "u": "Players report rubber-banding every few minutes on the EU shard only. Server tick logs attached. What's going on?"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -c 'tick overrun' logs/eu-1.log logs/us-1.log"
+   },
+   "r": "logs/eu-1.log:148\nlogs/us-1.log:3"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep 'tick overrun' logs/eu-1.log | awk '{print $1}' | cut -c1-5 | sort | uniq -c | sort -rn | head -4"
+   },
+   "r": "  9 14:10\n  9 14:25\n  9 14:40\n  9 14:55"
+  },
+  {
+   "a": "The overruns come in bursts exactly every 15 minutes: 14:10, 14:25, 14:40, 14:55. Something periodic is blocking the tick thread on EU only."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "every 15|\\*/15|900",
+    "path": "/work/game-server"
+   },
+   "r": "src/persist/snapshot.rs:21: const SNAPSHOT_INTERVAL_SECS: u64 = 900;\nconfig/eu.toml:7: snapshot_sync = true"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/game-server/src/persist/snapshot.rs",
+    "offset": 20,
+    "limit": 25
+   },
+   "r": "if cfg.snapshot_sync { write_snapshot(&world) } else { spawn(write_snapshot_async(world.clone())) }"
+  },
+  {
+   "a": "EU is configured with snapshot_sync = true, so the world snapshot is written on the tick thread every 900 seconds; US uses the async path. That matches the burst timing. I haven't flipped it, since sync mode may have been set on purpose for the EU storage backend."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Found why the EU shard rubber-bands: tick overruns occur in bursts every 15 minutes, which matches the world snapshot interval, and the EU config has snapshot_sync enabled so the snapshot blocks the tick thread, while US writes it asynchronously. No change made, since sync mode may be deliberate.",
+  "facts": [
+   "148 tick overruns on EU versus 3 on US",
+   "bursts at 15 minute intervals",
+   "snapshot interval is 900 seconds",
+   "EU config has snapshot_sync = true",
+   "US uses the async path",
+   "nothing was changed"
+  ],
+  "specific": [
+   "periodic blocking of the game tick",
+   "synchronous snapshot on the main loop"
+  ],
+  "decisions": [],
+  "skills": [
+   "Rust",
+   "log analysis",
+   "game servers"
+  ],
+  "not_skills": [
+   "Unity",
+   "Kubernetes",
+   "networking packet capture"
+  ]
+ }
+}

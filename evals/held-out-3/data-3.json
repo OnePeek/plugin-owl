@@ -1,0 +1,68 @@
+{
+ "id": "data-3",
+ "type": "data",
+ "cwd": "/work/crop-sensors",
+ "steps": [
+  {
+   "u": "Plot soil moisture per field from the Parquet exports and flag fields that stayed below 20% for more than 3 days. Use pandas."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python -c \"import pandas as pd; d=pd.read_parquet('exports/moisture.parquet'); print(d.dtypes); print(d.head(3))\""
+   },
+   "r": "field_id object\nts datetime64[ns]\nmoisture_pct float64\n  field_id                  ts  moisture_pct\n0      F-03 2026-10-01 00:00:00          31.2"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/crop-sensors/analysis/dry_fields.py",
+    "content": "import pandas as pd\nd = pd.read_parquet('exports/moisture.parquet')\nd['dry'] = d.moisture_pct < 20\nd = d.sort_values(['field_id','ts'])\nd['run'] = (d.dry != d.groupby('field_id').dry.shift()).cumsum()\nruns = d[d.dry].groupby(['field_id','run']).ts.agg(['min','max'])\nruns['days'] = (runs['max']-runs['min']).dt.total_seconds()/86400\nprint(runs[runs.days > 3])\n"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python analysis/dry_fields.py"
+   },
+   "r": "                      min                 max  days\nfield_id run\nF-07     14  2026-10-09  2026-10-14  5.0\nF-11     22  2026-10-20  2026-10-24  4.1"
+  },
+  {
+   "a": "Two fields qualify, F-07 and F-11. Note I measured a run as first to last reading below 20%, so gaps from sensor outages inside a run are counted as dry. I haven't made the chart yet."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python -c \"print('ok')\""
+   },
+   "r": "ok"
+  }
+ ],
+ "reference": {
+  "task_type": "data",
+  "summary": "Wrote a pandas script that finds fields whose soil moisture stayed under 20% for more than three days, and found two, F-07 and F-11. Runs are measured first to last low reading, so sensor outage gaps inside a run count as dry. The per-field chart was not made yet.",
+  "facts": [
+   "Parquet moisture exports read with pandas",
+   "dry runs under 20% longer than 3 days",
+   "F-07 and F-11 flagged",
+   "outage gaps inside a run count as dry",
+   "chart not yet produced"
+  ],
+  "specific": [
+   "run detection in time series",
+   "pandas groupby on consecutive runs"
+  ],
+  "decisions": [],
+  "skills": [
+   "Python",
+   "pandas",
+   "Parquet"
+  ],
+  "not_skills": [
+   "matplotlib",
+   "SQL",
+   "Spark"
+  ]
+ }
+}

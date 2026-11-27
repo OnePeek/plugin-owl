@@ -1,0 +1,95 @@
+{
+ "id": "docs-3",
+ "type": "docs",
+ "cwd": "/home/dev/src/skiffdb",
+ "steps": [
+  {
+   "u": "Snapshot::restore and Snapshot::create have no rustdoc. Add proper docs with examples, and make sure the examples compile as doctests."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/skiffdb/src/snapshot.rs"
+   },
+   "r": "pub struct Snapshot { path: PathBuf, seq: u64 }\n\nimpl Snapshot {\n    pub fn create(db: &Db, dir: impl AsRef<Path>) -> Result<Snapshot, SnapshotError> {\n...\n    pub fn restore(&self, target: impl AsRef<Path>) -> Result<Db, SnapshotError> {\n        if target.as_ref().exists() { return Err(SnapshotError::TargetExists); }"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/skiffdb/src/snapshot.rs",
+    "old_string": "    pub fn create(db: &Db, dir: impl AsRef<Path>) -> Result<Snapshot, SnapshotError> {",
+    "new_string": "    /// Writes a consistent point-in-time snapshot of `db` into `dir`.\n    ///\n    /// Writers are not blocked; the snapshot reflects every write up to the\n    /// sequence number returned by [`Snapshot::seq`].\n    ///\n    /// # Errors\n    /// Returns [`SnapshotError::Io`] if `dir` cannot be created or written.\n    ///\n    /// # Examples\n    /// ```\n    /// # let tmp = tempfile::tempdir()?;\n    /// let db = skiffdb::Db::open(tmp.path().join(\"db\"))?;\n    /// db.put(b\"k\", b\"v\")?;\n    /// let snap = skiffdb::Snapshot::create(&db, tmp.path().join(\"snap\"))?;\n    /// assert!(snap.seq() >= 1);\n    /// # Ok::<(), Box<dyn std::error::Error>>(())\n    /// ```\n    pub fn create(db: &Db, dir: impl AsRef<Path>) -> Result<Snapshot, SnapshotError> {"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/skiffdb/src/snapshot.rs",
+    "old_string": "    pub fn restore(&self, target: impl AsRef<Path>) -> Result<Db, SnapshotError> {",
+    "new_string": "    /// Restores this snapshot into a new database at `target` and opens it.\n    ///\n    /// # Errors\n    /// Returns [`SnapshotError::TargetExists`] if `target` already exists;\n    /// restore never overwrites data.\n    ///\n    /// # Examples\n    /// ```\n    /// # let tmp = tempfile::tempdir()?;\n    /// # let db = skiffdb::Db::open(tmp.path().join(\"db\"))?;\n    /// # db.put(b\"k\", b\"v\")?;\n    /// # let snap = skiffdb::Snapshot::create(&db, tmp.path().join(\"snap\"))?;\n    /// let restored = snap.restore(tmp.path().join(\"restored\"))?;\n    /// assert_eq!(restored.get(b\"k\")?.as_deref(), Some(&b\"v\"[..]));\n    /// # Ok::<(), Box<dyn std::error::Error>>(())\n    /// ```\n    pub fn restore(&self, target: impl AsRef<Path>) -> Result<Db, SnapshotError> {"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cargo test --doc snapshot"
+   },
+   "r": "   Doc-tests skiffdb\nerror[E0433]: failed to resolve: use of undeclared crate or module `tempfile`\n --> src/snapshot.rs:31:11\ntest result: FAILED. 0 passed; 2 failed",
+   "err": true
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -n tempfile Cargo.toml || echo 'not present'"
+   },
+   "r": "not present"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/skiffdb/Cargo.toml",
+    "old_string": "[dev-dependencies]\n",
+    "new_string": "[dev-dependencies]\ntempfile = \"3\"\n"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cargo test --doc snapshot && cargo doc --no-deps 2>&1 | tail -1"
+   },
+   "r": "   Doc-tests skiffdb\ntest src/snapshot.rs - snapshot::Snapshot::create (line 24) ... ok\ntest src/snapshot.rs - snapshot::Snapshot::restore (line 48) ... ok\n\ntest result: ok. 2 passed; 0 failed\n    Finished `dev` profile; Generated target/doc/skiffdb/index.html"
+  },
+  {
+   "a": "Added rustdoc with Errors and Examples sections to `Snapshot::create` and `Snapshot::restore`. The examples needed `tempfile` as a dev-dependency; both doctests now pass and `cargo doc` builds."
+  }
+ ],
+ "reference": {
+  "task_type": "docs",
+  "summary": "Added rustdoc comments with Errors and Examples sections to the snapshot create and restore functions of a Rust embedded database crate, with the examples written as compiling doctests. The doctests first failed because the tempfile crate was missing; after adding it as a dev dependency, both doctests pass and cargo doc builds.",
+  "facts": [
+   "Documented Snapshot::create and Snapshot::restore",
+   "Examples written as doctests with hidden setup lines",
+   "Documented SnapshotError::TargetExists and SnapshotError::Io",
+   "First doctest run failed: undeclared crate tempfile",
+   "Added tempfile as a dev-dependency; 2 doctests pass"
+  ],
+  "specific": [
+   "rustdoc API documentation with doctests"
+  ],
+  "decisions": [],
+  "skills": [
+   "Rust",
+   "rustdoc",
+   "technical writing"
+  ],
+  "not_skills": [
+   "changing snapshot logic",
+   "benchmarking",
+   "unsafe code",
+   "CI configuration"
+  ]
+ }
+}

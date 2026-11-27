@@ -1,0 +1,85 @@
+{
+ "id": "migration-2",
+ "type": "migration",
+ "cwd": "/home/dev/src/pantrypal",
+ "steps": [
+  {
+   "u": "Rename pantry_items.qty to quantity: Alembic migration plus the SQLAlchemy model and any code using it."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "\\bqty\\b",
+    "path": "pantrypal"
+   },
+   "r": "pantrypal/models.py:34:    qty: Mapped[int] = mapped_column(Integer, nullable=False, default=1)\npantrypal/api/items.py:58:        item.qty = body.qty\npantrypal/api/schemas.py:21:    qty: int = Field(ge=0)\npantrypal/services/shopping.py:17:    return [i for i in items if i.qty < i.min_qty]"
+  },
+  {
+   "a": "`min_qty` is a different column; I'll leave it. The API schema field `qty` is a public contract, so I'll leave `schemas.py` alone and only rename the column and internal code."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "alembic revision -m 'rename pantry_items qty to quantity'"
+   },
+   "r": "Generating /home/dev/src/pantrypal/migrations/versions/7d2e91ab44c0_rename_pantry_items_qty_to_quantity.py ...  done"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/pantrypal/migrations/versions/7d2e91ab44c0_rename_pantry_items_qty_to_quantity.py",
+    "old_string": "def upgrade() -> None:\n    pass\n\n\ndef downgrade() -> None:\n    pass",
+    "new_string": "def upgrade() -> None:\n    op.alter_column('pantry_items', 'qty', new_column_name='quantity')\n\n\ndef downgrade() -> None:\n    op.alter_column('pantry_items', 'quantity', new_column_name='qty')"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "sed -i 's/    qty: Mapped/    quantity: Mapped/' pantrypal/models.py && sed -i 's/item.qty = body.qty/item.quantity = body.qty/' pantrypal/api/items.py && sed -i 's/i.qty < i.min_qty/i.quantity < i.min_qty/' pantrypal/services/shopping.py && git diff --stat"
+   },
+   "r": " pantrypal/api/items.py          | 2 +-\n pantrypal/models.py             | 2 +-\n pantrypal/services/shopping.py  | 2 +-\n 3 files changed, 3 insertions(+), 3 deletions(-)"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "alembic upgrade head && alembic downgrade -1 && alembic upgrade head && pytest -q"
+   },
+   "r": "INFO  [alembic.runtime.migration] Running upgrade 51c0f3e2d9aa -> 7d2e91ab44c0, rename pantry_items qty to quantity\nINFO  [alembic.runtime.migration] Running downgrade 7d2e91ab44c0 -> 51c0f3e2d9aa\nINFO  [alembic.runtime.migration] Running upgrade 51c0f3e2d9aa -> 7d2e91ab44c0\n........................................                     [100%]\n40 passed in 6.12s"
+  },
+  {
+   "a": "Renamed the column with an Alembic `alter_column` migration (upgrade and downgrade both tested), updated the model, the items endpoint and the shopping service. The API field stays `qty`, so clients are unaffected. 40 tests pass."
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Renamed the quantity column of the pantry items table in a Python SQLAlchemy app with a reversible Alembic migration, updating the ORM model and internal code while keeping the public API field name unchanged. Upgrade, downgrade and upgrade again all worked and the 40 tests pass.",
+  "facts": [
+   "Alembic revision 7d2e91ab44c0 uses op.alter_column with new_column_name",
+   "Downgrade reverses the rename",
+   "Updated models.py, api/items.py and services/shopping.py",
+   "min_qty column and API schema field qty left unchanged",
+   "alembic upgrade/downgrade/upgrade succeeded; pytest 40 passed"
+  ],
+  "specific": [
+   "reversible column-rename migration with Alembic"
+  ],
+  "decisions": [
+   {
+    "choice": "keep the old API field name",
+    "reason": "it is a public contract and clients should be unaffected"
+   }
+  ],
+  "skills": [
+   "Alembic",
+   "SQLAlchemy",
+   "Python"
+  ],
+  "not_skills": [
+   "data backfill",
+   "API versioning",
+   "PostgreSQL performance tuning",
+   "frontend changes"
+  ]
+ }
+}

@@ -1,0 +1,89 @@
+{
+ "id": "feature-3",
+ "type": "feature",
+ "cwd": "/home/dev/src/stallwise",
+ "steps": [
+  {
+   "u": "Add a light/dark theme toggle to the header. Remember the choice, and default to the OS preference."
+  },
+  {
+   "t": "Glob",
+   "i": {
+    "pattern": "src/**/{Header,App}.tsx"
+   },
+   "r": "src/App.tsx\nsrc/components/Header.tsx"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/stallwise/src/theme/ThemeContext.tsx",
+    "content": "import { createContext, useContext, useEffect, useState, ReactNode } from 'react';\n\ntype Theme = 'light' | 'dark';\nconst ThemeCtx = createContext<{ theme: Theme; toggle: () => void } | null>(null);\n\nfunction initial(): Theme {\n  try {\n    const saved = localStorage.getItem('stallwise.theme');\n    if (saved === 'light' || saved === 'dark') return saved;\n  } catch {}\n  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';\n}\n\nexport function ThemeProvider({ children }: { children: ReactNode }) {\n  const [theme, setTheme] = useState<Theme>(initial);\n  useEffect(() => {\n    document.documentElement.dataset.theme = theme;\n    try { localStorage.setItem('stallwise.theme', theme); } catch {}\n  }, [theme]);\n  const toggle = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'));\n  return <ThemeCtx.Provider value={{ theme, toggle }}>{children}</ThemeCtx.Provider>;\n}\n\nexport function useTheme() {\n  const v = useContext(ThemeCtx);\n  if (!v) throw new Error('useTheme must be used inside ThemeProvider');\n  return v;\n}\n"
+   },
+   "r": "File created successfully at: /home/dev/src/stallwise/src/theme/ThemeContext.tsx"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/stallwise/src/components/Header.tsx",
+    "old_string": "      <UserMenu />",
+    "new_string": "      <button className=\"icon-btn\" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={toggle}>\n        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}\n      </button>\n      <UserMenu />"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/stallwise/src/App.tsx",
+    "old_string": "    <Router>",
+    "new_string": "    <ThemeProvider>\n    <Router>"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/stallwise/src/theme/ThemeContext.test.tsx",
+    "content": "describe('ThemeProvider', () => {\n  it('defaults to OS preference and persists toggle', async () => {\n    mockMatchMedia(true);\n    render(<ThemeProvider><Header /></ThemeProvider>);\n    expect(document.documentElement.dataset.theme).toBe('dark');\n    await userEvent.click(screen.getByRole('button', { name: /switch to light/i }));\n    expect(localStorage.getItem('stallwise.theme')).toBe('light');\n  });\n});\n"
+   },
+   "r": "File created successfully at: /home/dev/src/stallwise/src/theme/ThemeContext.test.tsx"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx vitest run && npx tsc --noEmit"
+   },
+   "r": " \u2713 src/theme/ThemeContext.test.tsx (1 test) 63ms\n \u2713 src/components/Header.test.tsx (3 tests) 88ms\n \u2713 src/pages/Stalls.test.tsx (6 tests) 210ms\n\n Test Files  3 passed (3)\n      Tests  10 passed (10)"
+  },
+  {
+   "a": "Added a ThemeProvider (useState + useEffect + useContext) that defaults to `prefers-color-scheme`, persists to localStorage (guarded with try/catch) and sets `data-theme` on <html>; the header button toggles it. Tests pass (10/10) and tsc is clean."
+  }
+ ],
+ "reference": {
+  "task_type": "feature",
+  "summary": "Added a light and dark theme toggle to a React TypeScript app: a theme context and hook that default to the OS colour scheme preference, remember the choice in local storage and set a theme attribute on the root element, plus a header toggle button and a test. All 10 Vitest tests pass and type checking is clean.",
+  "facts": [
+   "New ThemeContext.tsx with ThemeProvider and useTheme hook",
+   "Initial theme from localStorage, falling back to matchMedia prefers-color-scheme",
+   "Sets document.documentElement.dataset.theme and persists to localStorage",
+   "Toggle button with aria-label added to Header",
+   "vitest: 10 passed; tsc --noEmit clean"
+  ],
+  "specific": [
+   "React context-based theming with persisted preference"
+  ],
+  "decisions": [],
+  "skills": [
+   "React hooks",
+   "React context",
+   "TypeScript",
+   "Vitest",
+   "Testing Library"
+  ],
+  "not_skills": [
+   "CSS-in-JS library setup",
+   "Redux",
+   "server-side rendering",
+   "accessibility audit"
+  ]
+ }
+}

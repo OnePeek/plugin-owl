@@ -1,0 +1,93 @@
+{
+ "id": "infra-1",
+ "type": "infra",
+ "cwd": "/work/platform-infra",
+ "steps": [
+  {
+   "u": "Our Terraform plan for the staging VPC wants to recreate the NAT gateway every time. Make it stop."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "terraform plan -target=aws_nat_gateway.main 2>&1 | grep -B2 -A8 'forces replacement'"
+   },
+   "r": "  # aws_nat_gateway.main must be replaced\n  ~ allocation_id = \"eipalloc-0a1b\" -> (known after apply) # forces replacement"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/platform-infra/staging/network.tf",
+    "offset": 30,
+    "limit": 20
+   },
+   "r": "resource \"aws_eip\" \"nat\" {\n  domain = \"vpc\"\n  lifecycle { create_before_destroy = true }\n}\nresource \"aws_nat_gateway\" \"main\" {\n  allocation_id = aws_eip.nat.id"
+  },
+  {
+   "a": "The elastic IP is being replaced each plan, so the gateway that depends on it is replaced too. Check why the EIP changes."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "terraform plan -target=aws_eip.nat 2>&1 | grep -A6 'aws_eip.nat'"
+   },
+   "r": "  # aws_eip.nat will be updated in-place... tags_all changes (default_tags provider block)"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "git log -3 --format=%s -- staging/providers.tf"
+   },
+   "r": "add default_tags to providers\nbump aws provider to 5.70"
+  },
+  {
+   "a": "The recent provider bump changed how tags_all is computed. That alone should be in-place, not a replacement; the forced replacement comes from allocation_id being 'known after apply' because the EIP resource is flagged as changing. I'll ignore the tag drift on the EIP."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/platform-infra/staging/network.tf",
+    "old_string": "lifecycle { create_before_destroy = true }",
+    "new_string": "lifecycle {\n    create_before_destroy = true\n    ignore_changes        = [tags_all]\n  }"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "terraform plan 2>&1 | tail -3"
+   },
+   "r": "No changes. Your infrastructure matches the configuration."
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Stopped Terraform from recreating the staging NAT gateway on every plan. The elastic IP showed perpetual tag drift after a provider bump, which marked the gateway's allocation id as changing; ignoring tags_all on the EIP made the plan clean (no changes). Applied to staging config only.",
+  "facts": [
+   "plan replaced the NAT gateway every time",
+   "elastic IP showed tags_all changes after the provider bump",
+   "added ignore_changes for tags_all on the EIP",
+   "plan now reports no changes",
+   "staging only"
+  ],
+  "specific": [
+   "Terraform lifecycle ignore_changes",
+   "provider default_tags drift"
+  ],
+  "decisions": [
+   {
+    "choice": "ignore tags_all on the elastic IP instead of removing default_tags",
+    "reason": "the default tags are wanted everywhere else, and only this resource's drift forced the replacement"
+   }
+  ],
+  "skills": [
+   "Terraform",
+   "AWS",
+   "VPC networking"
+  ],
+  "not_skills": [
+   "Kubernetes",
+   "Ansible",
+   "Docker"
+  ]
+ }
+}

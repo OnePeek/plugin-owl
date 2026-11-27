@@ -1,0 +1,61 @@
+{
+ "id": "tests-3",
+ "type": "tests",
+ "cwd": "/work/ledger-core",
+ "steps": [
+  {
+   "u": "Add property-based tests for our money splitting function: splitting an amount among n people must always sum back to the amount. Use hypothesis."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/ledger-core/ledger/split.py"
+   },
+   "r": "def split(cents: int, n: int) -> list[int]:\n    base, extra = divmod(cents, n)\n    return [base + (1 if i < extra else 0) for i in range(n)]"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/ledger-core/tests/test_split_props.py",
+    "content": "@given(st.integers(min_value=0, max_value=10**9), st.integers(min_value=1, max_value=50))\ndef test_sums_back(cents, n):\n    parts = split(cents, n)\n    assert sum(parts) == cents and len(parts) == n and max(parts) - min(parts) <= 1"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest tests/test_split_props.py -q"
+   },
+   "r": "1 passed in 1.8s"
+  },
+  {
+   "a": "The property holds across 100 generated cases: sum preserved, n parts, and no part differs from another by more than one cent. I did not test n = 0, which raises ZeroDivisionError; the function doesn't define that case."
+  }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Added a hypothesis property test for the money splitting function checking that parts always sum to the amount, there are n of them and they differ by at most one cent; it passes. The zero-people case was not tested because the function leaves it undefined.",
+  "facts": [
+   "property test with hypothesis",
+   "sum preserved",
+   "n parts",
+   "parts differ by at most one cent",
+   "n of zero not tested"
+  ],
+  "specific": [
+   "property-based testing",
+   "invariants of money splitting"
+  ],
+  "decisions": [],
+  "skills": [
+   "Python",
+   "hypothesis",
+   "pytest"
+  ],
+  "not_skills": [
+   "Django",
+   "SQL",
+   "mutation testing"
+  ]
+ }
+}

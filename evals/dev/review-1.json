@@ -1,0 +1,74 @@
+{
+ "id": "review-1",
+ "type": "review",
+ "cwd": "/work/accounts-api",
+ "steps": [
+  {
+   "u": "Review this pull request that adds password reset by email. Focus on security."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "git diff origin/main --stat"
+   },
+   "r": "src/reset/request.ts | 44 ++\nsrc/reset/confirm.ts | 61 ++\nmigrations/..sql | 8 +"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/accounts-api/src/reset/request.ts"
+   },
+   "r": "const token = Math.random().toString(36).slice(2); await db.reset.insert({email, token}); await mail.send(email, link(token)); return res.status(user ? 200 : 404)"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/accounts-api/src/reset/confirm.ts"
+   },
+   "r": "const r = await db.reset.find({token}); if (!r) return 400; await users.setPassword(r.email, pw); // token not deleted, no expiry"
+  },
+  {
+   "a": "Findings: tokens come from Math.random, which is predictable, and are stored in plain text; they never expire and are not invalidated after use; the 404 for unknown emails lets an attacker enumerate accounts."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/accounts-api/REVIEW.md",
+    "content": "Blocking: use crypto random tokens, store only a hash, expire after 30 minutes, single use, always return 200.\nNon-blocking: rate limit the request endpoint; log without the token.\n"
+   },
+   "r": "created"
+  }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed a password reset pull request and found predictable Math.random tokens stored in plain text, no expiry or single use, and a 404 response that enables account enumeration; wrote up blocking and non-blocking comments.",
+  "facts": [
+   "reviewed password reset by email",
+   "tokens from a predictable random source stored in plain text",
+   "no expiry and not invalidated after use",
+   "different response for unknown emails allows enumeration",
+   "review notes written"
+  ],
+  "specific": [
+   "account enumeration",
+   "predictable reset tokens",
+   "single use expiring tokens"
+  ],
+  "decisions": [
+   {
+    "choice": "mark token generation, storage, expiry and the 404 response as blocking",
+    "reason": "each lets an attacker take over or discover accounts"
+   }
+  ],
+  "skills": [
+   "security review",
+   "authentication",
+   "TypeScript"
+  ],
+  "not_skills": [
+   "Docker",
+   "Kubernetes",
+   "React"
+  ]
+ }
+}

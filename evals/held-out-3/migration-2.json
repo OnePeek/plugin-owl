@@ -1,0 +1,89 @@
+{
+ "id": "migration-2",
+ "type": "migration",
+ "cwd": "/work/orders-service",
+ "steps": [
+  {
+   "u": "We need to rename the column orders.cust_ref to customer_reference in Postgres without downtime. App is Django, deploys are rolling."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "cust_ref",
+    "path": "/work/orders-service"
+   },
+   "r": "orders/models.py:22: cust_ref = models.CharField(max_length=40, null=True)\norders/exports.py:48: o.cust_ref\nreports/sql/open_orders.sql:5: cust_ref"
+  },
+  {
+   "a": "With a rolling deploy, old and new app versions run side by side, so a plain RENAME COLUMN would break whichever side is older. I'll do it in steps: add the new column, dual-write, backfill, switch reads, then drop the old column in a later release."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/orders-service/orders/migrations/0031_add_customer_reference.py",
+    "content": "operations = [migrations.AddField('order', 'customer_reference', models.CharField(max_length=40, null=True))]"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/orders-service/orders/models.py",
+    "old_string": "    cust_ref = models.CharField(max_length=40, null=True)",
+    "new_string": "    cust_ref = models.CharField(max_length=40, null=True)\n    customer_reference = models.CharField(max_length=40, null=True)\n\n    def save(self, *a, **kw):\n        self.customer_reference = self.customer_reference or self.cust_ref\n        self.cust_ref = self.cust_ref or self.customer_reference\n        super().save(*a, **kw)"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/orders-service/orders/migrations/0032_backfill_customer_reference.py",
+    "content": "def forwards(apps, se):\n    Order = apps.get_model('orders','Order')\n    while Order.objects.filter(customer_reference__isnull=True, cust_ref__isnull=False).exists():\n        ids = list(Order.objects.filter(customer_reference__isnull=True, cust_ref__isnull=False).values_list('pk', flat=True)[:5000])\n        Order.objects.filter(pk__in=ids).update(customer_reference=F('cust_ref'))"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python manage.py test orders.tests.test_migrations"
+   },
+   "r": "Ran 4 tests OK"
+  },
+  {
+   "a": "Release 1 is ready: new column, dual write in save(), and a backfill in batches of 5000 to avoid a long lock. Release 2 should switch the reads in exports.py and open_orders.sql, and release 3 drop cust_ref. I have not touched those yet."
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Prepared the first release of a zero-downtime rename of orders.cust_ref to customer_reference: a new nullable column, dual-writing in the Django model's save, and a backfill migration in batches of 5000. Migration tests pass; switching reads (exports and a report query) and dropping the old column are left for later releases.",
+  "facts": [
+   "expand and contract approach instead of RENAME COLUMN",
+   "new column added by migration",
+   "save writes both columns",
+   "backfill in batches of 5000",
+   "migration tests pass",
+   "reads and drop of old column not done"
+  ],
+  "specific": [
+   "expand and contract column rename",
+   "zero-downtime schema migration"
+  ],
+  "decisions": [
+   {
+    "choice": "add a new column with dual writes and a batched backfill instead of a direct rename",
+    "reason": "old and new app versions run together during a rolling deploy, so a rename would break one of them"
+   }
+  ],
+  "skills": [
+   "Django",
+   "PostgreSQL",
+   "schema migrations",
+   "Python"
+  ],
+  "not_skills": [
+   "Kubernetes",
+   "Rails",
+   "MongoDB"
+  ]
+ }
+}

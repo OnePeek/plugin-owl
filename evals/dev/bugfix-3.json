@@ -1,0 +1,87 @@
+{
+ "id": "bugfix-3",
+ "type": "bugfix",
+ "cwd": "/work/mobile-app",
+ "steps": [
+  {
+   "u": "The Android app crashes on the settings screen when the user rotates the phone. Stack trace says NullPointerException in SettingsFragment."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/mobile-app/app/src/main/java/ui/SettingsFragment.kt"
+   },
+   "r": "class SettingsFragment: Fragment(){ var adapter: SettingsAdapter? = null\n override fun onCreateView(...){ adapter = SettingsAdapter(viewModel.items) ... }\n fun refresh(){ adapter!!.notifyDataSetChanged() } }"
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "refresh\\("
+   },
+   "r": "viewModel.kt:44: callback = { fragment.refresh() }"
+  },
+  {
+   "a": "The ViewModel keeps a callback to the old fragment instance. After rotation the fragment is recreated, but the callback still calls refresh on the destroyed one, whose adapter is null. It is a lifecycle leak, not a simple null check problem."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/mobile-app/app/src/main/java/ui/viewModel.kt",
+    "old_string": "callback = { fragment.refresh() }",
+    "new_string": "val items = MutableLiveData<List<Item>>()"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/mobile-app/app/src/main/java/ui/SettingsFragment.kt",
+    "old_string": "fun refresh(){ adapter!!.notifyDataSetChanged() }",
+    "new_string": "override fun onViewCreated(v: View, s: Bundle?){ viewModel.items.observe(viewLifecycleOwner){ adapter?.submit(it) } }"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew testDebugUnitTest"
+   },
+   "r": "BUILD SUCCESSFUL"
+  },
+  {
+   "a": "The settings screen now observes LiveData with the view lifecycle, so rotation recreates the observer and no stale fragment is referenced."
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed an Android crash on rotating the settings screen: the view model held a callback to a destroyed fragment; replaced it with lifecycle-aware LiveData observation.",
+  "facts": [
+   "crash on rotation",
+   "NullPointerException in the settings fragment",
+   "view model kept a callback to the destroyed fragment",
+   "replaced by LiveData observed with the view lifecycle",
+   "unit tests pass"
+  ],
+  "specific": [
+   "lifecycle leak after configuration change",
+   "LiveData observation"
+  ],
+  "decisions": [
+   {
+    "choice": "observe LiveData with the view lifecycle instead of adding a null check",
+    "reason": "the callback referenced a destroyed fragment so a null check would hide the leak"
+   }
+  ],
+  "skills": [
+   "Kotlin",
+   "Android",
+   "LiveData",
+   "Gradle"
+  ],
+  "not_skills": [
+   "Redis",
+   "React",
+   "PostgreSQL"
+  ]
+ }
+}

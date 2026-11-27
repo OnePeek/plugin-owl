@@ -1,0 +1,82 @@
+{
+ "id": "infra-2",
+ "type": "infra",
+ "cwd": "/home/dev/src/corvid-platform",
+ "steps": [
+  {
+   "u": "The access-logs bucket keeps everything forever. Per the retention policy (https://confluence.corvid.internal/x/LOGRET2) we need: versioning on, move to Glacier after 30 days, delete after 400. Update the Terraform."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/corvid-platform/terraform/modules/logging/s3.tf"
+   },
+   "r": "resource \"aws_s3_bucket\" \"access_logs\" {\n  bucket = \"${var.env}-corvid-access-logs\"\n  tags   = local.tags\n}\n\nresource \"aws_s3_bucket_public_access_block\" \"access_logs\" {\n  bucket                  = aws_s3_bucket.access_logs.id\n  block_public_acls       = true\n  restrict_public_buckets = true\n}"
+  },
+  {
+   "a": "Using the separate `aws_s3_bucket_versioning` and `aws_s3_bucket_lifecycle_configuration` resources (AWS provider v4+ style). With versioning on, expiring current objects only adds delete markers, so I'll also expire noncurrent versions, or storage would keep growing."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/corvid-platform/terraform/modules/logging/s3.tf",
+    "old_string": "resource \"aws_s3_bucket_public_access_block\" \"access_logs\" {",
+    "new_string": "resource \"aws_s3_bucket_versioning\" \"access_logs\" {\n  bucket = aws_s3_bucket.access_logs.id\n  versioning_configuration {\n    status = \"Enabled\"\n  }\n}\n\nresource \"aws_s3_bucket_lifecycle_configuration\" \"access_logs\" {\n  bucket     = aws_s3_bucket.access_logs.id\n  depends_on = [aws_s3_bucket_versioning.access_logs]\n\n  rule {\n    id     = \"retention\"\n    status = \"Enabled\"\n    filter {}\n\n    transition {\n      days          = 30\n      storage_class = \"GLACIER\"\n    }\n    expiration {\n      days = 400\n    }\n    noncurrent_version_expiration {\n      noncurrent_days = 30\n    }\n  }\n}\n\nresource \"aws_s3_bucket_public_access_block\" \"access_logs\" {"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cd terraform/envs/staging && terraform fmt -check -recursive ../../ && terraform validate"
+   },
+   "r": "Success! The configuration is valid."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cd terraform/envs/staging && terraform plan -no-color | tail -12"
+   },
+   "r": "  # module.logging.aws_s3_bucket_lifecycle_configuration.access_logs will be created\n  + resource \"aws_s3_bucket_lifecycle_configuration\" \"access_logs\" {\n      + bucket = \"staging-corvid-access-logs\"\n      ...\n    }\n\n  # module.logging.aws_s3_bucket_versioning.access_logs will be created\n  + resource \"aws_s3_bucket_versioning\" \"access_logs\" {\n      + bucket = \"staging-corvid-access-logs\"\n    }\n\nPlan: 2 to add, 0 to change, 0 to destroy."
+  },
+  {
+   "a": "Added versioning and a lifecycle rule (Glacier at 30 days, expire at 400, noncurrent versions expire after 30) to the logging module. fmt and validate pass; the staging plan is 2 to add, 0 to change, 0 to destroy. I haven't applied anything."
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Added S3 versioning and a lifecycle retention rule to the access logs bucket in a Terraform logging module: move to Glacier at 30 days, expire at 400 days, and expire noncurrent versions. Terraform fmt and validate pass and the staging plan shows 2 resources to add and nothing destroyed; nothing was applied.",
+  "facts": [
+   "Added aws_s3_bucket_versioning with status Enabled",
+   "Added aws_s3_bucket_lifecycle_configuration: GLACIER at 30 days, expiration at 400 days",
+   "Added noncurrent_version_expiration after 30 days",
+   "terraform validate succeeded",
+   "Staging plan: 2 to add, 0 to change, 0 to destroy; not applied"
+  ],
+  "specific": [
+   "S3 lifecycle and retention policy in Terraform",
+   "noncurrent version expiration with versioning"
+  ],
+  "decisions": [
+   {
+    "choice": "also expire noncurrent versions",
+    "reason": "with versioning on, expiring current objects only adds delete markers and storage would keep growing"
+   },
+   {
+    "choice": "use the separate versioning and lifecycle resources",
+    "reason": "that is the style of version 4 and later of the AWS provider"
+   }
+  ],
+  "skills": [
+   "Terraform",
+   "AWS S3",
+   "infrastructure planning"
+  ],
+  "not_skills": [
+   "terraform apply / deployment",
+   "IAM policy design",
+   "Kubernetes",
+   "cost analysis"
+  ]
+ }
+}

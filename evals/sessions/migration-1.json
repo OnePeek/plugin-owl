@@ -1,0 +1,87 @@
+{
+ "id": "migration-1",
+ "type": "migration",
+ "cwd": "/home/dev/src/dockyard",
+ "steps": [
+  {
+   "u": "users.locale is nullable and about 3% of rows are NULL, which crashes the mailer. Make the column NOT NULL with default 'en', backfilling existing NULLs."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -rn 'def display_locale' app/ && sed -n '/def display_locale/,/end/p' app/models/user.rb"
+   },
+   "r": "app/models/user.rb:48:  def display_locale\n  def display_locale\n    LOCALE_NAMES.fetch(locale.to_sym)\n  end"
+  },
+  {
+   "a": "`locale.to_sym` raises NoMethodError on nil, which is the mailer crash. I'll do the schema change in two steps for a big table: add the default and backfill in batches, then add the NOT NULL constraint as a CHECK ... NOT VALID and validate it separately, so Postgres doesn't hold an ACCESS EXCLUSIVE lock during the full scan. I'll also make `display_locale` fall back to 'en' for safety."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/dockyard/db/migrate/20261126101500_make_users_locale_not_null.rb",
+    "content": "class MakeUsersLocaleNotNull < ActiveRecord::Migration[7.1]\n  disable_ddl_transaction!\n\n  def up\n    change_column_default :users, :locale, from: nil, to: 'en'\n    User.unscoped.where(locale: nil).in_batches(of: 5_000) { |b| b.update_all(locale: 'en') }\n    add_check_constraint :users, 'locale IS NOT NULL', name: 'users_locale_null', validate: false\n    validate_check_constraint :users, name: 'users_locale_null'\n    change_column_null :users, :locale, false\n    remove_check_constraint :users, name: 'users_locale_null'\n  end\n\n  def down\n    change_column_null :users, :locale, true\n    change_column_default :users, :locale, from: 'en', to: nil\n  end\nend\n"
+   },
+   "r": "File created successfully at: /home/dev/src/dockyard/db/migrate/20261126101500_make_users_locale_not_null.rb"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/dockyard/app/models/user.rb",
+    "old_string": "    LOCALE_NAMES.fetch(locale.to_sym)",
+    "new_string": "    LOCALE_NAMES.fetch(locale&.to_sym, LOCALE_NAMES[:en])"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bin/rails db:migrate && bin/rails db:rollback && bin/rails db:migrate 2>&1 | tail -4"
+   },
+   "r": "== 20261126101500 MakeUsersLocaleNotNull: migrating ===========================\n-- change_column_default(:users, :locale, {:from=>nil, :to=>\"en\"})\n-- add_check_constraint(:users, \"locale IS NOT NULL\", {:name=>\"users_locale_null\", :validate=>false})\n== 20261126101500 MakeUsersLocaleNotNull: migrated (0.4127s) ==================="
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bundle exec rspec spec/models/user_spec.rb spec/mailers"
+   },
+   "r": "...................\n\nFinished in 2.31 seconds\n19 examples, 0 failures"
+  },
+  {
+   "a": "Migration adds default 'en', backfills NULLs in batches of 5,000, and enforces NOT NULL via a validated check constraint first to keep locking short; it migrates, rolls back and re-migrates cleanly. `User#display_locale` now also falls back to English. Model and mailer specs pass."
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Wrote a Rails Postgres migration that makes the user locale column NOT NULL with a default of English: a batched backfill of missing values, then a check constraint added as not valid and validated separately before setting NOT NULL, to avoid a long exclusive lock. Also fixed the mailer crash by making the display locale helper nil-safe. Migrate, rollback and migrate worked, and model and mailer specs pass.",
+  "facts": [
+   "About 3% of users had NULL locale, crashing the mailer via locale.to_sym",
+   "Migration sets default 'en' and backfills in batches of 5,000 with disable_ddl_transaction!",
+   "NOT NULL enforced via check constraint added NOT VALID, validated, then change_column_null",
+   "User#display_locale made nil-safe with fallback to :en",
+   "Migration ran up, down and up cleanly; 19 examples, 0 failures"
+  ],
+  "specific": [
+   "zero-downtime NOT NULL migration with NOT VALID check constraint",
+   "batched backfill in a migration"
+  ],
+  "decisions": [
+   {
+    "choice": "add a not-valid check constraint and validate it separately before setting NOT NULL",
+    "reason": "it avoids holding an exclusive lock during a full table scan on a big table"
+   }
+  ],
+  "skills": [
+   "Rails migrations",
+   "PostgreSQL locking",
+   "Ruby",
+   "RSpec"
+  ],
+  "not_skills": [
+   "writing a separate data pipeline",
+   "mailer template changes",
+   "performance profiling",
+   "i18n translation work"
+  ]
+ }
+}

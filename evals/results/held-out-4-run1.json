@@ -1,0 +1,815 @@
+{
+ "run": {
+  "date": "2026-11-26T13:49:36.372Z",
+  "set": "held-out-4 (evals/held-out-4, used for prompt work)",
+  "set_sha256": "62cb72823b1bba916ff05c3ba7eed12a93fb7e1455c2d03151d29406de8cf170",
+  "prompt_sha256": "754ef3aea4b94b309b0bce06154d5d733c21ab32e33d9d0fe7886dc9f3651651",
+  "judge_sha256": "0b21a4d39d87054a28ec1b7b96ebd3254f613904281263e6b4e1d9d20245ec03",
+  "claude_cli": "2.1.332 (Claude Code)",
+  "summariser_model": "claude-sonnet-5-5",
+  "summariser_model_ids": [
+   "claude-sonnet-5-5"
+  ],
+  "judge_model": "opus",
+  "judge_model_ids": [
+   "claude-opus-5-5"
+  ],
+  "partial": false
+ },
+ "prompt_sha256": "754ef3aea4b94b309b0bce06154d5d733c21ab32e33d9d0fe7886dc9f3651651",
+ "model": "claude-sonnet-5-5",
+ "sessions": 30,
+ "passed": 29,
+ "leaks": 0,
+ "bar": 27,
+ "workflow_heavy": [],
+ "ok": true,
+ "verdicts": [
+  {
+   "id": "bugfix-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims match the session: only the first page was fetched, the fix follows the cursor until it is empty, the two-page test passes, and the repeating-cursor risk is left unguarded. It names the pagination and cursor-following technique precisely. The decisions list is empty, which is acceptable. Python, pytest and API pagination were all actually used."
+   ],
+   "summary": "Fixed a pagination defect where playlist sync fetched only the first page of tracks, by following the next-page cursor until it was empty. A new two-page test passed. A repeated cursor from the server was left unchecked and could cause an endless loop.",
+   "task_type": "bugfix",
+   "decisions": [],
+   "skills": [
+    "Python",
+    "API pagination",
+    "pytest"
+   ]
+  },
+  {
+   "id": "bugfix-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "All claims are supported by the session: per-entry division caused floating point accumulation, the fix sums minutes and divides once, and jest reported 4 tests passing. 'A test file was edited' paraphrases the Write to src/totals.test.js and is acceptable. The candidate omits the 7.499999 vs 7.5 detail, but omission is allowed. The problem is named precisely as a floating point accumulation error with a sum-then-divide fix. The single decision contrasts real alternatives and gives a supported reason: per-entry conversion let error build up. The listed skills were all used, and the reference's JavaScript and Jest are both included."
+   ],
+   "summary": "Fixed a floating point accumulation error in a weekly timesheet total by summing entry minutes first and dividing into hours once, instead of converting each entry before summing. A test file was edited, and the totals tests passed with four passing.",
+   "task_type": "bugfix",
+   "decisions": [
+    "Chose to sum minutes and divide once over converting each entry to hours before summing, because per-entry division let floating point error build up."
+   ],
+   "skills": [
+    "JavaScript",
+    "Jest",
+    "floating point arithmetic",
+    "unit testing"
+   ]
+  },
+  {
+   "id": "bugfix-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim in the summary is supported by the session: the customer name was escaped twice, escaping now happens once in build, the script-tag spec failed after the change, its assertion was moved to the final HTML, and the specs then passed (4 examples, 0 failures). The candidate names the problem class (double HTML escaping), so it is specific. Its one decision (moving the spec assertion to the final HTML) is a real choice, and the reason matches what the assistant said in the session. The skills are Ruby, RSpec and HTML escaping, plus Email templating, which fits work on mail-templates/render.rb. None of the reference skills are missing."
+   ],
+   "summary": "Fixed visible HTML entities in email greetings by removing double escaping of the customer name, so it is now escaped only where it enters the final HTML. A script-tag escaping spec failed after the change; its assertion was moved to the final output, and the specs then passed.",
+   "task_type": "bugfix",
+   "decisions": [
+    "Moved the escaping spec's assertion from the greeting step to the final HTML, because the greeting step was no longer where escaping happened."
+   ],
+   "skills": [
+    "Ruby",
+    "HTML escaping",
+    "RSpec",
+    "Email templating"
+   ]
+  },
+  {
+   "id": "data-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim checks out against the session: BigQuery, October, short trips excluded, total litres over total distance, three models returned, one flagged for few trips. The candidate names the distance-weighted aggregate ratio, which matches the reference's specific technique. The one decision gives the real alternative (mean of per-trip ratios) and the reason the session states (longer trips count more). The skills were all used; 'Data aggregation' and 'Weighted averaging' are reasonable descriptions of the query's actual work, not padding."
+   ],
+   "summary": "Computed October fuel use per 100 km by vehicle model in BigQuery, excluding very short trips and weighting by distance (total fuel over total distance). The query ran and returned results for three models, with one flagged as less reliable because it had far fewer trips.",
+   "task_type": "data",
+   "decisions": [
+    "Weighted consumption by distance (total litres over total distance) instead of averaging per-trip ratios, so that longer trips count more than short ones."
+   ],
+   "skills": [
+    "BigQuery",
+    "SQL",
+    "Data aggregation",
+    "Weighted averaging"
+   ]
+  },
+  {
+   "id": "data-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Claims match the session: 123 extra rows (5230 vs 5107 unique), pairs seconds apart with identical answers, loader keeps the latest submission per respondent, and 2 tests passed. Calling the tests 'existing' is a mild inference but reasonable. Naming deduplication of double-clicked submissions is specific enough. The empty decisions list is acceptable. Skills are supported by the session; pytest is missing, but Python and pandas are present."
+   ],
+   "summary": "Investigated duplicate respondent IDs suspected of inflating survey counts and found 123 extra rows, with sampled pairs seconds apart and matching answers, consistent with a double-clicked submit. Changed the loader to keep only the latest submission per respondent, and the two existing loader tests passed.",
+   "task_type": "data",
+   "decisions": [],
+   "skills": [
+    "Python",
+    "pandas",
+    "data deduplication",
+    "data quality analysis"
+   ]
+  },
+  {
+   "id": "data-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims match the session: the Snowflake queries, the split by app version, the whole decline coming from the new version while the old one held steady, the likely non-firing purchase event, and the fact that this was not confirmed in code. It names the technique (segmenting by app version) and the problem class (tracking regression, 'event not firing'). The decisions list is empty, which is allowed. The skills were all used; 'cohort segmentation' is a reasonable label for the version split."
+   ],
+   "summary": "Investigated a drop in dashboard conversion rate by querying event data in Snowflake and splitting by app version, which traced the whole decline to a newly released version while the previous one held steady. Concluded the purchase event was likely not firing in the new version rather than customers buying less, though this was not confirmed in the app code.",
+   "task_type": "data",
+   "decisions": [],
+   "skills": [
+    "Snowflake",
+    "SQL",
+    "metric root cause analysis",
+    "cohort segmentation"
+   ]
+  },
+  {
+   "id": "debugging-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Candidate matches the session: the live stack dump with py-spy, the read of meta.py, the EXIF loop that never exits at end of file on images without EXIF, and no code changed per the engineer's request. Names the infinite-loop-at-EOF problem class precisely. The empty decisions list is fine. The skills are all actually used; 'stack dump analysis' and 'infinite loop debugging' reflect real work done."
+   ],
+   "summary": "Diagnosed a resize worker that hung silently on certain uploads: a stack dump of the live process and a read of the metadata loader showed an EXIF search loop that never exits at end of file when an image has no EXIF marker. No fix was made, as the engineer asked only for the cause.",
+   "task_type": "debugging",
+   "decisions": [],
+   "skills": [
+    "Python",
+    "py-spy",
+    "stack dump analysis",
+    "infinite loop debugging"
+   ]
+  },
+  {
+   "id": "debugging-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims all match the session. It reports intermittent 502s, premature-close upstream errors in the log, nginx keepalive reusing connections, gunicorn closing idle connections after 5 seconds, the cause not being reproduced, and no config changed. It correctly frames this as a likely diagnosis rather than a fix. It names the precise problem class: a keep-alive timeout mismatch between proxy and upstream. The empty decisions list is acceptable. The skills (nginx, Gunicorn, HTTP keep-alive, log analysis) were all exercised, since keep-alive behavior was central to the diagnosis, and they cover the reference skills."
+   ],
+   "summary": "Diagnosed intermittent 502 errors from nginx as a likely keep-alive timeout mismatch: gunicorn closed idle upstream connections that nginx could still reuse. The evidence was upstream premature-close log entries and both sides keep-alive settings. The cause was not reproduced, and no configuration was changed.",
+   "task_type": "debugging",
+   "decisions": [],
+   "skills": [
+    "nginx",
+    "Gunicorn",
+    "HTTP keep-alive",
+    "log analysis"
+   ]
+  },
+  {
+   "id": "debugging-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims all match the session: du and ls showed 61 GB and 1894 files, grep found the merge code that creates a temp file per merge and never deletes it, and nothing was deleted or changed. It correctly says the directory-scan slowdown was inferred, not measured. The problem class is named precisely as merge temp files that are never deleted, which is a leaked-temp-file problem. The empty decisions list is acceptable. Disk usage analysis, leak debugging and code search were all actually used. Rust is missing, but the disk-analysis skill is present."
+   ],
+   "summary": "Traced slowing nightly indexing jobs and a filling disk to merge code that created a temporary file per merge and never deleted it, using disk usage checks, file counts and a code search. The accumulated files were also judged to slow directory scans, though scan time wasn't measured in the session. The diagnosis was reported without deleting anything or changing the code, leaving the fix open.",
+   "task_type": "debugging",
+   "decisions": [],
+   "skills": [
+    "Disk usage analysis",
+    "Resource leak debugging",
+    "Code search"
+   ]
+  },
+  {
+   "id": "docs-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim in the summary is supported by the session: the guide draws on the tool versions file, the compose database and the mix commands, the setup steps were not run from scratch, and CI was left out because the repo has no CI file. The task (a contributing guide covering dev setup and tests for an Elixir project) is named precisely enough to count as contributor onboarding documentation. The one decision, omitting CI claims for lack of a CI file, is a real choice and its reason comes straight from the session. The skills fit the work: technical writing, Elixir tooling, and Postgres via the compose database that was read and documented. Onboarding docs overlaps with technical writing but is not padding."
+   ],
+   "summary": "Wrote a contributing guide for an Elixir project, basing the setup steps on the repository's tool versions file, its compose database and its mix commands. The setup steps weren't run from scratch, and CI claims were left out because the repository had no CI configuration.",
+   "task_type": "docs",
+   "decisions": [
+    "Left CI claims out of the contributing guide rather than describing a pipeline, because the repository had no CI file to support them."
+   ],
+   "skills": [
+    "Technical writing",
+    "Elixir",
+    "PostgreSQL",
+    "Developer onboarding docs"
+   ]
+  },
+  {
+   "id": "docs-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim is supported: the station forecast endpoint got a description and example drawn from the handler, the time limit was documented, lint passed, and the other two endpoints stay placeholders because their response shape was unclear. Calling the time limit generic instead of 72 hours omits detail but is not wrong. The work is named precisely as OpenAPI documentation from handler code. The one decision, not guessing the two unclear endpoints, is a real choice with the session's stated reason. For skills, TypeScript is borderline but defensible because handler.ts was read to get the documented behaviour; OpenAPI and API documentation match the reference."
+   ],
+   "summary": "Replaced placeholder OpenAPI text for the station forecast endpoint with a description and example response matched against the handler code, including its forecast time limit, and confirmed the spec passed lint. The other two forecast endpoints remained placeholders because their response shape couldn't be determined, so the task was only partly completed.",
+   "task_type": "docs",
+   "decisions": [
+    "Left two forecast endpoints as placeholders rather than writing descriptions for them, because their response shape couldn't be determined from the code."
+   ],
+   "skills": [
+    "OpenAPI",
+    "API documentation",
+    "TypeScript"
+   ]
+  },
+  {
+   "id": "docs-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Accurate: every claim is supported by the session. The six notes were kept, ordered into a runbook, and the KCl-as-storage-solution reading was flagged. Specific: it names the task precisely, turning informal notes into an ordered runbook. Decisions: an empty list is acceptable. Skills: technical writing and runbook authoring were used. 'pH probe calibration' is borderline because no calibration was performed. It passes only because fixing the step order needed domain knowledge of the calibration sequence."
+   ],
+   "summary": "Reorganised rough notes on pH probe calibration into an ordered runbook, keeping all six notes as steps. One note about KCl was interpreted as referring to the storage solution, and the assistant flagged that this step would be wrong if the note meant something else.",
+   "task_type": "docs",
+   "decisions": [],
+   "skills": [
+    "Technical writing",
+    "Runbook authoring",
+    "pH probe calibration"
+   ]
+  },
+  {
+   "id": "feature-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim in the candidate is supported by the session: promotion inside the cancellation transaction, SKIP LOCKED for concurrent cancellations, a single waitlist test that passed, and notification emails not yet built. It names precise techniques: transactional waitlist promotion and SKIP LOCKED row locking. The decisions list is empty, which is acceptable. The skills extend the reference with schema migration, row-level locking and transaction design. All three were actually used (migration 014 was written, SKIP LOCKED was used, promotion happens inside a transaction), so this is not padding."
+   ],
+   "summary": "Added a waitlist for full classes in a Node and Postgres booking service, promoting the longest-waiting person inside the cancellation transaction and using SKIP LOCKED against concurrent cancellations picking the same person. The one waitlist test run passed; notification emails to promoted people were not yet implemented.",
+   "task_type": "feature",
+   "decisions": [],
+   "skills": [
+    "Node.js",
+    "TypeScript",
+    "PostgreSQL",
+    "schema migration",
+    "row-level locking",
+    "transaction design"
+   ]
+  },
+  {
+   "id": "feature-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim is supported by the session: three theme colours driven by one property, persistence via QML Settings, the ui_smoke test passing, and no run on the kiosk hardware. The candidate names the technique (theme switching via a single property, QML Settings persistence). The decisions list is empty, which is acceptable. The skills Qt, QML, theming and settings persistence were all used. CMake/ctest is left out, which is fine because the important skills are present."
+   ],
+   "summary": "Added a persisted high-contrast mode to a Qt and QML kiosk app, driving three theme colours from a single property and storing the setting with QML Settings. The UI smoke test passed, but the change was not run on the kiosk hardware.",
+   "task_type": "feature",
+   "decisions": [],
+   "skills": [
+    "Qt",
+    "QML",
+    "UI theming",
+    "Settings persistence"
+   ]
+  },
+  {
+   "id": "feature-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every candidate claim is supported by the session: the cursor-based streaming, batched writes keeping memory flat, the passing export test (ok, 0.41s), and the noted but unhandled truncated CSV with a 200/success status on mid-stream query failure. It names the precise technique, streaming a large result set to a flushing CSV writer. The one decision (streaming vs loading into a slice) states both the alternative and a reason the session supports (500k-row customers held in memory). Skills Go and CSV streaming were used. 'HTTP API design' is a slightly loose label but fair for adding the endpoint, and the reference's key skills are covered. The candidate leaves out the specific 1000-row batch size, which is an acceptable omission."
+   ],
+   "summary": "Added a CSV export endpoint in Go for large shipment sets, streaming rows from a cursor and writing in batches so memory use would not grow with row count. The export tests passed. A query failure after the first rows are sent still yields a truncated file with a success status, which was noted but left unhandled.",
+   "task_type": "feature",
+   "decisions": [
+    "Chose streaming rows from a cursor to a flushing CSV writer over loading everything into a slice, because very large customers would have had all rows held in memory."
+   ],
+   "skills": [
+    "Go",
+    "HTTP API design",
+    "CSV streaming"
+   ]
+  },
+  {
+   "id": "infra-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim matches the session: 1.4 GB down to about 24 MB (23.6MB measured), a multi-stage build on a distroless static base, a successful build, the --version run printing gw 2.8.1, and no shell so debugging needs an ephemeral debug container. It names the techniques precisely (multi-stage Docker build, distroless base). The empty decisions list is acceptable. The skills were all exercised. 'Go' is broader than the reference's 'Go build flags' but is still supported, since the Dockerfile builds the Go binary."
+   ],
+   "summary": "Shrank the container image of a small Go service from 1.4 GB to about 24 MB with a multi-stage Docker build on a distroless static base. The new image built successfully and passed a version check when run. The trade-off noted was that it has no shell, so debugging needs an ephemeral debug container.",
+   "task_type": "infra",
+   "decisions": [],
+   "skills": [
+    "Docker",
+    "Multi-stage builds",
+    "Distroless images",
+    "Image size optimization",
+    "Go"
+   ]
+  },
+  {
+   "id": "infra-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims all match the session. The rule archives raw/ objects to Glacier and expires them, scoped by prefix so processed/ is untouched. Validate passed, the plan added only the lifecycle configuration with no changes or destroys, and nothing was applied. It leaves out the 90/400-day numbers, which is acceptable. It names the specific technique, an S3 lifecycle policy in Terraform. The decisions list is empty, which is acceptable. The skills (Terraform, AWS S3, S3 lifecycle policies) were all actually used and match the reference."
+   ],
+   "summary": "Added a Terraform lifecycle rule for an S3 bucket that archives objects under the raw data prefix to Glacier and later expires them, scoped by prefix so processed data is unaffected. Validation passed and the plan showed only the new lifecycle configuration being added, with no changes or deletions. The change was not applied.",
+   "task_type": "infra",
+   "decisions": [],
+   "skills": [
+    "Terraform",
+    "AWS S3",
+    "S3 lifecycle policies"
+   ]
+  },
+  {
+   "id": "infra-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Accurate: the readiness probe, preStop delay and rolling update keeping old pods until replacements are ready all match the session. The candidate correctly says only a server-side dry run was done and the fix is unverified under load. It invents no numbers. Specific: it names readiness probes, the preStop delay for graceful termination and the rolling update settings. Decisions: the list is empty, which is acceptable. Skills: Kubernetes, readiness probes, graceful shutdown and rolling updates were all applied in the deployment edits. 'Zero-downtime deployment' is the goal, not a separate skill, but it is not padding. YAML is missing but Kubernetes, the key skill, is present."
+   ],
+   "summary": "Addressed brief 503s during Kubernetes deploys by adding a readiness probe, a preStop delay and a rolling update that keeps old pods until replacements are ready. Only a server-side dry run passed; no live rollout under load has confirmed that the errors are gone.",
+   "task_type": "infra",
+   "decisions": [],
+   "skills": [
+    "Kubernetes",
+    "zero-downtime deployment",
+    "readiness probes",
+    "graceful shutdown",
+    "rolling updates"
+   ]
+  },
+  {
+   "id": "migration-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim in the candidate is supported by the session: the 2to3 conversion, the UnicodeDecodeError on accented names, the explicit latin-1 encoding fix, and the successful dry run. It names the problem class precisely (Python 2 to 3 port, character encoding). The decisions list is empty, which is acceptable. All listed skills were used, and they match the reference."
+   ],
+   "summary": "Ported a member export script from Python 2 to Python 3 with an automated conversion tool, then fixed a decoding error on accented names by giving the latin-1 input file an explicit encoding. A final dry run completed the export successfully.",
+   "task_type": "migration",
+   "decisions": [],
+   "skills": [
+    "Python",
+    "Python 2 to 3 migration",
+    "2to3",
+    "Character encoding"
+   ]
+  },
+  {
+   "id": "migration-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Accurate: the candidate's claims match the session. It covers the producer-only scope, both producers routed through one publish function, the alert delay mapped to SQS message delay, tests passing with a stubbed client, and Celery workers still consuming Redis so nothing processes the messages yet. It states no wrong numbers and makes no false claim of completion. Specific: it names queue broker migration and producer abstraction behind a publish function. Decisions: the choice of a publish function over direct broker calls at each site matches the reference, and the stated reason is supported by the session. Skills: Python, AWS SQS and Celery match the reference. pytest was actually run. 'Message queue migration' is more a task description than a skill, but it is not invented padding."
+   ],
+   "summary": "Began moving a job queue from Celery with Redis to SQS, producer side only, routing both producers through one publish function and mapping the alert delay to the native SQS message delay. Queue tests passed with a stubbed client. The migration is unfinished: Celery workers still consume from Redis, so the new SQS messages won't be processed until the consumer side is written.",
+   "task_type": "migration",
+   "decisions": [
+    "Hid the queue behind a small publish function rather than having call sites use the broker directly, so callers don't know which broker is in use and the consumer side can move later."
+   ],
+   "skills": [
+    "Python",
+    "AWS SQS",
+    "Celery",
+    "message queue migration",
+    "pytest"
+   ]
+  },
+  {
+   "id": "migration-3",
+   "pass": false,
+   "criteria": {
+    "schema": false,
+    "no_leak": true,
+    "task_type": false,
+    "not_padded": false,
+    "accurate": false,
+    "specific": false,
+    "decisions": false,
+    "skills": false
+   },
+   "notes": [
+    "held: leak taint :: {\"summary\": \"Upgraded a Spring Boot application from 2.7 to 3.2, using an automated OpenRewrite recipe to move javax imports to the jakarta namespace across 143 files, then adjusted configuration for a Hibernate dialect setting the new version rejected. The build then succeeded with 212 tests completed.\", \"task_type\": \"migration\", \"decisions\": [\"Used an OpenRewrite migration recipe instead of editing imports by hand because the namespace change touched a large number of files.\"], \"skills\": [\"Java\", \"Spring Boot\", \"OpenRewrite\", \"Hibernate\", \"Gradle\", \"Framework upgrade\"]}"
+   ]
+  },
+  {
+   "id": "refactor-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Candidate's claims are all supported: discount logic moved into an included mixin module, examples passed before and after (86/86), and coupling is unchanged because it is only a file-level split. It names the technique (mixin/module extraction refactor). The decisions list is empty, which is allowed. Ruby, RSpec, refactoring and module extraction were all actually used in the session."
+   ],
+   "summary": "Split the discount logic out of an oversized Ruby order class into a separate mixin module with no intended behaviour change. The existing examples all passed both before and after the move. Coupling was left unchanged, since the module is still included into the same object and only the file was split.",
+   "task_type": "refactor",
+   "decisions": [],
+   "skills": [
+    "Ruby",
+    "RSpec",
+    "module extraction",
+    "refactoring"
+   ]
+  },
+  {
+   "id": "refactor-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims all match the session. Five parsers had duplicated line-splitting and error-position code, and a shared helper was created. Only the kv parser was migrated, the parser tests then passed, and the other four were left pending confirmation of the helper's shape. It names the technique precisely: consolidating duplicated code into a shared helper. The single decision, migrating one parser first rather than all five, has a reason the assistant stated explicitly ('stopped after one to confirm the shape'). All listed skills were exercised. 'Parsing' and 'Code deduplication' are reasonable descriptions of the work, not padding."
+   ],
+   "summary": "Began consolidating line-splitting and error-position code duplicated across five Rust parsers into a shared helper. Migrated only the key-value parser, after which the parser tests passed; the other four still carry their own copies, pending confirmation of the helper's shape.",
+   "task_type": "refactor",
+   "decisions": [
+    "Chose to migrate one parser first over changing all five at once, in order to confirm the shape of the shared helper before touching the rest."
+   ],
+   "skills": [
+    "Rust",
+    "Refactoring",
+    "Parsing",
+    "Code deduplication"
+   ]
+  },
+  {
+   "id": "refactor-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim in the candidate is supported by the session: networking moved behind a repository interface, the ViewModel now depends only on that abstraction, the unit tests passed, and caching and formatting were left for a later step. It omits the count of 27 tests, which is allowed. It names the repository pattern and dependency inversion for testability with a fake, so it is specific. The empty decisions list is acceptable. The skills Kotlin and Android were used, and the repository pattern and dependency inversion were applied in the session. Gradle was used to run the tests but is missing from the list; the core skills are still present."
+   ],
+   "summary": "Separated networking from an Android ViewModel by putting it behind a repository interface, so the ViewModel depends only on the abstraction and can be tested with a fake. The unit test run passed afterwards. Caching and formatting stayed in the ViewModel, left for a second step.",
+   "task_type": "refactor",
+   "decisions": [],
+   "skills": [
+    "Kotlin",
+    "Android",
+    "Repository pattern",
+    "Dependency inversion"
+   ]
+  },
+  {
+   "id": "review-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims hold up against the session. It reviewed without editing, found path traversal and overwrites from trusting the client file name, missing size and type checks, and a synchronous rename blocking the event loop, and suggested random names. 'Filename collision' is a fair paraphrase of the overwrite risk. Specific: it names path traversal in file upload. Decisions: the list is empty, which is acceptable. Skills: 'JavaScript' is reasonable since the diff is JS (app.post, fs.renameSync). 'File upload security' is substantive, and the reference's code review, security review and Node.js are all present."
+   ],
+   "summary": "Reviewed a pull request adding image uploads for security and robustness, without editing it. Flagged as blocking a path traversal and filename collision risk from trusting the client-supplied file name, plus missing size limits and type checks. Also flagged a synchronous rename that blocks the event loop and suggested random generated names.",
+   "task_type": "review",
+   "decisions": [],
+   "skills": [
+    "Code review",
+    "Security review",
+    "File upload security",
+    "Node.js",
+    "JavaScript"
+   ]
+  },
+  {
+   "id": "review-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The claims are supported. The diff added rounding and a stack() function. The example run showed multiplicative stacking (81.0 vs 80.0). The review flagged that the business rule was unstated, that per-step rounding can lose a cent on long stacks, and that stack() had no tests. It found nothing blocking and made no changes. The candidate names the precise problem classes: multiplicative vs additive stacking semantics, and rounding at each step. The decisions list is empty, which is fine. Git was used via git diff, so it is a valid skill, and Python and code review match the reference."
+   ],
+   "summary": "Reviewed a change to a discount calculator that added rounding and stacked discounts, and ran an example showing stacking was multiplicative rather than additive. Flagged that the intended business rule was unstated, that rounding at each step could lose a cent over long stacks, and that the new stacking logic had no tests in the diff. Nothing was judged blocking, and no changes were made.",
+   "task_type": "review",
+   "decisions": [],
+   "skills": [
+    "Python",
+    "Code review",
+    "Git"
+   ]
+  },
+  {
+   "id": "review-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's findings all match the session: it retries every error including invalid tokens, uses a fixed delay with no backoff, and drops the underlying error. It recommends retrying only 429 and 5xx with exponential backoff and jitter. The claim that only the start of the diff was read is supported by `head -60`. No edits were made, as stated. It names concrete problem classes (retry policy, backoff with jitter). The empty decisions list is acceptable. The skills listed reflect the review work done, and 'exponential backoff' is a recommended design rather than an implemented one, which is acceptable for a review session."
+   ],
+   "summary": "Reviewed retry logic for a push notification sender and found it retried every error, including permanently invalid device tokens, used a fixed delay with no backoff, and discarded the underlying error on final failure. Recommended retrying only rate-limit and server errors, with exponential backoff and jitter. Only the start of the diff was read, and no edits were made.",
+   "task_type": "review",
+   "decisions": [],
+   "skills": [
+    "code review",
+    "retry logic",
+    "exponential backoff",
+    "error handling"
+   ]
+  },
+  {
+   "id": "tests-1",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Claims match the session: unit tests for slugify in TypeScript covering accents, spaces, emoji and empty input, with Vitest reporting 5 passed. Edge-case unit testing is named, matching the reference. The empty decisions list is acceptable. Skills were all exercised; 'unit testing' and 'edge case testing' overlap but are not padding."
+   ],
+   "summary": "Wrote unit tests for a slug-generation function in TypeScript, with a request to cover accented characters, spaces, emoji and empty input. The Vitest run passed all five tests.",
+   "task_type": "tests",
+   "decisions": [],
+   "skills": [
+    "TypeScript",
+    "Vitest",
+    "unit testing",
+    "edge case testing"
+   ]
+  },
+  {
+   "id": "tests-2",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "Every claim is supported by the session: the fixed wait raced with the coupon request on slow CI runners, the test was edited to remove the timing guess, and 30 repeated runs passed. It names the problem class precisely (a flaky test caused by a fixed wait racing a network request), though not the fix technique (auto-retrying assertion). The empty decisions list is allowed. Playwright and TypeScript were genuinely used, and 'flaky test stabilisation' and 'end-to-end testing' describe the work actually done."
+   ],
+   "summary": "Stabilised a flaky end-to-end coupon test whose fixed wait raced with the coupon request on slow CI runners, by editing the test to remove the timing guess. A run repeating the test 30 times passed.",
+   "task_type": "tests",
+   "decisions": [],
+   "skills": [
+    "Playwright",
+    "TypeScript",
+    "flaky test stabilisation",
+    "end-to-end testing"
+   ]
+  },
+  {
+   "id": "tests-3",
+   "pass": true,
+   "criteria": {
+    "schema": true,
+    "no_leak": true,
+    "task_type": true,
+    "not_padded": true,
+    "accurate": true,
+    "specific": true,
+    "decisions": true,
+    "skills": true
+   },
+   "notes": [
+    "The candidate's claims all match the session: the Hypothesis property test checks that the sum is preserved, that there are n parts, and that parts differ by at most one cent. The test passed, and n=0 raises a division error and was left untested. It names property-based testing and the money-splitting invariants. The decisions list is empty, which is fine. The skills were all actually used."
+   ],
+   "summary": "Added property-based tests with Hypothesis for a money splitting function, checking that shares sum back to the original amount, match the requested count and differ by at most one cent. The test run passed. The case of splitting among zero people, which raises a division error and is undefined by the function, was left untested.",
+   "task_type": "tests",
+   "decisions": [],
+   "skills": [
+    "Python",
+    "Hypothesis",
+    "pytest",
+    "property-based testing"
+   ]
+  }
+ ]
+}

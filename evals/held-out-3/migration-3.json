@@ -1,0 +1,88 @@
+{
+ "id": "migration-3",
+ "type": "migration",
+ "cwd": "/work/billing-lib",
+ "steps": [
+  {
+   "u": "Upgrade us from Node 16 to Node 22. CI is red on the new version."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "nvm use 22 && npm ci && npm test 2>&1 | tail -15"
+   },
+   "r": "Error: error:0308010C:digital envelope routines::unsupported\n  at node_modules/legacy-crypto-shim/index.js:4\nTests: 0 passed, suite failed to run"
+  },
+  {
+   "a": "That OpenSSL 3 error is from legacy-crypto-shim using an md4 hash that Node 17 and later no longer provide. Check whether we still need that package."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "legacy-crypto-shim",
+    "path": "/work/billing-lib/src"
+   },
+   "r": "src/sign/hmac.ts:3: import { hmac } from 'legacy-crypto-shim'"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/billing-lib/src/sign/hmac.ts",
+    "old_string": "import { hmac } from 'legacy-crypto-shim'",
+    "new_string": "import { createHmac } from 'node:crypto'\nconst hmac = (key: string, data: string) => createHmac('sha256', key).update(data).digest('hex')"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm uninstall legacy-crypto-shim && sed -i 's/\"node\": \">=16\"/\"node\": \">=22\"/' package.json && npm test 2>&1 | tail -6"
+   },
+   "r": "Tests: 58 passed, 58 total"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/billing-lib/.github/workflows/ci.yml",
+    "old_string": "node-version: [16]",
+    "new_string": "node-version: [22]"
+   },
+   "r": "ok"
+  },
+  {
+   "a": "All 58 tests pass on Node 22 after replacing the shim with the built-in crypto HMAC. Engines and the CI matrix now say 22. I checked that the old and new HMAC give identical output only through the existing signature tests."
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Moved the library from Node 16 to Node 22: replaced the unmaintained crypto shim, which failed with an OpenSSL 3 error, with the built-in HMAC, removed the dependency, and updated the engines field and CI matrix. All 58 tests pass; output equivalence is covered only by the existing signature tests.",
+  "facts": [
+   "tests failed on Node 22 with an OpenSSL error",
+   "cause was legacy-crypto-shim",
+   "replaced by node:crypto createHmac with sha256",
+   "dependency removed",
+   "engines and CI set to 22",
+   "58 tests pass"
+  ],
+  "specific": [
+   "Node upgrade breaking change",
+   "OpenSSL 3 unsupported algorithm"
+  ],
+  "decisions": [
+   {
+    "choice": "replace the shim with the built-in crypto HMAC instead of enabling the legacy OpenSSL provider",
+    "reason": "it removes an unmaintained dependency rather than keeping a flag that disables a security default"
+   }
+  ],
+  "skills": [
+   "Node.js",
+   "TypeScript",
+   "GitHub Actions"
+  ],
+  "not_skills": [
+   "Docker",
+   "Python",
+   "webpack"
+  ]
+ }
+}

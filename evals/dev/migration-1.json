@@ -1,0 +1,109 @@
+{
+ "id": "migration-1",
+ "type": "migration",
+ "cwd": "/work/portal",
+ "steps": [
+  {
+   "u": "Migrate the portal from Express 4 to Fastify. Keep the routes and behaviour."
+  },
+  {
+   "t": "Glob",
+   "i": {
+    "pattern": "src/routes/*.ts"
+   },
+   "r": "src/routes/users.ts\nsrc/routes/orders.ts\nsrc/routes/health.ts"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/portal/src/routes/users.ts"
+   },
+   "r": "router.get('/users/:id', auth, async (req,res)=>{ res.json(await users.get(req.params.id)) })"
+  },
+  {
+   "a": "Express middleware like auth maps to Fastify hooks, and handlers return values instead of calling res.json. I will migrate route by route behind the existing integration tests."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm install fastify@5 @fastify/cors"
+   },
+   "r": "added 41 packages"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/portal/src/routes/users.ts",
+    "old_string": "router.get('/users/:id', auth, async (req,res)=>{ res.json(await users.get(req.params.id)) })",
+    "new_string": "app.get('/users/:id', { preHandler: auth }, async (req) => users.get(req.params.id))"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/portal/src/routes/orders.ts",
+    "old_string": "router.post('/orders', auth, validate(schema), handler)",
+    "new_string": "app.post('/orders', { preHandler: auth, schema: { body: schema } }, handler)"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm run test:integration"
+   },
+   "r": "37 passed, 2 failed: health returns 204 expected 200",
+   "err": true
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/portal/src/routes/health.ts",
+    "old_string": "return reply.send()",
+    "new_string": "return reply.code(200).send({ ok: true })"
+   },
+   "r": "edited"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npm run test:integration"
+   },
+   "r": "39 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Migrated the portal routes from Express to Fastify, mapping middleware to preHandler hooks and request validation to Fastify schemas, with the integration suite guarding behaviour and one health check status difference fixed.",
+  "facts": [
+   "Express to Fastify",
+   "middleware became hooks",
+   "validation moved to schemas",
+   "integration tests used as safety net",
+   "health endpoint status code fixed",
+   "39 tests pass"
+  ],
+  "specific": [
+   "framework migration",
+   "middleware to hooks mapping"
+  ],
+  "decisions": [
+   {
+    "choice": "migrate route by route behind the existing integration tests",
+    "reason": "behaviour must stay the same and the tests detect differences such as the health status"
+   }
+  ],
+  "skills": [
+   "Node.js",
+   "Fastify",
+   "Express",
+   "TypeScript"
+  ],
+  "not_skills": [
+   "Docker",
+   "SQL",
+   "Terraform"
+  ]
+ }
+}

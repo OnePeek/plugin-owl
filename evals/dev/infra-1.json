@@ -1,0 +1,91 @@
+{
+ "id": "infra-1",
+ "type": "infra",
+ "cwd": "/work/platform",
+ "steps": [
+  {
+   "u": "Our Docker image for the API is 1.4 GB and builds take 9 minutes. Slim it down."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/platform/api/Dockerfile"
+   },
+   "r": "FROM node:22\nCOPY . .\nRUN npm install\nCMD [\"node\",\"dist/server.js\"]"
+  },
+  {
+   "a": "Single stage with dev dependencies and the full node image. I will switch to a multi-stage build: install and compile in a build stage, copy only production dependencies and the compiled output into a slim runtime image, and order layers so dependency install is cached."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/platform/api/Dockerfile",
+    "content": "FROM node:22-slim AS build\nCOPY package*.json ./\nRUN npm ci\nCOPY . .\nRUN npm run build && npm prune --omit=dev\nFROM gcr.io/distroless/nodejs22\nCOPY --from=build /app/dist ./dist\nCOPY --from=build /app/node_modules ./node_modules\nCMD [\"dist/server.js\"]\n"
+   },
+   "r": "created"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "docker build -t api:slim ."
+   },
+   "r": "Successfully built (74 s)"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "docker images api:slim --format {{.Size}}"
+   },
+   "r": "168MB"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "docker run --rm api:slim --version"
+   },
+   "r": "v22.11.0"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/platform/.dockerignore",
+    "old_string": "",
+    "new_string": "node_modules\n.git\ncoverage\n"
+   },
+   "r": "edited"
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Cut the API Docker image from 1.4 GB to 168 MB and the build from nine minutes to about 74 seconds with a multi-stage build onto a distroless runtime, cached dependency install layer and a dockerignore.",
+  "facts": [
+   "image was 1.4 GB, now 168 MB",
+   "multi-stage build",
+   "distroless runtime image",
+   "dependency layer cached",
+   "dockerignore added",
+   "build took 74 seconds"
+  ],
+  "specific": [
+   "multi-stage Docker build",
+   "distroless image",
+   "layer caching"
+  ],
+  "decisions": [
+   {
+    "choice": "multi-stage build with a distroless runtime",
+    "reason": "the runtime only needs compiled output and production dependencies, not dev tooling"
+   }
+  ],
+  "skills": [
+   "Docker",
+   "Node.js",
+   "multi-stage builds"
+  ],
+  "not_skills": [
+   "Kubernetes",
+   "Terraform",
+   "Python"
+  ]
+ }
+}

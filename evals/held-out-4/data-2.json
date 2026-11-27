@@ -1,0 +1,61 @@
+{
+ "id": "data-2",
+ "type": "data",
+ "cwd": "/work/survey-lab",
+ "steps": [
+  {
+   "u": "In the survey export, respondent_id has duplicates and I think it's inflating our counts. Find out and dedupe in the loader."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python -c \"import pandas as pd; d=pd.read_csv('export.csv'); print(len(d), d.respondent_id.nunique()); print(d[d.respondent_id.duplicated(keep=False)].sort_values('respondent_id').head(4)[['respondent_id','submitted_at','q1']])\""
+   },
+   "r": "5230 5107\n  respondent_id         submitted_at q1\n  R-8841  2026-11-02 09:14:03  4\n  R-8841  2026-11-02 09:14:41  4"
+  },
+  {
+   "a": "123 rows are duplicate ids, and the pairs are seconds apart with the same answer, which looks like a double-clicked submit. I'll keep the latest submission per respondent."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/survey-lab/load.py",
+    "old_string": "d = pd.read_csv(path)",
+    "new_string": "d = pd.read_csv(path)\nd = d.sort_values('submitted_at').drop_duplicates('respondent_id', keep='last')"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "python -m pytest tests/test_load.py -q"
+   },
+   "r": "2 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "data",
+  "summary": "Confirmed that 123 survey rows were duplicate respondent ids submitted seconds apart with identical answers, and changed the loader to keep only the latest submission per respondent. Loader tests pass.",
+  "facts": [
+   "5230 rows but 5107 unique ids",
+   "duplicates seconds apart with the same answer",
+   "loader keeps the latest per respondent",
+   "tests pass"
+  ],
+  "specific": [
+   "deduplication of repeated submissions",
+   "pandas drop_duplicates"
+  ],
+  "decisions": [],
+  "skills": [
+   "Python",
+   "pandas",
+   "pytest"
+  ],
+  "not_skills": [
+   "SQL",
+   "Spark",
+   "R"
+  ]
+ }
+}

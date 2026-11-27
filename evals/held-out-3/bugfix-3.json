@@ -1,0 +1,87 @@
+{
+ "id": "bugfix-3",
+ "type": "bugfix",
+ "cwd": "/work/ticket-bot",
+ "steps": [
+  {
+   "u": "Our Discord ticket bot sometimes posts the 'ticket closed' message twice. Can you stop that?"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/ticket-bot/bot/handlers/close.py"
+   },
+   "r": "@bot.event\nasync def on_reaction_add(reaction, user):\n    if str(reaction.emoji) == '\\u2705':\n        await close_ticket(reaction.message.channel)\n        await reaction.message.channel.send('Ticket closed')"
+  },
+  {
+   "a": "on_reaction_add fires for every user who reacts, so two people ticking the box closes it twice. Closing should be idempotent. I'll check the ticket state before closing."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/ticket-bot/bot/tickets.py"
+   },
+   "r": "async def close_ticket(channel):\n    await db.execute('UPDATE tickets SET status=\\'closed\\' WHERE channel_id=$1', channel.id)"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/ticket-bot/bot/tickets.py",
+    "old_string": "await db.execute('UPDATE tickets SET status=\\'closed\\' WHERE channel_id=$1', channel.id)",
+    "new_string": "res = await db.execute(\"UPDATE tickets SET status='closed' WHERE channel_id=$1 AND status='open'\", channel.id)\n    return res.endswith('1')"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/ticket-bot/bot/handlers/close.py",
+    "old_string": "        await close_ticket(reaction.message.channel)\n        await reaction.message.channel.send('Ticket closed')",
+    "new_string": "        if await close_ticket(reaction.message.channel):\n            await reaction.message.channel.send('Ticket closed')"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest tests/test_close.py -q"
+   },
+   "r": "3 passed in 0.9s"
+  },
+  {
+   "a": "The close now only succeeds for an open ticket, and only the call that actually changed the row posts the message. I did not reproduce the double post against a live Discord server, only in the unit test with two reactions."
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Stopped the duplicate 'ticket closed' message: every reacting user triggered the handler. The database update now only matches open tickets and reports whether it changed a row, so only the first reaction posts the message. Verified with a unit test, not against live Discord.",
+  "facts": [
+   "message posted twice when two users react",
+   "handler fires per reacting user",
+   "UPDATE now restricted to open tickets and returns whether a row changed",
+   "message sent only when the close succeeded",
+   "tests pass; not checked on live Discord"
+  ],
+  "specific": [
+   "idempotent close",
+   "duplicate event handling"
+  ],
+  "decisions": [
+   {
+    "choice": "make the close an atomic conditional update and post only when it changed a row",
+    "reason": "that prevents the double post even when two reactions arrive at the same moment, unlike a check in application code"
+   }
+  ],
+  "skills": [
+   "Python",
+   "discord.py",
+   "PostgreSQL",
+   "pytest"
+  ],
+  "not_skills": [
+   "Redis",
+   "Docker",
+   "TypeScript"
+  ]
+ }
+}

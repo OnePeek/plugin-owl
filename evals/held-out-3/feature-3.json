@@ -1,0 +1,80 @@
+{
+ "id": "feature-3",
+ "type": "feature",
+ "cwd": "/work/field-notes-app",
+ "steps": [
+  {
+   "u": "Add offline note drafts to the Android app: if there's no connection, save the note locally and upload it when we're back online."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/field-notes-app/app/src/main/java/app/notes/data/NoteRepository.kt"
+   },
+   "r": "class NoteRepository(private val api: NotesApi) {\n  suspend fun save(note: Note) = api.create(note)\n}"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/field-notes-app/app/src/main/java/app/notes/data/DraftDao.kt",
+    "content": "@Dao interface DraftDao {\n  @Insert suspend fun insert(d: DraftEntity)\n  @Query(\"SELECT * FROM drafts ORDER BY createdAt\") suspend fun all(): List<DraftEntity>\n  @Delete suspend fun delete(d: DraftEntity)\n}"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/field-notes-app/app/src/main/java/app/notes/data/UploadDraftsWorker.kt",
+    "content": "class UploadDraftsWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {\n  override suspend fun doWork(): Result { for (d in dao.all()) { api.create(d.toNote()); dao.delete(d) }; return Result.success() }\n}"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/field-notes-app/app/src/main/java/app/notes/data/NoteRepository.kt",
+    "old_string": "suspend fun save(note: Note) = api.create(note)",
+    "new_string": "suspend fun save(note: Note) = try { api.create(note) } catch (e: IOException) {\n    dao.insert(note.toDraft())\n    WorkManager.getInstance(ctx).enqueueUniqueWork(\"drafts\", ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<UploadDraftsWorker>().setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED)).build())\n  }"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew testDebugUnitTest"
+   },
+   "r": "BUILD SUCCESSFUL\n14 tests completed"
+  },
+  {
+   "a": "Notes that fail with an IOException are stored in a Room table and a WorkManager job uploads them once the network is connected. I haven't tested on a device in airplane mode, and a draft whose upload fails halfway could be uploaded twice because the server has no idempotency key."
+  }
+ ],
+ "reference": {
+  "task_type": "feature",
+  "summary": "Added offline drafts to the Android notes app: a failed save is stored in a Room table and a WorkManager job uploads it when the network returns. Unit tests pass; it was not tried on a device offline, and a draft interrupted mid-upload could be sent twice since the server has no idempotency key.",
+  "facts": [
+   "Room DAO for drafts added",
+   "WorkManager worker uploads drafts when connected",
+   "save falls back to a draft on IOException",
+   "unit tests pass",
+   "not tested on a device in airplane mode",
+   "possible duplicate upload without an idempotency key"
+  ],
+  "specific": [
+   "offline queue with WorkManager",
+   "local persistence with Room"
+  ],
+  "decisions": [],
+  "skills": [
+   "Kotlin",
+   "Android",
+   "Room",
+   "WorkManager"
+  ],
+  "not_skills": [
+   "Flutter",
+   "Firebase",
+   "Swift"
+  ]
+ }
+}

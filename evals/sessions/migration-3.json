@@ -1,0 +1,94 @@
+{
+ "id": "migration-3",
+ "type": "migration",
+ "cwd": "/home/dev/src/ferrous-billing",
+ "steps": [
+  {
+   "u": "Start the Spring Boot 2.7 -> 3.2 upgrade for ferrous-billing. Get as far as you can today."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/ferrous-billing/build.gradle.kts",
+    "old_string": "id(\"org.springframework.boot\") version \"2.7.18\"",
+    "new_string": "id(\"org.springframework.boot\") version \"3.2.5\""
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "import javax\\.(persistence|validation|servlet)",
+    "path": "src"
+   },
+   "r": "Found 47 matches across 31 files\nsrc/main/java/com/ferrous/billing/invoice/Invoice.java:5:import javax.persistence.Entity;\nsrc/main/java/com/ferrous/billing/api/InvoiceRequest.java:4:import javax.validation.constraints.NotNull;\nsrc/main/java/com/ferrous/billing/web/TenantFilter.java:3:import javax.servlet.FilterChain;\n..."
+  },
+  {
+   "a": "Spring Boot 3 moves to Jakarta EE 10, so `javax.persistence`, `javax.validation` and `javax.servlet` become `jakarta.*`. `javax.crypto` and `javax.sql` stay in the JDK, so I'll rewrite only those three packages rather than all `javax.` imports."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -rlE 'import javax\\.(persistence|validation|servlet)' src | xargs sed -i -E 's/import javax\\.(persistence|validation|servlet)/import jakarta.\\1/' && grep -rcE 'import javax\\.(persistence|validation|servlet)' src | grep -v ':0' | wc -l"
+   },
+   "r": "0"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/ferrous-billing/src/main/java/com/ferrous/billing/config/SecurityConfig.java",
+    "old_string": "public class SecurityConfig extends WebSecurityConfigurerAdapter {\n    @Override\n    protected void configure(HttpSecurity http) throws Exception {\n        http.authorizeRequests().antMatchers(\"/health\").permitAll().anyRequest().authenticated();\n    }",
+    "new_string": "public class SecurityConfig {\n    @Bean\n    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {\n        http.authorizeHttpRequests(a -> a.requestMatchers(\"/health\").permitAll().anyRequest().authenticated());\n        return http.build();\n    }"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "./gradlew compileJava 2>&1 | tail -8"
+   },
+   "r": "> Task :compileJava FAILED\n/home/dev/src/ferrous-billing/src/main/java/com/ferrous/billing/config/SwaggerConfig.java:7: error: package springfox.documentation.spring.web.plugins does not exist\nimport springfox.documentation.spring.web.plugins.Docket;\n/home/dev/src/ferrous-billing/src/main/java/com/ferrous/billing/config/SwaggerConfig.java:19: error: cannot find symbol\n    public Docket api() {\n2 errors\nFAILURE: Build failed with an exception.\nBUILD FAILED in 18s",
+   "err": true
+  },
+  {
+   "a": "Progress: Boot 3.2.5 in the build, 47 javax imports across 31 files moved to jakarta, and SecurityConfig ported from the removed WebSecurityConfigurerAdapter to a SecurityFilterChain bean. The build still fails: springfox is unmaintained and has no Spring Boot 3 support. The usual replacement is springdoc-openapi 2.x, but it changes the generated API docs URL (/swagger-ui.html to /swagger-ui/index.html), so I've left that decision for you. Tests haven't been run yet."
+  }
+ ],
+ "reference": {
+  "task_type": "migration",
+  "summary": "Started a Spring Boot 2.7 to 3.2 upgrade in a Java service: bumped the Boot plugin, moved 47 persistence, validation and servlet imports in 31 files from the javax to the jakarta namespace, and ported the security config to a filter chain bean. The build still fails because springfox has no Boot 3 support; replacing it with springdoc was left as an open decision, and tests were not run.",
+  "facts": [
+   "Bumped org.springframework.boot plugin from 2.7.18 to 3.2.5",
+   "Rewrote only javax.persistence, javax.validation, javax.servlet imports to jakarta.*",
+   "Ported SecurityConfig to a SecurityFilterChain bean with authorizeHttpRequests/requestMatchers",
+   "compileJava still fails: springfox Docket not found",
+   "springdoc-openapi replacement proposed but not done; tests not run"
+  ],
+  "specific": [
+   "javax to jakarta namespace migration for Spring Boot 3",
+   "framework major-version upgrade"
+  ],
+  "decisions": [
+   {
+    "choice": "rename only the persistence, validation and servlet javax packages",
+    "reason": "the crypto and SQL javax packages remain in the JDK and must not be renamed"
+   },
+   {
+    "choice": "leave the springfox replacement to the engineer",
+    "reason": "springdoc changes the public API docs URL"
+   }
+  ],
+  "skills": [
+   "Spring Boot",
+   "Java",
+   "Spring Security configuration",
+   "Gradle"
+  ],
+  "not_skills": [
+   "writing tests",
+   "database schema migration",
+   "Docker",
+   "performance tuning"
+  ]
+ }
+}

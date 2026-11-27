@@ -1,0 +1,67 @@
+{
+ "id": "debugging-2",
+ "type": "debugging",
+ "cwd": "/work/bank-portal",
+ "steps": [
+  {
+   "u": "Login works locally but on staging we get stuck in a redirect loop after the SSO callback. Chrome says too many redirects."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "curl -sI https://staging.portal.example.test/auth/callback?code=abc | head -8"
+   },
+   "r": "HTTP/2 302\nlocation: https://staging.portal.example.test/auth/login\nset-cookie: session=; Max-Age=0; Secure; SameSite=Strict"
+  },
+  {
+   "a": "The callback immediately clears the session cookie and sends the user back to login. SameSite=Strict on the session cookie would be dropped on the cross-site redirect coming back from the identity provider, but here the cookie is being set empty, which suggests the code exchange failed."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "kubectl logs deploy/portal -n staging --tail=20 | grep -i callback"
+   },
+   "r": "WARN callback: token exchange failed: redirect_uri_mismatch (expected https://staging.portal.example.test/auth/callback, got http://staging.portal.example.test/auth/callback)"
+  },
+  {
+   "a": "There is the cause. The app is behind a TLS-terminating load balancer, so it thinks the request is http and builds an http redirect_uri that the identity provider rejects. Locally there is no proxy, so it matches. We need the app to trust X-Forwarded-Proto."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "trust proxy|TrustedProxies"
+   },
+   "r": "no matches in src/"
+  },
+  {
+   "a": "I have not changed anything. Two options: enable the framework's trusted-proxy setting for the load balancer's range, or hard-code the public base URL in config. I'd go with the base URL setting since it is explicit and does not depend on header trust, but it is your call."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Traced the staging login redirect loop to the SSO token exchange failing with redirect_uri_mismatch: behind the TLS-terminating load balancer the app built an http callback URL while the identity provider expects https. Nothing was changed; the options are trusting the forwarded protocol header or configuring a fixed public base URL.",
+  "facts": [
+   "redirect loop after SSO callback on staging",
+   "token exchange failed with redirect_uri_mismatch",
+   "app saw http behind a TLS-terminating load balancer",
+   "works locally because there is no proxy",
+   "no code changed",
+   "two fix options proposed"
+  ],
+  "specific": [
+   "redirect_uri mismatch behind a proxy",
+   "forwarded protocol header"
+  ],
+  "decisions": [],
+  "skills": [
+   "OAuth",
+   "Kubernetes",
+   "HTTP debugging"
+  ],
+  "not_skills": [
+   "Terraform",
+   "Java",
+   "React"
+  ]
+ }
+}

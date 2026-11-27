@@ -1,0 +1,101 @@
+{
+ "id": "bugfix-2",
+ "type": "bugfix",
+ "cwd": "/home/dev/src/trailmap-web",
+ "steps": [
+  {
+   "u": "The trail search box sometimes shows results for the previous query, not what I typed last. Look at SearchBox."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/trailmap-web/src/components/SearchBox.tsx"
+   },
+   "r": "12 export function SearchBox({ onResults }: Props) {\n13   const [query, setQuery] = useState('');\n14   useEffect(() => {\n15     const t = setTimeout(async () => {\n16       const res = await fetchTrails(query);\n17       onResults(res);\n18     }, 250);\n19     return () => clearTimeout(t);\n20   }, [query]);"
+  },
+  {
+   "a": "The debounce is cleared correctly, but an in-flight `fetchTrails` that started earlier can resolve after a newer one and call `onResults` with stale data. That's a response race, not a debounce bug. I'll use an AbortController per effect run and ignore results from aborted requests."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/trailmap-web/src/components/SearchBox.tsx",
+    "old_string": "    const t = setTimeout(async () => {\n      const res = await fetchTrails(query);\n      onResults(res);\n    }, 250);\n    return () => clearTimeout(t);",
+    "new_string": "    const ctrl = new AbortController();\n    const t = setTimeout(async () => {\n      try {\n        const res = await fetchTrails(query, { signal: ctrl.signal });\n        if (!ctrl.signal.aborted) onResults(res);\n      } catch (e) {\n        if ((e as DOMException).name !== 'AbortError') throw e;\n      }\n    }, 250);\n    return () => { clearTimeout(t); ctrl.abort(); };"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx vitest run src/components/SearchBox.test.tsx"
+   },
+   "r": " FAIL  src/components/SearchBox.test.tsx > SearchBox > passes the abort signal to fetchTrails\nTypeError: fetchTrails is not a function or its return value is not iterable\n  at src/components/SearchBox.tsx:16:27\n\n Test Files  1 failed (1)\n      Tests  1 failed | 3 passed (4)",
+   "err": true
+  },
+  {
+   "a": "The test mock for `fetchTrails` only accepts one argument and returns undefined for the second call shape. `fetchTrails` itself in `src/api/trails.ts` also needs to forward the signal to `fetch`."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/trailmap-web/src/api/trails.ts",
+    "old_string": "export async function fetchTrails(q: string) {\n  const r = await fetch(`/api/trails?q=${encodeURIComponent(q)}`);",
+    "new_string": "export async function fetchTrails(q: string, opts: { signal?: AbortSignal } = {}) {\n  const r = await fetch(`/api/trails?q=${encodeURIComponent(q)}`, { signal: opts.signal });"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/trailmap-web/src/components/SearchBox.test.tsx",
+    "old_string": "vi.mock('../api/trails', () => ({ fetchTrails: (q: string) => results[q] }));",
+    "new_string": "vi.mock('../api/trails', () => ({ fetchTrails: vi.fn(async (q: string) => results[q]) }));"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx vitest run src/components/SearchBox.test.tsx"
+   },
+   "r": " \u2713 src/components/SearchBox.test.tsx (4 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  4 passed (4)"
+  },
+  {
+   "a": "Stale results were caused by out-of-order responses. Each effect run now aborts the previous request via AbortController, `fetchTrails` forwards the signal, and the SearchBox tests pass (4/4)."
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed a React search box that showed stale results: responses from earlier queries could arrive after newer ones and overwrite them. The search effect now creates an AbortController on each run and aborts the previous request, and the fetch helper forwards the abort signal. After fixing the test mock, all 4 search box tests pass.",
+  "facts": [
+   "Symptom: results for the previous query appeared",
+   "Root cause was a race between in-flight fetches, not the debounce",
+   "Added AbortController in the SearchBox useEffect cleanup",
+   "fetchTrails now accepts and forwards an AbortSignal",
+   "First test run failed because of the mock; after updating it, 4/4 tests pass"
+  ],
+  "specific": [
+   "race condition between out-of-order async responses",
+   "request cancellation with AbortController in useEffect cleanup"
+  ],
+  "decisions": [
+   {
+    "choice": "cancel stale requests with AbortController rather than change the debounce",
+    "reason": "the debounce was already cleared correctly and the bug was an earlier request resolving after a newer one"
+   }
+  ],
+  "skills": [
+   "React hooks",
+   "useEffect cleanup",
+   "TypeScript",
+   "Vitest mocking"
+  ],
+  "not_skills": [
+   "Redux state management",
+   "backend API changes",
+   "CSS styling",
+   "server-side rendering"
+  ]
+ }
+}

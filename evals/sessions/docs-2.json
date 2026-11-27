@@ -1,0 +1,75 @@
+{
+ "id": "docs-2",
+ "type": "docs",
+ "cwd": "/home/dev/src/beaconkit",
+ "steps": [
+  {
+   "u": "New folks keep asking how to run the Playwright e2e suite locally. Add a section to CONTRIBUTING.md. The longer runbook lives at https://wiki.beaconkit.internal/eng/e2e-runbook but don't link it, the repo is public."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/beaconkit/package.json"
+   },
+   "r": "  \"scripts\": {\n    \"dev\": \"vite\",\n    \"test\": \"vitest run\",\n    \"e2e\": \"playwright test\",\n    \"e2e:ui\": \"playwright test --ui\",\n    \"e2e:stack\": \"docker compose -f e2e/compose.yaml up -d --wait\"\n  },"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/beaconkit/playwright.config.ts"
+   },
+   "r": "export default defineConfig({\n  testDir: './e2e/specs',\n  retries: process.env.CI ? 2 : 0,\n  use: { baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173', trace: 'on-first-retry' },\n  webServer: { command: 'npm run dev', port: 5173, reuseExistingServer: !process.env.CI },\n});"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/beaconkit/CONTRIBUTING.md",
+    "old_string": "## Submitting a pull request",
+    "new_string": "## Running the end-to-end tests\n\nThe e2e suite uses [Playwright](https://playwright.dev) and lives in `e2e/specs`.\n\n1. Install browsers once: `npx playwright install --with-deps chromium`.\n2. Start the backing services: `npm run e2e:stack` (Docker Compose, waits until healthy).\n3. Run the suite: `npm run e2e`. Playwright starts the Vite dev server on port 5173 for you, or reuses one you already have running.\n4. To debug a single spec interactively: `npm run e2e:ui`.\n\nSet `E2E_BASE_URL` to point the tests at another server. Locally there are no retries; in CI each test retries twice and records a trace on the first retry, which you can open with `npx playwright show-trace`.\n\n## Submitting a pull request"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx markdownlint-cli2 CONTRIBUTING.md"
+   },
+   "r": "markdownlint-cli2 v0.13.0 (markdownlint v0.34.0)\nFinding: CONTRIBUTING.md\nLinting: 1 file(s)\nSummary: 0 error(s)"
+  },
+  {
+   "a": "Added a \"Running the end-to-end tests\" section to CONTRIBUTING.md covering browser install, the compose stack, the run and UI-mode commands, E2E_BASE_URL and CI retry/trace behaviour, all derived from package.json and playwright.config.ts. No link to the internal wiki. markdownlint passes."
+  }
+ ],
+ "reference": {
+  "task_type": "docs",
+  "summary": "Wrote a new contributing guide section on running the Playwright end-to-end suite locally for a TypeScript Vite project, based on the npm scripts and the Playwright config: browser install, the compose stack, run and UI commands, the base URL override, and CI retries and traces. Deliberately left out the internal runbook link; markdownlint passes.",
+  "facts": [
+   "Added a 'Running the end-to-end tests' section to CONTRIBUTING.md",
+   "Content derived from package.json scripts and playwright.config.ts",
+   "Covers npx playwright install, npm run e2e:stack, npm run e2e, npm run e2e:ui",
+   "Documents E2E_BASE_URL and CI retries with trace on first retry",
+   "Internal runbook intentionally not linked because the repo is public",
+   "markdownlint: 0 errors"
+  ],
+  "specific": [
+   "contributor documentation for running Playwright e2e tests"
+  ],
+  "decisions": [
+   {
+    "choice": "leave out the link to the longer internal runbook",
+    "reason": "the repository is public"
+   }
+  ],
+  "skills": [
+   "technical writing",
+   "Playwright configuration",
+   "Markdown"
+  ],
+  "not_skills": [
+   "writing e2e tests",
+   "Docker Compose changes",
+   "CI pipeline changes",
+   "React development"
+  ]
+ }
+}

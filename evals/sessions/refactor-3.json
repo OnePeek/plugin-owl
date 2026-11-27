@@ -1,0 +1,83 @@
+{
+ "id": "refactor-3",
+ "type": "refactor",
+ "cwd": "/home/dev/src/glimmer",
+ "steps": [
+  {
+   "u": "glimmer/utils.py is 900 lines of unrelated helpers. Split it into a package by topic, but don't break existing imports like `from glimmer.utils import slugify`."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "grep -nE '^(def|class) ' glimmer/utils.py | awk -F'[ (:]' '{print $3}' | tr '\\n' ' '"
+   },
+   "r": "slugify truncate_words strip_html parse_duration format_duration utc_now to_epoch chunked flatten dedupe_preserve_order retry_call backoff_delays read_json atomic_write ensure_dir LRUCacheDict"
+  },
+  {
+   "a": "Natural groups: text (slugify, truncate_words, strip_html), time (parse/format_duration, utc_now, to_epoch), iterables (chunked, flatten, dedupe_preserve_order), retry (retry_call, backoff_delays), fs (read_json, atomic_write, ensure_dir), and LRUCacheDict into cache. I'll turn `utils` into a package whose `__init__` re-exports everything with an explicit `__all__`, so old imports keep working."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "mkdir glimmer/utils_pkg && python scripts/split_module.py glimmer/utils.py glimmer/utils_pkg --map text=slugify,truncate_words,strip_html --map time=parse_duration,format_duration,utc_now,to_epoch --map iterables=chunked,flatten,dedupe_preserve_order --map retry=retry_call,backoff_delays --map fs=read_json,atomic_write,ensure_dir --map cache=LRUCacheDict && rm glimmer/utils.py && mv glimmer/utils_pkg glimmer/utils && ls glimmer/utils"
+   },
+   "r": "wrote glimmer/utils_pkg/text.py (3 symbols)\nwrote glimmer/utils_pkg/time.py (4 symbols)\nwrote glimmer/utils_pkg/iterables.py (3 symbols)\nwrote glimmer/utils_pkg/retry.py (2 symbols)\nwrote glimmer/utils_pkg/fs.py (3 symbols)\nwrote glimmer/utils_pkg/cache.py (1 symbols)\n__init__.py cache.py fs.py iterables.py retry.py text.py time.py"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/glimmer/glimmer/utils/__init__.py"
+   },
+   "r": "\"\"\"Backwards-compatible re-exports; import from the submodules in new code.\"\"\"\nfrom .cache import LRUCacheDict\nfrom .fs import atomic_write, ensure_dir, read_json\nfrom .iterables import chunked, dedupe_preserve_order, flatten\nfrom .retry import backoff_delays, retry_call\nfrom .text import slugify, strip_html, truncate_words\nfrom .time import format_duration, parse_duration, to_epoch, utc_now\n\n__all__ = [\"LRUCacheDict\", \"atomic_write\", \"backoff_delays\", \"chunked\", \"dedupe_preserve_order\", \"ensure_dir\", \"flatten\", \"format_duration\", \"parse_duration\", \"read_json\", \"retry_call\", \"slugify\", \"strip_html\", \"to_epoch\", \"truncate_words\", \"utc_now\"]"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "ruff check glimmer && pytest -q 2>&1 | tail -3"
+   },
+   "r": "glimmer/utils/retry.py:3:8: F401 [*] `random` imported but unused\nFound 1 error.\n[*] 1 fixable with the `--fix` option.",
+   "err": true
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "ruff check --fix glimmer && pytest -q 2>&1 | tail -2"
+   },
+   "r": "Found 1 error (1 fixed, 0 remaining).\n........................................................................ [ 96%]\n...                                                                      [100%]\n75 passed in 4.40s"
+  },
+  {
+   "a": "utils.py is now a `glimmer/utils/` package with six topic modules; `__init__.py` re-exports all 16 names with `__all__`, so `from glimmer.utils import slugify` still works. Ruff flagged one unused import left over from the split (fixed), and all 75 tests pass."
+  }
+ ],
+ "reference": {
+  "task_type": "refactor",
+  "summary": "Split a 900-line Python helpers module into a package of six topic modules for text, time, iterables, retry, file system and cache, keeping old imports working through explicit re-exports in the package init. After fixing one unused import flagged by ruff, all 75 tests pass.",
+  "facts": [
+   "16 helpers grouped into text, time, iterables, retry, fs and cache modules",
+   "utils became a package; __init__.py re-exports every name with __all__",
+   "Existing imports like from glimmer.utils import slugify keep working",
+   "ruff found an unused random import, fixed with --fix",
+   "pytest: 75 passed"
+  ],
+  "specific": [
+   "module split with backward-compatible re-exports"
+  ],
+  "decisions": [
+   {
+    "choice": "turn the helpers module into a package with re-exports in its init",
+    "reason": "existing imports of the helpers must keep working"
+   }
+  ],
+  "skills": [
+   "Python modules",
+   "ruff linting",
+   "pytest"
+  ],
+  "not_skills": [
+   "adding type hints",
+   "writing new tests",
+   "performance optimisation",
+   "changing behaviour of helpers"
+  ]
+ }
+}

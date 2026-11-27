@@ -1,0 +1,91 @@
+{
+ "id": "bugfix-3",
+ "type": "bugfix",
+ "cwd": "/home/dev/src/quillstore",
+ "steps": [
+  {
+   "u": "quillstore crashes when importing an empty .qdoc file. Find out why and fix it."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "RUST_BACKTRACE=1 cargo run -- import tests/fixtures/empty.qdoc"
+   },
+   "r": "thread 'main' panicked at src/format/header.rs:39:18:\nrange end index 4 out of range for slice of length 0\nstack backtrace:\n   0: rust_begin_unwind\n   1: core::slice::index::slice_end_index_len_fail\n   2: quillstore::format::header::parse_header\n             at ./src/format/header.rs:39:18\n   3: quillstore::import::import_file\n             at ./src/import.rs:77:18\n   4: quillstore::main",
+   "err": true
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/quillstore/src/format/header.rs"
+   },
+   "r": "38 pub fn parse_header(buf: &[u8]) -> Result<Header, FormatError> {\n39     let magic = &buf[..4];\n40     // version byte follows magic\n41     let version = buf[4];\n42     if magic != MAGIC { return Err(FormatError::BadMagic); }"
+  },
+  {
+   "a": "`parse_header` indexes into the buffer without checking its length. Line 41 has the same problem for a 4-byte file. I'll return `FormatError::Truncated` using `buf.get(..)` instead of indexing."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/quillstore/src/format/header.rs",
+    "old_string": "    let magic = &buf[..4];\n    // version byte follows magic\n    let version = buf[4];",
+    "new_string": "    let magic = buf.get(..4).ok_or(FormatError::Truncated)?;\n    // version byte follows magic\n    let version = *buf.get(4).ok_or(FormatError::Truncated)?;"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/quillstore/src/format/header.rs",
+    "old_string": "#[cfg(test)]\nmod tests {\n    use super::*;",
+    "new_string": "#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn truncated_header_is_error_not_panic() {\n        assert!(matches!(parse_header(b\"\"), Err(FormatError::Truncated)));\n        assert!(matches!(parse_header(b\"QDOC\"), Err(FormatError::Truncated)));\n    }"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cargo test format::header"
+   },
+   "r": "running 5 tests\ntest format::header::tests::parses_v2_header ... ok\ntest format::header::tests::rejects_bad_magic ... ok\ntest format::header::tests::truncated_header_is_error_not_panic ... ok\ntest format::header::tests::parses_v1_header ... ok\ntest format::header::tests::flags_roundtrip ... ok\n\ntest result: ok. 5 passed; 0 failed; 0 ignored"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cargo run -- import tests/fixtures/empty.qdoc"
+   },
+   "r": "error: cannot import tests/fixtures/empty.qdoc: file header is truncated"
+  },
+  {
+   "a": "The panic came from unchecked indexing in `parse_header`. It now returns `FormatError::Truncated`, the CLI prints a clean error, and the header tests pass."
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Traced a Rust CLI panic on importing an empty or truncated file to unchecked slice indexing in the file header parser. Fixed it with bounds-checked access that returns a truncated-header error instead of panicking. Added a regression test; the header tests pass and the CLI now prints a clean error.",
+  "facts": [
+   "Panic: slice range end index 4 out of range at src/format/header.rs:39",
+   "Used RUST_BACKTRACE=1 to locate parse_header",
+   "Replaced direct indexing with bounds-checked `get` returning FormatError::Truncated",
+   "Added test truncated_header_is_error_not_panic",
+   "cargo test format::header: 5 passed"
+  ],
+  "specific": [
+   "unchecked slice indexing causing a panic on truncated input",
+   "bounds-checked parsing returning an error instead of panicking"
+  ],
+  "decisions": [],
+  "skills": [
+   "Rust",
+   "reading backtraces",
+   "binary format parsing",
+   "unit testing with cargo"
+  ],
+  "not_skills": [
+   "fuzzing",
+   "async Rust",
+   "performance profiling",
+   "unsafe code"
+  ]
+ }
+}

@@ -1,0 +1,73 @@
+{
+ "id": "bugfix-1",
+ "type": "bugfix",
+ "cwd": "/work/playlist-sync",
+ "steps": [
+  {
+   "u": "Playlists with more than 100 tracks lose everything after track 100 when synced to the phone. Fix it."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/playlist-sync/sync/fetch.py"
+   },
+   "r": "def fetch_tracks(pid):\n    r = api.get(f'/playlists/{pid}/tracks', params={'limit': 100})\n    return r.json()['items']"
+  },
+  {
+   "a": "The call asks for one page of 100 and ignores the next-page link in the response, so anything beyond that is dropped. I'll follow the cursor until it is empty."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/playlist-sync/sync/fetch.py",
+    "old_string": "    r = api.get(f'/playlists/{pid}/tracks', params={'limit': 100})\n    return r.json()['items']",
+    "new_string": "    items, cursor = [], None\n    while True:\n        r = api.get(f'/playlists/{pid}/tracks', params={'limit': 100, 'cursor': cursor}).json()\n        items += r['items']\n        cursor = r.get('next_cursor')\n        if not cursor:\n            return items"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/playlist-sync/tests/test_fetch.py",
+    "content": "def test_follows_cursor(fake_api):\n    fake_api.pages = [list(range(100)), list(range(100, 130))]\n    assert len(fetch_tracks('p1')) == 130"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest tests/test_fetch.py -q"
+   },
+   "r": "1 passed"
+  },
+  {
+   "a": "Fixed: all pages are now fetched, covered by a two-page test. I did not check what happens if the API repeats a cursor, so a bad server could loop forever."
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed playlists over 100 tracks losing the rest on sync: the fetch read only the first page and ignored the next-page cursor. It now loops until the cursor is empty, with a two-page test that passes. A server returning a repeating cursor could still loop forever.",
+  "facts": [
+   "only the first 100 tracks were fetched",
+   "next page cursor was ignored",
+   "now loops until the cursor is empty",
+   "two-page test passes",
+   "repeating cursor not guarded"
+  ],
+  "specific": [
+   "pagination ignored",
+   "cursor-based paging"
+  ],
+  "decisions": [],
+  "skills": [
+   "Python",
+   "pytest",
+   "REST pagination"
+  ],
+  "not_skills": [
+   "Docker",
+   "Kotlin",
+   "GraphQL"
+  ]
+ }
+}

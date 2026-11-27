@@ -1,0 +1,65 @@
+{
+ "id": "data-1",
+ "type": "data",
+ "cwd": "/work/fleet-metrics",
+ "steps": [
+  {
+   "u": "Compute the average fuel use per 100 km per vehicle model for October from the trips table, excluding trips under 5 km. BigQuery."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bq show --schema fleet.trips | head -12"
+   },
+   "r": "vehicle_id STRING, model STRING, km FLOAT, litres FLOAT, started_at TIMESTAMP"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/fleet-metrics/sql/fuel_per_100km.sql",
+    "content": "SELECT model, SUM(litres) / SUM(km) * 100 AS l_per_100km, COUNT(*) AS trips\nFROM `fleet.trips`\nWHERE km >= 5 AND started_at >= '2026-10-01' AND started_at < '2026-11-01'\nGROUP BY model ORDER BY l_per_100km"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "bq query --use_legacy_sql=false < sql/fuel_per_100km.sql"
+   },
+   "r": "model | l_per_100km | trips\nVan-A | 9.1 | 1840\nTruck-B | 24.7 | 612\nVan-C | 8.8 | 77"
+  },
+  {
+   "a": "I weighted by distance (total litres over total km) rather than averaging each trip's ratio, so a long trip counts more than a short one. Van-C has only 77 trips, so its figure is less reliable."
+  }
+ ],
+ "reference": {
+  "task_type": "data",
+  "summary": "Wrote a BigQuery query for October fuel use per 100 km by vehicle model, excluding trips under 5 km, and ran it. It divides total litres by total distance rather than averaging per-trip ratios; one model has only 77 trips, so its figure is less reliable.",
+  "facts": [
+   "BigQuery query on the trips table",
+   "October only, trips under 5 km excluded",
+   "total litres over total km",
+   "ran and returned three models",
+   "one model has only 77 trips"
+  ],
+  "specific": [
+   "distance-weighted average",
+   "aggregate ratio instead of mean of ratios"
+  ],
+  "decisions": [
+   {
+    "choice": "divide total litres by total km instead of averaging each trip's ratio",
+    "reason": "so longer trips weigh more than short ones"
+   }
+  ],
+  "skills": [
+   "SQL",
+   "BigQuery"
+  ],
+  "not_skills": [
+   "Python",
+   "Airflow",
+   "dbt"
+  ]
+ }
+}

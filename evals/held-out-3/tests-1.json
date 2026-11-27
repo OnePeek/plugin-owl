@@ -1,0 +1,62 @@
+{
+ "id": "tests-1",
+ "type": "tests",
+ "cwd": "/work/invoice-sender",
+ "steps": [
+  {
+   "u": "Add tests for the retry logic in mailer.py. It should retry 3 times with backoff on SMTP 4xx and not retry on 5xx."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/invoice-sender/mailer.py"
+   },
+   "r": "def send(msg, smtp=get_smtp, sleep=time.sleep):\n    for attempt in range(3):\n        try:\n            return smtp().send(msg)\n        except SMTPResponseError as e:\n            if e.code >= 500 or attempt == 2: raise\n            sleep(2 ** attempt)"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/invoice-sender/tests/test_mailer_retry.py",
+    "content": "def test_retries_on_4xx_with_backoff():\n    calls, sleeps = [], []\n    def smtp(): return Flaky(fail=[450, 450], calls=calls)\n    send('m', smtp=smtp, sleep=sleeps.append)\n    assert len(calls) == 3 and sleeps == [1, 2]\n\ndef test_no_retry_on_5xx():\n    calls = []\n    with pytest.raises(SMTPResponseError):\n        send('m', smtp=lambda: Flaky(fail=[550], calls=calls), sleep=lambda s: None)\n    assert len(calls) == 1\n\ndef test_gives_up_after_three_4xx():\n    with pytest.raises(SMTPResponseError):\n        send('m', smtp=lambda: Flaky(fail=[450]*3, calls=[]), sleep=lambda s: None)\n"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest tests/test_mailer_retry.py -q"
+   },
+   "r": "3 passed in 0.04s"
+  },
+  {
+   "a": "Three tests cover retry with backoff (sleeps of 1 and 2 seconds), no retry on a 5xx, and giving up after three 4xx failures. The sleep is injected so the tests run instantly. The code sleeps 1 then 2, so it is exponential with base 2 but no jitter; I did not test for jitter since there is none."
+  }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Added three tests for the mailer retry logic: it retries on SMTP 4xx with backoff sleeps of 1 and 2 seconds, does not retry on 5xx, and gives up after three 4xx failures. Sleep is injected so the tests run instantly, and all three pass.",
+  "facts": [
+   "three tests added",
+   "retry with backoff of 1 and 2 seconds on 4xx",
+   "no retry on 5xx",
+   "gives up after three 4xx failures",
+   "sleep injected",
+   "no jitter in the code so none tested"
+  ],
+  "specific": [
+   "retry and backoff testing",
+   "dependency injection of sleep"
+  ],
+  "decisions": [],
+  "skills": [
+   "Python",
+   "pytest",
+   "SMTP"
+  ],
+  "not_skills": [
+   "Docker",
+   "mocking libraries like responses",
+   "TypeScript"
+  ]
+ }
+}

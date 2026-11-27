@@ -1,0 +1,61 @@
+{
+ "id": "review-1",
+ "type": "review",
+ "cwd": "/work/auth-gateway",
+ "steps": [
+  {
+   "u": "Please review PR #412 (token refresh endpoint). Focus on security. Don't change anything, just tell me what you find."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "gh pr diff 412 --patch | head -120"
+   },
+   "r": "+ app.post('/refresh', async (req, res) => {\n+   const { refreshToken } = req.body\n+   const row = await db.tokens.findOne({ token: refreshToken })\n+   if (!row) return res.status(401).end()\n+   const access = sign({ sub: row.userId }, SECRET, { expiresIn: '15m' })\n+   res.json({ access })\n+ })"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "gh pr diff 412 --patch | grep -n 'rotate\\|revoke\\|expires'"
+   },
+   "r": "no matches"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/auth-gateway/src/db/tokens.ts"
+   },
+   "r": "tokens: { token: string, userId: string, createdAt: Date }"
+  },
+  {
+   "a": "Findings. 1) Blocking: refresh tokens never expire and are not rotated, because the table has createdAt but no expiry check, so a leaked token works forever. 2) Blocking: the token is stored and looked up in plaintext; store a hash. 3) Should fix: no rate limit on /refresh, so it can be brute forced. 4) Nit: 401 response has no body, which is fine, but log the failed attempts. The access token handling itself looks right: short 15 minute expiry and the subject comes from the database row, not the request."
+  }
+ ],
+ "reference": {
+  "task_type": "review",
+  "summary": "Reviewed the token refresh endpoint PR for security without changing anything. Blocking issues: refresh tokens never expire or rotate, and they are stored and looked up in plaintext. Should fix: no rate limit on the endpoint. The short access token expiry and taking the subject from the database were fine.",
+  "facts": [
+   "refresh tokens have no expiry check or rotation",
+   "tokens stored and looked up in plaintext",
+   "no rate limiting on /refresh",
+   "access token expires in 15 minutes",
+   "subject taken from the database row",
+   "no changes made"
+  ],
+  "specific": [
+   "refresh token security review",
+   "token expiry and hashing"
+  ],
+  "decisions": [],
+  "skills": [
+   "security review",
+   "authentication",
+   "Node.js"
+  ],
+  "not_skills": [
+   "Terraform",
+   "penetration testing tools",
+   "React"
+  ]
+ }
+}

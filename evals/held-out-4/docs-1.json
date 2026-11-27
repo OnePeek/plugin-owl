@@ -1,0 +1,60 @@
+{
+ "id": "docs-1",
+ "type": "docs",
+ "cwd": "/work/gardenlog",
+ "steps": [
+  {
+   "u": "Write a CONTRIBUTING guide: how to set up the dev environment (Elixir 1.17, Postgres), run tests, and what a good PR looks like."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "cat mix.exs | grep -n 'elixir:'; ls; cat .tool-versions"
+   },
+   "r": "elixir: \"~> 1.17\"\nREADME.md  lib  mix.exs  test  docker-compose.yml\nelixir 1.17.2\nerlang 27.0"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/gardenlog/docker-compose.yml"
+   },
+   "r": "services:\n  db:\n    image: postgres:16\n    ports: ['5432:5432']"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/gardenlog/CONTRIBUTING.md",
+    "content": "# Contributing\n\n## Setup\nInstall Elixir and Erlang with asdf (versions are pinned in .tool-versions), then `docker compose up -d db`, `mix deps.get`, `mix ecto.setup`.\n\n## Tests\n`mix test`. Tests need the database container running.\n\n## Pull requests\nOne change per PR, with a test, and a description that says why. Run `mix format` first.\n"
+   },
+   "r": "File created."
+  },
+  {
+   "a": "The guide is written from what the repo shows: the tool versions file, the compose database and the mix commands. I did not run the setup steps from scratch, and the repo has no CI file, so I left out any CI claims."
+  }
+ ],
+ "reference": {
+  "task_type": "docs",
+  "summary": "Wrote a contributing guide for an Elixir project covering environment setup from the pinned tool versions and the compose database, running tests, and what a good pull request looks like. The setup steps were not run from scratch, and CI is not mentioned because the repo has none.",
+  "facts": [
+   "CONTRIBUTING guide added",
+   "setup via pinned tool versions and docker compose database",
+   "mix test needs the database running",
+   "pull request expectations",
+   "steps not run from scratch",
+   "no CI claims"
+  ],
+  "specific": [
+   "contributor onboarding documentation"
+  ],
+  "decisions": [],
+  "skills": [
+   "technical writing",
+   "Elixir tooling"
+  ],
+  "not_skills": [
+   "Phoenix development",
+   "Docker image building",
+   "CI configuration"
+  ]
+ }
+}

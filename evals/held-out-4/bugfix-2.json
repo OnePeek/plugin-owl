@@ -1,0 +1,69 @@
+{
+ "id": "bugfix-2",
+ "type": "bugfix",
+ "cwd": "/work/timesheet-web",
+ "steps": [
+  {
+   "u": "The weekly total on the timesheet shows 7.499999 hours instead of 7.5. Please fix."
+  },
+  {
+   "t": "Grep",
+   "i": {
+    "pattern": "reduce|toFixed",
+    "path": "/work/timesheet-web/src"
+   },
+   "r": "src/totals.js:6: return entries.reduce((s, e) => s + e.minutes / 60, 0)"
+  },
+  {
+   "a": "Each entry's minutes are divided by 60 before summing, so floating point error builds up. Summing the minutes first and dividing once avoids it."
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/timesheet-web/src/totals.js",
+    "old_string": "return entries.reduce((s, e) => s + e.minutes / 60, 0)",
+    "new_string": "return entries.reduce((s, e) => s + e.minutes, 0) / 60"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/work/timesheet-web/src/totals.test.js",
+    "content": "test('sums to exactly 7.5', () => { expect(weekHours(Array(15).fill({minutes: 30}))).toBe(7.5) })"
+   },
+   "r": "File created."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx jest src/totals"
+   },
+   "r": "Tests: 4 passed"
+  }
+ ],
+ "reference": {
+  "task_type": "bugfix",
+  "summary": "Fixed a weekly timesheet total showing 7.499999 hours: each entry was converted to hours before summing, accumulating floating point error. Minutes are now summed first and divided once, with a regression test that passes.",
+  "facts": [
+   "total showed 7.499999 instead of 7.5",
+   "per entry division before summing",
+   "now sums minutes then divides once",
+   "regression test passes"
+  ],
+  "specific": [
+   "floating point accumulation",
+   "sum integers before dividing"
+  ],
+  "decisions": [],
+  "skills": [
+   "JavaScript",
+   "Jest"
+  ],
+  "not_skills": [
+   "TypeScript",
+   "React",
+   "SQL"
+  ]
+ }
+}

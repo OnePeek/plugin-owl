@@ -1,0 +1,71 @@
+{
+ "id": "refactor-2",
+ "type": "refactor",
+ "cwd": "/home/dev/src/quayside",
+ "steps": [
+  {
+   "u": "Convert BerthSchedule from a class component to a function component with hooks. Keep behaviour identical."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/quayside/src/components/BerthSchedule.jsx"
+   },
+   "r": "export default class BerthSchedule extends React.Component {\n  state = { berths: [], loading: true };\n  componentDidMount() { this.load(); this.timer = setInterval(() => this.load(), 30000); }\n  componentDidUpdate(prev) { if (prev.portId !== this.props.portId) this.load(); }\n  componentWillUnmount() { clearInterval(this.timer); }\n  load = async () => {\n    const berths = await getBerths(this.props.portId);\n    this.setState({ berths, loading: false });\n  };\n  render() {\n    if (this.state.loading) return <Spinner />;\n    return <ul className=\"berths\">{this.state.berths.map(b => <BerthRow key={b.id} berth={b} />)}</ul>;\n  }\n}"
+  },
+  {
+   "a": "The mount/update/unmount trio maps onto one `useEffect` keyed on `portId`: load immediately, start the 30s interval, clear it in cleanup. That also restarts the interval when the port changes, which the class version didn't do; harmless but worth noting."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/quayside/src/components/BerthSchedule.jsx",
+    "content": "import { useEffect, useState } from 'react';\n\nexport default function BerthSchedule({ portId }) {\n  const [berths, setBerths] = useState([]);\n  const [loading, setLoading] = useState(true);\n\n  useEffect(() => {\n    let cancelled = false;\n    const load = async () => {\n      const data = await getBerths(portId);\n      if (!cancelled) { setBerths(data); setLoading(false); }\n    };\n    load();\n    const timer = setInterval(load, 30000);\n    return () => { cancelled = true; clearInterval(timer); };\n  }, [portId]);\n\n  if (loading) return <Spinner />;\n  return (\n    <ul className=\"berths\">\n      {berths.map(b => <BerthRow key={b.id} berth={b} />)}\n    </ul>\n  );\n}\n"
+   },
+   "r": "The file has been overwritten."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "npx jest src/components/BerthSchedule 2>&1 | tail -20"
+   },
+   "r": " FAIL  src/components/BerthSchedule.test.jsx\n  \u25cf BerthSchedule \u203a matches snapshot after load\n\n    expect(received).toMatchSnapshot()\n\n    Snapshot name: `BerthSchedule matches snapshot after load 1`\n\n    - <BerthSchedule portId=\"rtm\">\n    -   <ul className=\"berths\">\n    + <ul className=\"berths\">\n\n  \u2713 shows spinner while loading (18 ms)\n  \u2713 reloads when portId changes (41 ms)\n  \u2713 clears interval on unmount (9 ms)\n\nTests:       1 failed, 3 passed, 4 total\nSnapshots:   1 failed, 1 total",
+   "err": true
+  },
+  {
+   "a": "Three behaviour tests pass (spinner, reload on portId change, interval cleared on unmount). The snapshot test fails only because it was taken with Enzyme's `mount`, which records the class component's wrapper element; the rendered <ul> output is the same. Updating it with `jest -u` would hide that distinction, so I'd rather you confirm before I regenerate it. Leaving it failing for now."
+  }
+ ],
+ "reference": {
+  "task_type": "refactor",
+  "summary": "Refactored a React class component for a berth schedule into a function component, replacing the mount, update and unmount lifecycle methods with one useEffect keyed on the port that loads, polls every 30 seconds and cleans up with a cancellation flag. Three behaviour tests pass, but one snapshot test still fails because the old snapshot recorded the class wrapper; it was left failing until the engineer approves updating it.",
+  "facts": [
+   "Lifecycle methods replaced with useState plus one useEffect depending on portId",
+   "Interval cleared and a cancelled flag set in the effect cleanup",
+   "Noted the interval now restarts when portId changes",
+   "Jest: 3 passed, 1 failed (snapshot)",
+   "Snapshot not updated; awaiting confirmation"
+  ],
+  "specific": [
+   "class-to-hooks component refactor (lifecycle to useEffect)",
+   "stale snapshot test after refactor"
+  ],
+  "decisions": [
+   {
+    "choice": "not regenerate the snapshot",
+    "reason": "regenerating it would hide the difference and the engineer should confirm first"
+   }
+  ],
+  "skills": [
+   "React hooks",
+   "JavaScript",
+   "Jest"
+  ],
+  "not_skills": [
+   "TypeScript migration",
+   "state management library",
+   "performance optimisation",
+   "CSS changes"
+  ]
+ }
+}

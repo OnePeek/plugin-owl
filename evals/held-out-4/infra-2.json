@@ -1,0 +1,61 @@
+{
+ "id": "infra-2",
+ "type": "infra",
+ "cwd": "/work/data-platform",
+ "steps": [
+  {
+   "u": "Add an S3 lifecycle rule in Terraform: move raw/ objects to Glacier after 90 days and delete after 400. Don't touch the processed/ prefix."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/data-platform/s3.tf"
+   },
+   "r": "resource \"aws_s3_bucket\" \"lake\" { bucket = \"lake-prod\" }"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/work/data-platform/s3.tf",
+    "old_string": "resource \"aws_s3_bucket\" \"lake\" { bucket = \"lake-prod\" }",
+    "new_string": "resource \"aws_s3_bucket\" \"lake\" { bucket = \"lake-prod\" }\n\nresource \"aws_s3_bucket_lifecycle_configuration\" \"lake\" {\n  bucket = aws_s3_bucket.lake.id\n  rule {\n    id     = \"raw-archive\"\n    status = \"Enabled\"\n    filter { prefix = \"raw/\" }\n    transition { days = 90, storage_class = \"GLACIER\" }\n    expiration { days = 400 }\n  }\n}"
+   },
+   "r": "ok"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "terraform validate && terraform plan -out=tf.plan | tail -6"
+   },
+   "r": "Success! The configuration is valid.\n  + aws_s3_bucket_lifecycle_configuration.lake will be created\nPlan: 1 to add, 0 to change, 0 to destroy."
+  },
+  {
+   "a": "The plan adds only the lifecycle configuration and touches nothing else. Because the rule filters on the raw/ prefix, processed/ objects are unaffected. I did not apply it."
+  }
+ ],
+ "reference": {
+  "task_type": "infra",
+  "summary": "Added a Terraform S3 lifecycle rule that moves raw-prefix objects to Glacier after 90 days and expires them after 400, leaving the processed prefix alone. Validate passes and the plan shows one resource added with no changes elsewhere; it was not applied.",
+  "facts": [
+   "lifecycle rule on the raw prefix",
+   "Glacier after 90 days, expire after 400",
+   "processed prefix not covered",
+   "validate passes",
+   "plan adds 1 resource",
+   "not applied"
+  ],
+  "specific": [
+   "S3 lifecycle policy in Terraform"
+  ],
+  "decisions": [],
+  "skills": [
+   "Terraform",
+   "AWS S3"
+  ],
+  "not_skills": [
+   "Kubernetes",
+   "Python",
+   "IAM policy design"
+  ]
+ }
+}

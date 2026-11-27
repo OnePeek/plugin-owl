@@ -2,14 +2,14 @@ Agents: first run `vanguard install` (OnePeek/vanguard), then read its `cards/<y
 
 # AGENTS.md: plugin-owl
 
-The Claude Code plug-in that captures work for OnePeek (tier 4). Hooks only enqueue; a background helper sends closed-vocabulary IDs and bands only, scrubbed on the device, signed and chained, through the MCP `log_work` tool (LLD `clients/worklog-plugin.md`). It is open source so anyone can audit what it sends. Built from: the plug-in section of `onepeek-docs/trd/services/clients.md`, the work-log plug-in spec, and `contracts/mcp/` (`log_work`).
+The Claude Code plug-in that captures work for OnePeek. Hooks only enqueue; a background helper sends exact usage numbers and, with consent, one cleaned summary, signed and chained, over HTTPS (LLD `clients/worklog-plugin.md` v2, contract `contracts/openapi/ai-plugin.yaml`). It is open source so anyone can audit what it sends. Built from: the plug-in section of `onepeek-docs/trd/services/clients.md`, the work-log plug-in spec, and `contracts/mcp/` (`log_work`).
 
 ## Start here
 - Docs pin: `docs-version.txt` (the onepeek-docs commit this repo builds against).
 - Layout:
-  - `hooks/`: hook registration (enqueue only); `skills/`: the plug-in's commands.
-  - `src/`: signals, vocabulary, record, scrub, sign, spool, auth, send (the only network module) and the helper (LLD §5.1).
-  - `tests/`: proofs that no source code, file content or secret ever leaves the device.
+  - `hooks/`: hook registration (enqueue only); `skills/onepeek-*`: the person-only commands.
+  - `src/`: hook, usage, summarise, clean, record, sign, keystore, spool, auth, send (the only network module), cli, state (LLD v2 §5); `prompt/summary.v1.txt` is the fixed summary prompt.
+  - `evals/`: the 30 sessions, the judge and the runner. `tests/`: unit, privacy, injection (50 transcripts), latency and eval-harness proofs that no source code, file content or secret leaves the device.
 
 1. **Read this file.**
 2. **Read this repo's guide** for the area you will touch:
@@ -23,7 +23,7 @@ The Claude Code plug-in that captures work for OnePeek (tier 4). Hooks only enqu
 **Documents:** this repo holds only its own guides (`docs/`). Anything shared by two or more repos goes in `onepeek-docs`. Never add plans, notes or summaries.
 
 ### Principles
-- **Privacy by construction.** Only closed-vocabulary tags, redacted on the device, signed and chained.
+- **Privacy by construction.** Exact usage numbers, plus (only with the person's yes) one cleaned summary written on the device; checked on the device, signed and chained.
 - **Never in the way.** When blocked, it stays silent and the person's session carries on.
 - **Auditable.** The code is public, and tests prove that no source code, file content or secret leaves the device.
 
@@ -36,8 +36,8 @@ These principles grow over time: when a review teaches us something, add it here
 - Pending founder decisions: none.
 
 ## Gates (run all before reporting; CI runs the same)
-- none yet (see below).
-- No build scripts exist yet. The first build task adds them exactly as the LLD's §5.1 layout and §15 testing plan require (`lint`, `typecheck`, `test`, and the privacy suite in `tests/privacy/`, which blocks every merge), plus the CI no-evasion check (WRK 38), and lists them here in the same pull request.
+- `npm run typecheck`, `npm run lint` (network only in `src/send/`, no-evasion WRK 38, no scoring words, env allow-list), `npm test` (build, then unit, privacy, injection, latency and eval-harness tests; the privacy suite blocks every merge). `npm run check` runs all three.
+- Release gates, run by hand or by the release job (they use your own `claude` tokens): `npm run eval` (30 sessions, 27 of 30 and 0 leaks) and `npm run eval:injection` (50 transcripts, 0 leaks). A change to `prompt/summary.v1.txt` needs both again.
 
 ## Branches and CI
 Follow `onepeek-docs/standards/branching-and-delivery.md`. Branch from `dev` as `<type>/<topic>` and open pull requests into `dev`; they run the fast checks. A release is a pull request from `dev` to `release`; merging it tags a version and publishes the plug-in release.
@@ -46,16 +46,17 @@ Follow `onepeek-docs/standards/branching-and-delivery.md`. Branch from `dev` as 
 - Dependabot opens grouped weekly updates into `dev`.
 
 ## Status
-Minimal scaffold: the plug-in manifest, an empty `hooks/hooks.json`, `redact/` and `tests/` (the first build moves to the LLD §5.1 `src/` layout and removes `redact/`). Code starts at low-level design, following the build order in TRD §9.1.
+The v2 collector is built (PR plugin-owl#66): software keys only (hardware keys, release packaging, OS smoke runs and the receipt check in `verify` are follow-ups).
 
 ## Repo traps
-- The first build task adds the build scripts its LLD names and lists them under "Gates" in the same pull request.
+- `dist/` is a build output and is gitignored: a marketplace install needs a release build.
+- Consent for summaries is asked by the helper on a real terminal only; no flag, skill or model can answer it.
 - **Generated code** from `onepeek-docs/contracts/` is never edited by hand.
 
 ## Docs gaps
 When the docs are silent or disagree, stop and fix the docs first (Vanguard `playbooks/build.md`, docs gaps). Never invent a requirement, field, limit or name.
 
 ## Never
-- Sending source code, file contents, prompts or anything outside the closed vocabulary.
+- Sending source code, file contents, prompts or anything outside the record schema (free text only in `insight`, only with consent).
 - Failing loudly: when blocked, it stays silent and the person uses tiers 1 to 3.
 - Holding any secret in this public repo.

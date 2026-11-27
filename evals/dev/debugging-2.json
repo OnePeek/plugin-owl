@@ -1,0 +1,69 @@
+{
+ "id": "debugging-2",
+ "type": "debugging",
+ "cwd": "/work/orders-svc",
+ "steps": [
+  {
+   "u": "Orders occasionally get created twice when the user double clicks Pay. Support has seen it a dozen times. Where does it come from? Just find the cause for now."
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/work/orders-svc/src/createOrder.ts"
+   },
+   "r": "const existing = await db.order.findFirst({ where:{ cartId } }); if (existing) return existing; return db.order.create({ data:{ cartId, ... } })"
+  },
+  {
+   "a": "Check-then-insert without a unique constraint: two concurrent requests could both see no existing order and both insert. Let me check the schema and try to reproduce it."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "psql -c \"\\d orders\""
+   },
+   "r": "Indexes: orders_pkey PRIMARY KEY (id)   -- no unique index on cart_id"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "node scripts/repro-double-submit.js"
+   },
+   "r": "created 2 orders for cart 17"
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "node scripts/repro-double-submit.js"
+   },
+   "r": "created 2 orders for cart 18"
+  },
+  {
+   "a": "Reproduced twice with two parallel submits for the same cart, so the cause is confirmed. The remedy would be a unique index on the cart plus handling of the unique violation, but you asked only for the cause, so I have changed nothing."
+  }
+ ],
+ "reference": {
+  "task_type": "debugging",
+  "summary": "Found the cause of duplicate orders on double click: a check-then-insert race with no unique constraint on the cart, reproduced twice with parallel submits; nothing was changed because only the cause was requested.",
+  "facts": [
+   "duplicate orders on double click",
+   "check then insert race",
+   "no unique index on cart id",
+   "reproduced twice with parallel submits",
+   "no code changed"
+  ],
+  "specific": [
+   "check-then-insert race condition",
+   "missing unique constraint"
+  ],
+  "decisions": [],
+  "skills": [
+   "PostgreSQL",
+   "race condition debugging"
+  ],
+  "not_skills": [
+   "Docker",
+   "Kubernetes",
+   "React"
+  ]
+ }
+}

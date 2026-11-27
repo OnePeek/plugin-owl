@@ -1,0 +1,81 @@
+{
+ "id": "tests-3",
+ "type": "tests",
+ "cwd": "/home/dev/src/tidewatch",
+ "steps": [
+  {
+   "u": "Coverage on tidewatch/reconcile.py is 61%. Bring it up, focusing on the branches we never hit."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest --cov=tidewatch.reconcile --cov-report=term-missing tests/test_reconcile.py -q 2>&1 | tail -4"
+   },
+   "r": "Name                     Stmts   Miss Branch BrPart  Cover   Missing\n------------------------------------------------------------------------\ntidewatch/reconcile.py      88     31     34      9    61%   42-51, 66->70, 74-88, 101-109\n4 passed in 0.62s"
+  },
+  {
+   "t": "Read",
+   "i": {
+    "file_path": "/home/dev/src/tidewatch/tidewatch/reconcile.py"
+   },
+   "r": "40 def reconcile(ledger: list[Entry], bank: list[Txn], tolerance_cents: int = 0) -> Report:\n41     ...\n42     if not ledger and not bank:\n43         return Report.empty()\n...\n66     if abs(e.amount_cents - t.amount_cents) <= tolerance_cents:\n...\n74     # duplicate bank transactions with same reference\n...\n101 def _match_by_date_window(e, candidates, days=3):"
+  },
+  {
+   "a": "Missing: the empty-input early return (42-51), the tolerance branch (66->70), duplicate bank references (74-88) and the date-window fallback (101-109). I'll add a parametrized test for tolerance and focused tests for the others, using a small `make_entry`/`make_txn` fixture factory."
+  },
+  {
+   "t": "Write",
+   "i": {
+    "file_path": "/home/dev/src/tidewatch/tests/test_reconcile_branches.py",
+    "content": "import datetime as dt\nimport pytest\nfrom tidewatch.reconcile import reconcile, Report\n\nD = dt.date(2026, 11, 2)\n\n\ndef test_empty_inputs_return_empty_report():\n    assert reconcile([], []) == Report.empty()\n\n\n@pytest.mark.parametrize('diff,tol,matched', [(0, 0, True), (3, 5, True), (6, 5, False)])\ndef test_tolerance(make_entry, make_txn, diff, tol, matched):\n    r = reconcile([make_entry(1000, D, 'A1')], [make_txn(1000 + diff, D, 'A1')], tolerance_cents=tol)\n    assert (len(r.matched) == 1) is matched\n\n\ndef test_duplicate_bank_reference_flagged(make_entry, make_txn):\n    r = reconcile([make_entry(500, D, 'R9')], [make_txn(500, D, 'R9'), make_txn(500, D, 'R9')])\n    assert len(r.matched) == 1\n    assert [t.reference for t in r.duplicates] == ['R9']\n\n\ndef test_date_window_fallback_matches_without_reference(make_entry, make_txn):\n    r = reconcile([make_entry(700, D, None)], [make_txn(700, D + dt.timedelta(days=2), None)])\n    assert len(r.matched) == 1\n\n\ndef test_date_window_excludes_outside(make_entry, make_txn):\n    r = reconcile([make_entry(700, D, None)], [make_txn(700, D + dt.timedelta(days=4), None)])\n    assert r.unmatched_ledger and r.unmatched_bank\n"
+   },
+   "r": "File created successfully at: /home/dev/src/tidewatch/tests/test_reconcile_branches.py"
+  },
+  {
+   "t": "Edit",
+   "i": {
+    "file_path": "/home/dev/src/tidewatch/tests/conftest.py",
+    "old_string": "import pytest\n",
+    "new_string": "import pytest\nfrom tidewatch.models import Entry, Txn\n\n\n@pytest.fixture\ndef make_entry():\n    return lambda cents, date, ref: Entry(amount_cents=cents, date=date, reference=ref)\n\n\n@pytest.fixture\ndef make_txn():\n    return lambda cents, date, ref: Txn(amount_cents=cents, date=date, reference=ref)\n"
+   },
+   "r": "The file has been updated."
+  },
+  {
+   "t": "Bash",
+   "i": {
+    "command": "pytest --cov=tidewatch.reconcile --cov-report=term-missing tests/ -q 2>&1 | tail -4"
+   },
+   "r": "Name                     Stmts   Miss Branch BrPart  Cover   Missing\n------------------------------------------------------------------------\ntidewatch/reconcile.py      88      4     34      2    94%   83-84, 107->exit\n11 passed in 0.81s"
+  },
+  {
+   "a": "Added 7 test cases (one parametrized over three tolerance cases) plus `make_entry`/`make_txn` fixtures. reconcile.py coverage went from 61% to 94%; the remaining misses are a logging-only branch and a defensive early exit. All 11 tests pass."
+  }
+ ],
+ "reference": {
+  "task_type": "tests",
+  "summary": "Raised branch coverage of a Python reconciliation module from 61% to 94% with pytest tests for previously unhit branches: empty inputs, a parametrized amount tolerance test, duplicate bank references, and the date window fallback inside and outside the window, with fixture factories in the shared conftest. All 11 tests pass.",
+  "facts": [
+   "Started at 61% coverage with term-missing report",
+   "New tests/test_reconcile_branches.py covering empty input, tolerance, duplicates, date-window fallback",
+   "Parametrized tolerance test with three cases",
+   "Added make_entry and make_txn fixtures to conftest.py",
+   "Coverage 94%, 11 passed"
+  ],
+  "specific": [
+   "coverage-driven branch testing with pytest",
+   "parametrized tests and fixture factories"
+  ],
+  "decisions": [],
+  "skills": [
+   "pytest",
+   "coverage analysis",
+   "Python"
+  ],
+  "not_skills": [
+   "fixing bugs in reconcile",
+   "mutation testing",
+   "CI configuration",
+   "refactoring"
+  ]
+ }
+}
